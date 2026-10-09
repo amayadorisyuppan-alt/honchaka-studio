@@ -1,0 +1,242 @@
+/* 縦中横用の詰め数字フォント。scripts/build-tcy-fonts.py が作る(手で編集しない)。
+   理由と仕組みはそのスクリプトの頭に書いてある */
+@font-face {
+  font-family: 'amayadori-tcy-serif';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./tcy/serif-digits.woff2') format('woff2');
+  unicode-range: U+0030-0039;
+}
+@font-face {
+  font-family: 'amayadori-tcy-serif';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./tcy/serif-bang.woff2') format('woff2');
+  unicode-range: U+FF01, U+FF1F;
+}
+@font-face {
+  font-family: 'amayadori-tcy-koburi';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./tcy/koburi-digits.woff2') format('woff2');
+  unicode-range: U+0030-0039;
+}
+@font-face {
+  font-family: 'amayadori-tcy-koburi';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./tcy/koburi-bang.woff2') format('woff2');
+  unicode-range: U+FF01, U+FF1F;
+}
+@font-face {
+  font-family: 'amayadori-tcy-shippori';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./tcy/shippori-digits.woff2') format('woff2');
+  unicode-range: U+0030-0039;
+}
+@font-face {
+  font-family: 'amayadori-tcy-shippori';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./tcy/shippori-bang.woff2') format('woff2');
+  unicode-range: U+FF01, U+FF1F;
+}
+@font-face {
+  font-family: 'amayadori-tcy-zenOld';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./tcy/zenOld-digits.woff2') format('woff2');
+  unicode-range: U+0030-0039;
+}
+@font-face {
+  font-family: 'amayadori-tcy-zenOld';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./tcy/zenOld-bang.woff2') format('woff2');
+  unicode-range: U+FF01, U+FF1F;
+}
+@font-face {
+  font-family: 'amayadori-tcy-bizMincho';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./tcy/bizMincho-digits.woff2') format('woff2');
+  unicode-range: U+0030-0039;
+}
+@font-face {
+  font-family: 'amayadori-tcy-bizMincho';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./tcy/bizMincho-bang.woff2') format('woff2');
+  unicode-range: U+FF01, U+FF1F;
+}
+@font-face {
+  font-family: 'amayadori-tcy-kaisei';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./tcy/kaisei-digits.woff2') format('woff2');
+  unicode-range: U+0030-0039;
+}
+@font-face {
+  font-family: 'amayadori-tcy-kaisei';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./tcy/kaisei-bang.woff2') format('woff2');
+  unicode-range: U+FF01, U+FF1F;
+}
+@font-face {
+  font-family: 'amayadori-tcy-klee';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./tcy/klee-digits.woff2') format('woff2');
+  unicode-range: U+0030-0039;
+}
+@font-face {
+  font-family: 'amayadori-tcy-klee';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./tcy/klee-bang.woff2') format('woff2');
+  unicode-range: U+FF01, U+FF1F;
+}
+@font-face {
+  font-family: 'amayadori-tcy-gothic';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./tcy/gothic-digits.woff2') format('woff2');
+  unicode-range: U+0030-0039;
+}
+@font-face {
+  font-family: 'amayadori-tcy-gothic';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./tcy/gothic-bang.woff2') format('woff2');
+  unicode-range: U+FF01, U+FF1F;
+}
+@font-face {
+  font-family: 'amayadori-tcy-bizGothic';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./tcy/bizGothic-digits.woff2') format('woff2');
+  unicode-range: U+0030-0039;
+}
+@font-face {
+  font-family: 'amayadori-tcy-bizGothic';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./tcy/bizGothic-bang.woff2') format('woff2');
+  unicode-range: U+FF01, U+FF1F;
+}
+@font-face {
+  font-family: 'amayadori-tcy-zenKaku';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./tcy/zenKaku-digits.woff2') format('woff2');
+  unicode-range: U+0030-0039;
+}
+@font-face {
+  font-family: 'amayadori-tcy-zenKaku';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./tcy/zenKaku-bang.woff2') format('woff2');
+  unicode-range: U+FF01, U+FF1F;
+}
+@font-face {
+  font-family: 'amayadori-tcy-plex';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./tcy/plex-digits.woff2') format('woff2');
+  unicode-range: U+0030-0039;
+}
+@font-face {
+  font-family: 'amayadori-tcy-plex';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./tcy/plex-bang.woff2') format('woff2');
+  unicode-range: U+FF01, U+FF1F;
+}
+@font-face {
+  font-family: 'amayadori-tcy-yuji';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./tcy/yuji-digits.woff2') format('woff2');
+  unicode-range: U+0030-0039;
+}
+@font-face {
+  font-family: 'amayadori-tcy-yuji';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./tcy/yuji-bang.woff2') format('woff2');
+  unicode-range: U+FF01, U+FF1F;
+}
+@font-face {
+  font-family: 'amayadori-tcy-maru';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./tcy/maru-digits.woff2') format('woff2');
+  unicode-range: U+0030-0039;
+}
+@font-face {
+  font-family: 'amayadori-tcy-maru';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./tcy/maru-bang.woff2') format('woff2');
+  unicode-range: U+FF01, U+FF1F;
+}
+@font-face {
+  font-family: 'amayadori-tcy-dot';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./tcy/dot-digits.woff2') format('woff2');
+  unicode-range: U+0030-0039;
+}
+@font-face {
+  font-family: 'amayadori-tcy-dot';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./tcy/dot-bang.woff2') format('woff2');
+  unicode-range: U+FF01, U+FF1F;
+}
+@font-face {
+  font-family: 'amayadori-tcy-reggae';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./tcy/reggae-digits.woff2') format('woff2');
+  unicode-range: U+0030-0039;
+}
+@font-face {
+  font-family: 'amayadori-tcy-reggae';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./tcy/reggae-bang.woff2') format('woff2');
+  unicode-range: U+FF01, U+FF1F;
+}

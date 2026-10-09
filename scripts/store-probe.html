@@ -1,0 +1,26 @@
+<!doctype html>
+<!--
+  入口の3つのボタン(新規作成／続けて作る／サンプルを見る)が、
+  **前の本を本当に消し切っているか**を機械で測るための、検査専用のページ。
+
+  「前もあったんだけど、エラーが直ってない」(2026-08-21 ユーザー)と言われた件。
+  目で見て確かめるかぎり同じ取りこぼしはまた起きるので、印をつけたデータを流し込んで
+  数える。
+
+  **IndexedDB を書き換える。** 素の Chrome プロファイルで開くこと
+  (scripts/check-typeset.py は使い捨てのプロファイルで開く)。
+-->
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <title>PROBE-RUNNING</title>
+    <style>
+      body { font: 12px/1.6 monospace; margin: 0; padding: 8px; }
+      #probe-result { white-space: pre-wrap; }
+    </style>
+  </head>
+  <body>
+    <pre id="probe-result"></pre>
+    <script type="module" src="./store-probe.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,36 @@
+<!doctype html>
+<!--
+  **原稿を取り込み直しても、挿絵・コラム・背景が残っているか**を機械で測る、
+  検査専用のページ。
+
+  「挿絵ページは残っているし、背景にも画像があったのだが、コラムだけはなくなっていた」
+  (2026-08-21 ユーザー報告)。目で見て確かめるかぎり同じ取りこぼしはまた起きるので、
+  取り込みの前と後で、設定に持っている数と紙に出た数の両方を数える。
+
+  **IndexedDB を書き換える。** 素の Chrome プロファイルで開くこと
+  (scripts/check-import.py は使い捨てのプロファイルで開く)。
+-->
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <!-- **これが無いとサンプルの絵が1枚も入らない。**(2026-08-21 実測)
+         sampleArt.ts は `fetch('covers/…')` と**相対**で取りに行く(配布先の
+         サブディレクトリでも動くようにするため)。このページは /scripts/ の下に
+         あるので、そのままだと /scripts/covers/… を引きにいき、開発サーバーは
+         そこに index.html を返す(SPA の受け皿)。**404 にならない**ので
+         loadSampleArt は成功したつもりになり、data:text/html を絵として抱える。
+         すると挿絵だけが isRenderableImage で落とされ、組版に1枚も出てこない
+         (挿絵 3枚 → 紙に 0枚)。base を根に置いて、アプリと同じ絵を取らせる -->
+    <base href="/" />
+    <title>PROBE-RUNNING</title>
+    <style>
+      body { font: 12px/1.6 monospace; margin: 0; padding: 8px; }
+      #probe-result { white-space: pre-wrap; }
+    </style>
+  </head>
+  <body>
+    <pre id="probe-result"></pre>
+    <!-- base を根にしたので、こちらは絶対で書く(./ だと /import-probe.ts を引く) -->
+    <script type="module" src="/scripts/import-probe.ts"></script>
+  </body>
+</html>

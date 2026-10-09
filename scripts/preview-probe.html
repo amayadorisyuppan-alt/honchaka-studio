@@ -1,0 +1,31 @@
+<!doctype html>
+<!--
+  生プレビュー(CoreViewer)を機械で測るための、検査専用のページ。
+
+  紙(PDF)は scripts/check-typeset.py が Vivliostyle CLI で測れるが、
+  **画面のほうを測る道がこれまで無かった。** 署名の行末寄せが
+  「紙では効いて画面では効いていない」と報告されたとき、切り分けが目視しかできない。
+
+  このページは vite の開発サーバーから開く:
+    http://localhost:PORT/scripts/preview-probe.html?wm=v
+  測り終わると #probe-result に JSON が入り、document.title が
+  「PROBE-DONE」か「PROBE-FAIL」に変わる。
+-->
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <title>PROBE-RUNNING</title>
+    <style>
+      html, body { margin: 0; height: 100%; }
+      /* 版面を測るだけなので見せる必要はないが、
+         display:none にすると組版が走らない(寸法が全部0になる) */
+      #probe-viewport { position: absolute; inset: 0; overflow: auto; }
+      #probe-result { position: absolute; z-index: 9; inset: auto 0 0 0; font: 12px monospace; white-space: pre-wrap; background: #fff; }
+    </style>
+  </head>
+  <body>
+    <div id="probe-viewport"></div>
+    <pre id="probe-result"></pre>
+    <script type="module" src="./preview-probe.ts"></script>
+  </body>
+</html>

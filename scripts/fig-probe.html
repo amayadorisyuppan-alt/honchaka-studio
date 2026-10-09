@@ -1,0 +1,22 @@
+<!doctype html>
+<!--
+  文中の画像(figure.fig)が、ページの中でどこに置かれるかを測る検査用のページ。
+    http://localhost:PORT/scripts/fig-probe.html?at=12
+  測り終わると #probe-result に JSON が入り、title が PROBE-DONE になる。
+-->
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <title>PROBE-RUNNING</title>
+    <style>
+      html, body { margin: 0; height: 100%; }
+      #probe-viewport { position: absolute; inset: 0; overflow: auto; }
+      #probe-result { position: absolute; z-index: 9; inset: auto 0 0 0; font: 12px monospace; white-space: pre-wrap; background: #fff; }
+    </style>
+  </head>
+  <body>
+    <div id="probe-viewport"></div>
+    <pre id="probe-result"></pre>
+    <script type="module" src="./fig-probe.ts"></script>
+  </body>
+</html>

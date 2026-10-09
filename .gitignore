@@ -1,0 +1,32 @@
+# 依存とビルド成果物
+node_modules/
+dist/
+# 別の版の組み立て(vite.config.ts の VITE_EDITION)。標準の版の dist と取り違えないよう置き場所を分けている
+dist-*/
+*.tsbuildinfo
+
+# 検証用の入出力。利用者の原稿そのものが入るので絶対に上げない
+# (to claude/ は 2026-09-26 に中身をリポジトリの外の非公開の資料フォルダへ移して消した。
+#  実原稿で測るときだけ一時的に作る置き場として、除外は残しておく)
+to claude/
+out.html
+out.pdf
+*.epub
+
+# エディタ・OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# 自分用に足したプリセット画像。**配布ビルドには入れない。**
+# scripts/add-my-covers.py が作るもので、同梱の45枚(manifest.json)には触らない
+public/covers/mine-*.jpg
+public/covers/thumbs/mine-*.jpg
+public/covers/manifest.mine.json
+
+# ローカル設定
+.env
+.env.*
+*.local
+__pycache__/

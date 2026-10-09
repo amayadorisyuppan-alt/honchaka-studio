@@ -1,0 +1,23 @@
+<!doctype html>
+<!--
+  縦組みの本で、表紙の書き出しの倍率(outputScale)を測る、検査専用のページ(2026-10-03)。
+  ふだんは scripts/check-cover-scale.py が、組み上げたこのページを小さな受け口つきで開いて回す。
+  IndexedDB は触らない(models と cover/render だけを呼ぶ)。
+-->
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <base href="/" />
+    <title>PROBE-RUNNING</title>
+    <style>
+      body { font: 12px/1.6 monospace; margin: 0; padding: 8px; }
+      #probe-result { white-space: pre-wrap; }
+      #probe-canvas { display: none; }
+    </style>
+  </head>
+  <body>
+    <pre id="probe-result"></pre>
+    <canvas id="probe-canvas"></canvas>
+    <script type="module" src="/scripts/scale-probe.ts"></script>
+  </body>
+</html>

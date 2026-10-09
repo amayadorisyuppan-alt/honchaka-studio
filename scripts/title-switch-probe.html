@@ -1,0 +1,22 @@
+<!doctype html>
+<!--
+  縦組みの本で、書名の向きを切り替えても組み直さないことと、大扉が紙と同じ位置に出ることを測る、検査専用のページ(2026-10-03)。
+  ふだんは scripts/check-title-switch.py が、組み上げたこのページを小さな受け口つきで開いて回す。
+  IndexedDB は触らない(組版HTMLと下見の塗りのパッチだけを呼ぶ)。
+-->
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <base href="/" />
+    <title>PROBE-RUNNING</title>
+    <style>
+      body { font: 12px/1.6 monospace; margin: 0; padding: 8px; }
+      #probe-result { white-space: pre-wrap; }
+      #probe-result { position: fixed; z-index: 9; inset: auto 0 0 0; background: #fff; max-height: 30vh; overflow: auto; }
+    </style>
+  </head>
+  <body>
+    <pre id="probe-result"></pre>
+    <script type="module" src="/scripts/title-switch-probe.ts"></script>
+  </body>
+</html>

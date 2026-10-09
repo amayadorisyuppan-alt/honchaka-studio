@@ -1,0 +1,171 @@
+<!doctype html>
+<!-- リンク用バナーの版下。scripts/build-banners.mjs がこれを開いて1枚ずつ撮る。
+     色は app.css の明るいテーマの実値(accent #0e7c72 / bg #faf7e9 / 墨 #1f2b33 系)。
+     「愛嬌のあるバナーに」(2026-09-04 ユーザー要望)——アプリのかくれカエルを主役にする。 -->
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<!-- 題字はスタジオの題字と同じ Zen Old Mincho(2026-09-04「スタジオもこのテイストに」で統一) -->
+<link rel="stylesheet" href="../node_modules/@fontsource/zen-old-mincho/700.css" />
+<link rel="stylesheet" href="../node_modules/@fontsource/zen-old-mincho/japanese-700.css" />
+<link rel="stylesheet" href="../node_modules/@fontsource/zen-maru-gothic/700.css" />
+<link rel="stylesheet" href="../node_modules/@fontsource/zen-maru-gothic/japanese-700.css" />
+<style>
+  :root {
+    --mint: #0e7c72;
+    --mint-deep: #0a6259;
+    --cream: #faf7e9;
+    --ink: #22313a;
+    --navy: #112834;
+  }
+  body { margin: 24px; background: #ddd; font-family: 'Zen Old Mincho', serif; }
+  .banner { position: relative; overflow: hidden; margin-bottom: 20px; }
+  .b200 { width: 200px; height: 40px; }
+  .b468 { width: 468px; height: 60px; }
+
+  svg.frog { position: absolute; }
+  .title { font-weight: 700; letter-spacing: 0.01em; }
+  .sub { font-family: 'Zen Maru Gothic', sans-serif; font-weight: 700; }
+
+  /* ── 案A: クリームの題箋。**ロゴ「本ちゃか」の絵と字**(2026-10-07 ユーザー決定) ───────── */
+  /* 前は CSS で描いた本棚+明朝の題字+右からのぞくカエル。ロゴの絵にカエルがいるので、のぞくカエルは外した */
+  .va { background: var(--cream); border: 1.5px solid var(--mint); border-radius: 8px; }
+  .va .mark { position: absolute; display: block; }
+  .va .title { color: var(--ink); position: absolute; white-space: nowrap; font-family: 'Zen Maru Gothic', sans-serif; letter-spacing: 0.04em; }
+  .va .sub { color: var(--mint-deep); position: absolute; white-space: nowrap; }
+  .va468 .mark { left: 10px; top: 5px; height: 50px; }
+  .va468 .title { left: 70px; top: 3px; font-size: 27px; }
+  .va468 .sub { left: 72px; top: 39px; font-size: 11.5px; }
+  .va200 .mark { left: 5px; top: 4px; height: 32px; }
+  .va200 .title { left: 44px; top: 2px; font-size: 17px; }
+  .va200 .sub { left: 45px; top: 25px; font-size: 7.2px; }
+
+  /* ── 案B: ミント地に雨。白抜き題字、カエルは角でこちらを見る ─────── */
+  .vb { background: linear-gradient(135deg, #10877c, #0a6259); border-radius: 8px; }
+  .vb .rain { position: absolute; inset: 0; opacity: 0.35; }
+  .vb .title { color: #fff; position: absolute; white-space: nowrap; text-shadow: 0 1px 0 rgba(0,0,0,0.15); }
+  .vb .sub { color: #d9efe7; position: absolute; white-space: nowrap; }
+  .vb468 .title { left: 16px; top: 7px; font-size: 24px; }
+  .vb468 .sub { left: 18px; top: 38px; font-size: 12px; }
+  .vb200 .title { left: 9px; top: 5px; font-size: 13.5px; }
+  .vb200 .sub { left: 10px; top: 24px; font-size: 8px; }
+
+  /* ── 案C: 蓮の葉バッジ。丸い判の中に葉とカエル(アプリのFrogBadgeそのまま) ── */
+  .vc { background: var(--cream); border: 1.5px solid var(--mint); border-radius: 999px; }
+  .vc .badge { position: absolute; border-radius: 50%; background: var(--mint); display: grid; place-items: center; }
+  .vc .title { color: var(--ink); position: absolute; white-space: nowrap; }
+  .vc .sub { color: var(--mint-deep); position: absolute; white-space: nowrap; }
+  .vc468 .badge { left: 8px; top: 6px; width: 48px; height: 48px; }
+  .vc468 .title { left: 66px; top: 7px; font-size: 23px; }
+  .vc468 .sub { left: 68px; top: 38px; font-size: 12px; }
+  .vc200 .badge { left: 5px; top: 6px; width: 28px; height: 28px; }
+  .vc200 .title { left: 38px; top: 7px; font-size: 11.5px; }
+  .vc200 .sub { left: 39px; top: 24px; font-size: 7px; }
+</style>
+</head>
+<body>
+
+<!-- ════ 案A(ロゴ「本ちゃか」) ════ -->
+<div class="banner b468 va va468" id="a-468">
+  <img class="mark" src="../public/brand/honchaka-mark.svg" alt="" />
+  <span class="title">本ちゃか</span>
+  <span class="sub">ひっちゃか本づくりスタジオ　紙の本・電子書籍　ぜんぶ無料</span>
+</div>
+
+<div class="banner b200 va va200" id="a-200">
+  <img class="mark" src="../public/brand/honchaka-mark.svg" alt="" />
+  <span class="title">本ちゃか</span>
+  <span class="sub">ひっちゃか本づくりスタジオ</span>
+</div>
+
+<!-- ════ 案B ════ -->
+<div class="banner b468 vb vb468" id="b-468">
+  <svg class="rain" width="468" height="60">
+    <g stroke="#bfe6dc" stroke-width="1.2" stroke-linecap="round">
+      <line x1="330" y1="6" x2="322" y2="20" /><line x1="360" y1="14" x2="352" y2="28" />
+      <line x1="395" y1="4" x2="387" y2="18" /><line x1="425" y1="18" x2="417" y2="32" />
+      <line x1="445" y1="6" x2="437" y2="20" /><line x1="378" y1="34" x2="370" y2="48" />
+      <line x1="412" y1="40" x2="404" y2="54" /><line x1="448" y1="36" x2="440" y2="50" />
+    </g>
+  </svg>
+  <span class="title">ひっちゃか本づくりスタジオ</span>
+  <span class="sub">縦書き・横書き／紙の本・電子書籍　ぜんぶ無料</span>
+  <svg class="frog" style="right:6px; bottom:-8px; color:#eafff7;" width="52" height="39" viewBox="0 0 54 40" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round">
+    <ellipse cx="27" cy="30" rx="13" ry="9" fill="#0a6259" />
+    <circle cx="21.5" cy="21.5" r="3.4" fill="#0a6259" />
+    <circle cx="32.5" cy="21.5" r="3.4" fill="#0a6259" />
+    <circle cx="21.5" cy="21.2" r="1" fill="currentColor" stroke="none" />
+    <path d="M30.1 21.6 Q32.5 19.6 34.9 21.6" />
+    <path d="M20 32 Q27 36 34 32" />
+  </svg>
+</div>
+
+<div class="banner b200 vb vb200" id="b-200">
+  <svg class="rain" width="200" height="40">
+    <g stroke="#bfe6dc" stroke-width="1" stroke-linecap="round">
+      <line x1="150" y1="4" x2="144" y2="14" /><line x1="172" y1="10" x2="166" y2="20" />
+      <line x1="188" y1="3" x2="182" y2="13" /><line x1="164" y1="24" x2="158" y2="34" />
+      <line x1="190" y1="22" x2="184" y2="32" />
+    </g>
+  </svg>
+  <span class="title">ひっちゃか本づくりスタジオ</span>
+  <span class="sub">紙の本・電子書籍　ぜんぶ無料</span>
+  <svg class="frog" style="right:2px; bottom:-6px; color:#eafff7;" width="34" height="26" viewBox="0 0 54 40" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round">
+    <ellipse cx="27" cy="30" rx="13" ry="9" fill="#0a6259" />
+    <circle cx="21.5" cy="21.5" r="3.4" fill="#0a6259" />
+    <circle cx="32.5" cy="21.5" r="3.4" fill="#0a6259" />
+    <circle cx="21.5" cy="21.2" r="1.2" fill="currentColor" stroke="none" />
+    <path d="M30.1 21.6 Q32.5 19.6 34.9 21.6" />
+    <path d="M20 32 Q27 36 34 32" />
+  </svg>
+</div>
+
+<!-- ════ 案C ════ -->
+<div class="banner b468 vc vc468" id="c-468">
+  <span class="badge">
+    <svg width="34" height="31" viewBox="0 0 28 26" fill="none" stroke="#fff" stroke-width="1.4" stroke-linecap="round">
+      <path d="M4 8 Q7 3 14 3 Q22 3 25 8 Q20 10 14 9 Q8 10 4 8 Z" />
+      <path d="M7 9 Q6 12 7 14" />
+      <ellipse cx="14" cy="19" rx="6" ry="4.6" />
+      <circle cx="11.6" cy="15.4" r="1.5" />
+      <circle cx="16.4" cy="15.4" r="1.5" />
+      <path d="M11 20.5 Q14 22 17 20.5" />
+      <path d="M8 23.5 H20" />
+    </svg>
+  </span>
+  <span class="title">ひっちゃか本づくりスタジオ</span>
+  <span class="sub">縦書き・横書き／紙の本・電子書籍　ぜんぶ無料</span>
+</div>
+
+<div class="banner b200 vc vc200" id="c-200">
+  <span class="badge">
+    <svg width="22" height="20" viewBox="0 0 28 26" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round">
+      <path d="M4 8 Q7 3 14 3 Q22 3 25 8 Q20 10 14 9 Q8 10 4 8 Z" />
+      <path d="M7 9 Q6 12 7 14" />
+      <ellipse cx="14" cy="19" rx="6" ry="4.6" />
+      <circle cx="11.6" cy="15.4" r="1.5" />
+      <circle cx="16.4" cy="15.4" r="1.5" />
+      <path d="M11 20.5 Q14 22 17 20.5" />
+    </svg>
+  </span>
+  <span class="title">ひっちゃか本づくりスタジオ</span>
+  <span class="sub">紙の本・電子書籍　ぜんぶ無料</span>
+</div>
+
+<!-- ════ OGP 1200×630(ロゴ「本ちゃか」。2026-10-07) ════ -->
+<div class="banner" id="ogp" style="width:1200px; height:630px; background: var(--cream); border: 10px solid var(--mint); box-sizing: border-box;">
+  <!-- 外の角は四角(角を丸めると外側に版下の灰色の地が写る。2026-10-07「ちゃんと四角く囲って」)。
+       内側の角だけ丸める: 角丸の箱の影を緑で外へ広げて、枠と内角のあいだを埋める -->
+  <div style="position:absolute; inset:0; border-radius:16px; box-shadow:0 0 0 24px var(--mint);"></div>
+  <!-- ロゴの絵(左)。前は CSS の本棚と右下のカエルだったが、どちらもロゴの絵に入っている -->
+  <img src="../public/brand/honchaka-mark.svg" alt="" style="position:absolute; left:70px; top:120px; height:360px;" />
+  <!-- 題字 -->
+  <div class="title" style="position:absolute; left:500px; top:118px; font-family:'Zen Maru Gothic', sans-serif; font-size:128px; color:var(--ink); letter-spacing:0.04em; line-height:1;">本ちゃか</div>
+  <div class="sub" style="position:absolute; left:506px; top:272px; font-size:34px; color:var(--mint-deep); letter-spacing:0.08em;">ひっちゃか本づくりスタジオ</div>
+  <div class="sub" style="position:absolute; left:506px; top:340px; font-size:28px; color:#3a4a52;">縦書き・横書き／紙の本・電子書籍</div>
+  <!-- 金茶のチップ(ロゴの金茶の本と同じさし色) -->
+  <div class="sub" style="position:absolute; left:506px; top:404px; font-size:25px; color:#22313a; background:#eede9d; border:2.5px solid #c8a13a; border-radius:999px; padding:8px 24px;">ぜんぶ無料・ブラウザだけで KDP 入稿データ</div>
+</div>
+
+</body>
+</html>

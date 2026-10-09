@@ -1,0 +1,35 @@
+<!doctype html>
+<!--
+  **組み直しを繰り返しても遅くならないか**を機械で測るための、検査専用のページ。
+
+  ユーザー報告(2026-08-21)「プレビューが立ち上がるまでに10分以上」「2ページ目でフリーズ」は、
+  まっさらなサンプルでは再現しない(4秒で43ページ)。**使っているうちに溜まる何か**を疑う以上、
+  1回だけ組んで測っても何も出ない。だから**同じ組み直しを何度も回して、1回あたりの秒数を並べる。**
+
+  開発サーバーから開く:
+    http://localhost:PORT/scripts/rebuild-probe.html?rounds=10&mode=leak
+  測り終わると #probe-result に JSON が入り、document.title が
+  「PROBE-DONE」か「PROBE-FAIL」に変わる。
+  ふだんは scripts/check-typeset.py --only-screen が headless Chrome ごと回す。
+
+  **入れ子はアプリと同じにする。**(.preview-viewport > 素のdiv)
+  アプリの `.main[hidden]` を再現するために、外側にもう一枚 #probe-stage を噛ませてある。
+-->
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <title>PROBE-RUNNING</title>
+    <style>
+      html, body { margin: 0; height: 100%; }
+      #probe-stage { position: absolute; inset: 0 0 120px 0; }
+      #probe-stage[hidden] { display: none; }
+      #probe-viewport { position: absolute; inset: 0; overflow: auto; }
+      #probe-result { position: absolute; z-index: 9; inset: auto 0 0 0; max-height: 120px; overflow: auto; font: 12px monospace; white-space: pre-wrap; background: #fff; }
+    </style>
+  </head>
+  <body>
+    <div id="probe-stage"><div id="probe-viewport"></div></div>
+    <pre id="probe-result"></pre>
+    <script type="module" src="./rebuild-probe.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,27 @@
+<!doctype html>
+<!--
+  トップの「めくれる本」用の撮影台(scripts/hero-probe.ts)。
+  vite の開発サーバーから開く:
+    http://localhost:5173/scripts/hero-probe.html
+  組み上がると document.title が PROBE-DONE になり、
+  window.__hero.go(i) でページを送れる。撮影は build-hero-pages.mjs が行う。
+-->
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <!-- サンプルの絵は fetch('covers/…') と相対で読む(sampleArt.ts)。
+         このページは /scripts/ 配下なので、base を / に戻しておく -->
+    <base href="/" />
+    <title>PROBE-RUNNING</title>
+    <style>
+      html, body { margin: 0; height: 100%; background: #ffffff; }
+      #probe-viewport { position: absolute; inset: 0; overflow: auto; }
+      #probe-result { display: none; }
+    </style>
+  </head>
+  <body>
+    <div id="probe-viewport"></div>
+    <pre id="probe-result"></pre>
+    <script type="module" src="/scripts/hero-probe.ts"></script>
+  </body>
+</html>

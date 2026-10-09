@@ -1,0 +1,34 @@
+<!doctype html>
+<!--
+  **［ぎりぎりまで大きく］が本当にぎりぎりになるか**を機械で測る、検査専用のページ。
+
+  背文字の大きさには縛りが2つある(背幅・天地の字数)。片方しか見ていないと
+  「押したのに小さく出る」が起きるので、押した後の刷り上がりを実際に描いて数える。
+
+  vite の開発サーバーから開く:
+    http://localhost:PORT/scripts/spine-probe.html
+  測り終わると #probe-result に JSON が入り、document.title が
+  「PROBE-DONE」か「PROBE-FAIL」に変わる。ふだんは scripts/check-spine.py が回す。
+
+  **IndexedDB は触らない**(store を使わず、models と cover/render だけを呼ぶ)。
+-->
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <!-- 書体は @fontsource から読む。/scripts/ の下でも根から引けるようにする -->
+    <base href="/" />
+    <title>PROBE-RUNNING</title>
+    <style>
+      body { font: 12px/1.6 monospace; margin: 0; padding: 8px; }
+      #probe-result { white-space: pre-wrap; }
+      /* 描いた表紙は見せない(測るだけ)。display:none にすると
+         キャンバスの寸法は残るので、canvas の測定には影響しない */
+      #probe-canvas { display: none; }
+    </style>
+  </head>
+  <body>
+    <pre id="probe-result"></pre>
+    <canvas id="probe-canvas"></canvas>
+    <script type="module" src="/scripts/spine-probe.ts"></script>
+  </body>
+</html>

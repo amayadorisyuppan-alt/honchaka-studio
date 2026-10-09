@@ -1,0 +1,17 @@
+/* 自前でホストする本文書体。
+   @fontsource(npm)に無いものだけをここに置く。
+   本体は src/fonts/(Vite がハッシュ付きで dist/assets へ出す)、
+   ライセンス文は public/fonts/GenEiKoburiMin-OFL.txt にそのまま置いて誰でも読めるようにしている。
+
+   源暎こぶり明朝 — おたもん / 御琥祢屋 (https://okoneya.jp/font/)
+   源ノ明朝 JP Regular を縦組み・長文・文芸向けに改変した本文用明朝体。SIL Open Font License 1.1。
+   配布の TTF を woff2 へコンテナ変換しただけで、字形もメタデータも変えていない
+   (OFL FAQ 2.2.1 により、この変換なら名称を変えずに再配布できる)。
+   フォント内の name テーブルに著作権・ライセンス表記が入っていることを確認済み。 */
+@font-face {
+  font-family: 'GenEi Koburi Mincho v6';
+  src: url('./fonts/GenEiKoburiMin6-R.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}

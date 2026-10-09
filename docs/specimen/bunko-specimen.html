@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>文庫(A6)縦書き 組見本 — typesetting-rules.md v0.2</title>
+<style>
+  /* ===== 画面表示用の枠 ===== */
+  body {
+    margin: 0;
+    padding: 24px;
+    background: #33363c;
+    font-family: "Noto Sans JP", "Yu Gothic", "游ゴシック", sans-serif;
+    color: #d8dade;
+  }
+  .head { max-width: 1100px; margin: 0 auto 20px; }
+  .head h1 { font-size: 18px; margin: 0 0 6px; color: #fff; }
+  .head p { font-size: 12.5px; margin: 2px 0; line-height: 1.7; }
+  .spread-wrap { margin: 0 auto 8px; width: fit-content; zoom: 1.32; }
+  .caption { text-align: center; font-size: 11px; margin: 0 auto 28px; color: #aab0b8; }
+
+  /* ===== 見開き =====
+     右綴じ(縦書き)の読み順は 右ページ→左ページ。
+     DOM は読み順(偶数→奇数)で書き、row-reverse で右から並べる */
+  .spread { display: flex; flex-direction: row-reverse; box-shadow: 0 6px 24px rgba(0,0,0,.45); }
+  .page {
+    width: 105mm; height: 148mm;
+    background: #fdfdfb;
+    position: relative;
+    overflow: hidden;
+    color: #1a1a1a;
+  }
+  .page.verso { border-left: 1px solid #d5d2c8; } /* 右ページ(偶数)の左端=ノド(綴じ目) */
+
+  /* ===== 版面(typesetting-rules.md §1.3 文庫) =====
+     本文9pt / 行送り15.5pt / 38字×15行
+     余白 天12 地15 小口10 ノド13 */
+  .body {
+    position: absolute;
+    top: 12mm; bottom: 15mm;
+    writing-mode: vertical-rl;
+    font-family: "Noto Serif JP", "Yu Mincho", "游明朝", serif;
+    font-size: 9pt;
+    line-height: 15.5pt;
+    letter-spacing: 0;
+    line-break: strict;
+    word-break: normal;
+    text-align: justify;
+  }
+  .page.verso .body { left: 13mm; right: 9.8mm; }  /* 右ページ: ノドは左 */
+  .page.recto .body { right: 13mm; left: 9.8mm; }  /* 左ページ: ノドは右 */
+
+  /* ===== 本文ルール ===== */
+  p { margin: 0; text-indent: 1em; }
+  p.no-indent { text-indent: 0; }        /* 会話文(「 で始まる段落)は字下げなし */
+  p.line-space { text-indent: 0; }        /* 場面転換の1行アキ */
+  ruby rt { font-size: 0.5em; letter-spacing: 0; }
+  .tcy { text-combine-upright: all; }     /* 縦中横 */
+
+  /* ===== 見出し(章): 5行取り =====
+     章番号+章題はワンセットで詰めて組み、
+     セットの後に約2行のアキを置いてから本文を開始する */
+  h2.chapter-title {
+    margin: 0;
+    block-size: 46.5pt;                   /* 3行分: 章番号1行+章題(やや太い1行) */
+    margin-block-end: 31pt;               /* +2行アキ = 計5行取り */
+    padding-top: 22pt;                    /* 天からやや下げて起こす */
+    font-family: "Noto Sans JP", "Yu Gothic", "游ゴシック", sans-serif;
+    font-weight: 700;
+    font-size: 14.4pt;                    /* 本文の1.6倍 */
+    line-height: 21pt;                    /* 章題行 */
+  }
+  h2.chapter-title .chapter-no {
+    display: block;
+    font-size: 9pt;
+    font-weight: 500;
+    letter-spacing: .5em;
+    line-height: 15.5pt;                  /* 章番号は本文1行分。章題のすぐ右に付く */
+    margin-block-end: 3pt;
+  }
+
+  /* ===== ノンブル・柱(§7) ===== */
+  .nombre, .hashira {
+    position: absolute;
+    bottom: 5.5mm;
+    writing-mode: horizontal-tb;
+    font-size: 7.5pt;
+    color: #333;
+  }
+  .nombre { font-family: Georgia, "Times New Roman", serif; }
+  .page.verso .nombre { right: 8mm; }     /* 右ページ: 小口=右端寄り */
+  .page.recto .nombre { left: 8mm; }      /* 左ページ: 小口=左端寄り */
+  .hashira {
+    font-family: "Noto Sans JP", "Yu Gothic", sans-serif;
+    font-size: 6.8pt;
+    color: #555;
+  }
+  .page.recto .hashira { left: 17mm; }    /* 奇数ページのみ・ノンブルの内側 */
+
+  /* ===== 版面ガイド(見本用の注釈。実際の本には印刷されない) ===== */
+  .guide {
+    position: absolute;
+    top: 12mm; bottom: 15mm; left: 13mm; right: 9.8mm;
+    border: 1px dashed rgba(30,120,220,.55);
+    pointer-events: none;
+  }
+  .glabel {
+    position: absolute;
+    writing-mode: horizontal-tb;
+    font-family: "Noto Sans JP", sans-serif;
+    font-size: 5.5pt;
+    color: #1e78dc;
+    background: rgba(255,255,255,.85);
+    padding: 0 2px;
+  }
+</style>
+</head>
+<body>
+
+<div class="head">
+  <h1>文庫(A6)縦書き 組見本 — ひっちゃか本づくりスタジオ デザインルール v0.2</h1>
+  <p>判型 105×148mm/本文 明朝 9pt/行送り 15.5pt(1.72倍)/38字×15行/余白 天12・地15・小口10・ノド13mm</p>
+  <p>凡例: 青破線=版面(見本用ガイド)/ルビ・縦中横「19」「!?」/会話文は字下げなし/場面転換は1行アキ/柱は奇数ページのみ</p>
+</div>
+
+<!-- ============ 見開き1: 本文(章の途中) ============ -->
+<div class="spread-wrap">
+<div class="spread">
+
+  <!-- 右ページ = 偶数 p.12(ガイド付き) -->
+  <div class="page verso">
+    <div class="body">
+      <p><span class="tcy">19</span>時を過ぎると、アーケードの硝子屋根には一枚ずつ灯がともる。夕立の名残が敷石をぬらして光らせ、傘を畳んだ人々が、軒先から軒先へ渡り鳥のように移っていく。閉店じたくを始めた果物屋の店先で、山積みの夏蜜柑だけがまだ昼の色を残していた。</p>
+      <p>商店街の外れ、古書店〈<ruby>縹<rt>はなだ</rt></ruby>堂〉の店先で、僕は一冊の歌集を立ち読みしていた。頁を繰るたびに、乾いた紙の匂いと雨の匂いが入れ替わる。奥の帳場から、店主の低い声がした。</p>
+      <p class="no-indent">「探しものは、それでよかったのかい」</p>
+      <p>顔を上げると、店主は眼鏡の奥からじっとこちらを見ていた。僕はすこし迷ってから、歌集をもとの棚に戻した。</p>
+      <p class="no-indent">「いえ。もっと古いものを探しています。表紙に<ruby>鶫<rt>つぐみ</rt></ruby>の絵が描いてある、青い本です」</p>
+      <p class="no-indent">「青い本、ね」</p>
+      <p>店主は帳場を離れて、梯子に手を掛けた。天井まで届く書架の、いちばん高い段。そこだけ背表紙の色が褪せていないのを、僕はこの店に通いはじめてからずっと、気にしていたのだった。</p>
+    </div>
+    <div class="nombre">12</div>
+    <!-- 版面ガイド(注釈) -->
+    <div class="guide"></div>
+    <div class="glabel" style="top:4mm; left:50%; transform:translateX(-50%);">天 12mm</div>
+    <div class="glabel" style="bottom:9mm; left:50%; transform:translateX(-50%);">地 15mm</div>
+    <div class="glabel" style="top:50%; left:2mm; transform:translateY(-50%);">ノド13</div>
+    <div class="glabel" style="top:50%; right:1mm; transform:translateY(-50%);">小口10</div>
+  </div>
+
+  <!-- 左ページ = 奇数 p.13(柱つき) -->
+  <div class="page recto">
+    <div class="body">
+      <p>梯子がきしむ。埃がひとすじ、電球の光の帯を横切って落ちた。店主が抜き出したのは、たしかに青い本だった。けれど表紙にいたのは鶫ではなく、翼をたたんだ小さな千鳥だ。</p>
+      <p class="no-indent">「ちがうかい」</p>
+      <p class="no-indent">「……いえ、それです。それだ。千鳥だったのか、あれは<span class="tcy">!?</span>」</p>
+      <p>受け取った本は、記憶よりずっと軽かった。奥付を確かめる。昭和<span class="tcy">34</span>年、初版。祖母の本棚から消えて、もう<span class="tcy">30</span>年になる。</p>
+      <p class="line-space">　</p>
+      <p>雨がまた強くなる。硝子屋根を叩く音が、遠い日の拍手のように店内へ降りてきた。僕は財布を出しながら、この本を最初に読んでくれた人の声を、もういちど思い出そうとしていた。低くて、すこし笑いを含んだ、あの声。</p>
+      <p>店主は値札をはずすと、紙の袋にそっと本を入れた。</p>
+      <p class="no-indent">「いい買いものだ。今夜は、ゆっくり読めるだろう」</p>
+    </div>
+    <div class="nombre">13</div>
+    <div class="hashira">第二章　雨のアーケード</div>
+  </div>
+
+</div>
+</div>
+<p class="caption">見開き1: 本文ページ(章の途中)。右=偶数ページに版面ガイドを表示。ルビ/縦中横/会話文字下げなし/1行アキを含む</p>
+
+<!-- ============ 見開き2: 章の変わり目(改丁起こし) ============ -->
+<div class="spread-wrap">
+<div class="spread">
+
+  <!-- 右ページ = 偶数 p.14(前章の末尾) -->
+  <div class="page verso">
+    <div class="body">
+      <p>袋を胸に抱えて店を出ると、雨はあがりかけていた。アーケードの切れ目に、洗いたての夜空がのぞいている。</p>
+      <p>家までの道を、僕はいつもより少しだけ遠回りして歩いた。</p>
+    </div>
+    <div class="nombre">14</div>
+  </div>
+
+  <!-- 左ページ = 奇数 p.15(新しい章の起こし・5行取り) -->
+  <div class="page recto">
+    <div class="body">
+      <h2 class="chapter-title"><span class="chapter-no">第三章</span>青い背表紙</h2>
+      <p>その本のことを話すには、まず祖母の家の縁側から始めなければならない。夏になると簾ごしに西日が差して、畳の上に細い縞をつくった。祖母はそこで麦茶を飲みながら、僕に本を読んでくれた。</p>
+      <p>読み聞かせというものは、たぶん、声の記憶なのだと思う。筋書きはあらかた忘れてしまっても、頁をめくる間合いや、章の変わり目で祖母がすこし居住まいを正す気配は、いまでも體のどこかに残っている。</p>
+      <p class="no-indent">「つづきはまた明日」</p>
+      <p>それが祖母の口癖で、いちばんいいところで本はぱたりと閉じられるのだった。</p>
+    </div>
+    <div class="nombre">15</div>
+    <div class="hashira">第三章　青い背表紙</div>
+  </div>
+
+</div>
+</div>
+<p class="caption">見開き2: 章の変わり目。新章は改ページで起こす(奇数・偶数どちらのページでもよい。本文開始のP1のみ奇数起こし)。章番号+章題はワンセット、後に2行アキで本文開始</p>
+
+</body>
+</html>

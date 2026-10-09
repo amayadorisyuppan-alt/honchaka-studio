@@ -1,0 +1,22 @@
+<!doctype html>
+<!--
+  見開きの絵の画面を、アプリごと開いて確かめるための検査用のページ(scripts/spread-probe.tsx・spread-probe.mjs)。(2026-10-03)
+
+  **開発サーバーは立てない。** `vite build --config scripts/spread-probe.vite.config.ts` で静的に組み、
+  spread-probe.mjs が自前の静的サーバーで配って headless Chrome(playwright-core)で開く。
+  IndexedDB を書き換えるので、素のプロファイルで開くこと。
+-->
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <title>SPREAD-PROBE</title>
+    <style>
+      html, body { margin: 0; height: 100%; }
+      #root { position: absolute; inset: 0; }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="./spread-probe.tsx"></script>
+  </body>
+</html>

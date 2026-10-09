@@ -1,0 +1,31 @@
+<!doctype html>
+<!--
+  **アプリそのもの**を長い原稿で立ち上げて、画面が出るまでの時間を測る検査用のページ。
+
+  long-probe.html は CoreViewer を裸で回す(組版そのものの速さ)。
+  こちらは **React ごと本物の App を載せる** — StrictMode の二度がけも、
+  ページ数の書き戻しも、帯も、サイドバーも、全部入ったままの時間が出る。
+  ユーザー報告「297頁で3分、全部で10分以上」はこちらの数字。
+
+  開発サーバーから開く:
+    http://localhost:PORT/scripts/app-probe.html?scale=9
+    http://localhost:PORT/scripts/app-probe.html?real=1
+
+  **IndexedDB を書き換える**ので、素のプロファイルで開くこと。
+-->
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <title>PROBE-RUNNING</title>
+    <style>
+      html, body { margin: 0; height: 100%; }
+      #root { position: absolute; inset: 0 0 140px 0; }
+      #probe-result { position: absolute; z-index: 99999; inset: auto 0 0 0; max-height: 140px; overflow: auto; font: 12px monospace; white-space: pre-wrap; background: #fff; }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <pre id="probe-result"></pre>
+    <script type="module" src="./app-probe.tsx"></script>
+  </body>
+</html>

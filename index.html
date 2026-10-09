@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- タブのアイコン。ロゴ「本ちゃか」の、金茶の本からのぞくカエルを正方形に切り出したもの(2026-10-07)。
+         元は public/brand/honchaka-mark.svg(作り方は src/components/FrogMark.tsx の StudioLogo) -->
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <title>本ちゃか — ひっちゃか本づくりスタジオ</title>
+    <meta
+      name="description"
+      content="Wordやテキストの原稿を渡すだけで、縦書きでも横書きでも、EPUBとKDP入稿用PDFをブラウザだけで作れる無料ツール。原稿データは外部に送信されません。"
+    />
+    <!--
+      SNS に貼られたときの見え方(OGP)。
+      **og:image と og:url だけは絶対 URL でなければならない** — クローラは
+      ページの場所を知らずに読むので、`./banners/...` のような相対では拾えない。
+      vite の base は './' なので、ここだけが公開先を直に書いている場所になる。
+      **置き場所を変えたら下の2つも直すこと**(docs/xserver-upload.md の手順)。
+      画像は public/banners/ogp-1200x630.png(scripts/build-banners.py で作る)。
+    -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="本ちゃか — ひっちゃか本づくりスタジオ" />
+    <meta property="og:title" content="本ちゃか — ひっちゃか本づくりスタジオ" />
+    <meta
+      property="og:description"
+      content="だれでも気軽に本をつくれるように、と作った無料のサービス。書き上げた原稿を、そのまま紙の本と電子書籍の形にします。原稿は外に送られません。"
+    />
+    <meta property="og:url" content="https://www.hittyaka-maker.com/bookstudio/" />
+    <meta property="og:image" content="https://www.hittyaka-maker.com/bookstudio/banners/ogp-1200x630.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:locale" content="ja_JP" />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <!--
+      画面の色を**最初の1枚を描く前に**決める。
+      React が立ち上がってから貼ると、暗い画面の人に明るい地が一瞬だけ光る。
+      中身は src/theme.ts と同じ判定の写しで、鍵の名前('book-studio-theme')も同じ。
+      **片方だけ変えないこと。** 覚えかたと既定の理由は theme.ts に書いてある。
+    -->
+    <script>
+      (function () {
+        var pref = null;
+        try {
+          pref = localStorage.getItem('book-studio-theme');
+        } catch (e) {
+          /* localStorage が使えない環境では OS の設定だけで決める */
+        }
+        var mode =
+          pref === 'light' || pref === 'dark'
+            ? pref
+            : window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+              ? 'dark'
+              : 'light';
+        document.documentElement.dataset.theme = mode;
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

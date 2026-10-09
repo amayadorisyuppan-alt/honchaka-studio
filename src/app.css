@@ -1,0 +1,5552 @@
+/* アプリUI(プレビュー内の組版CSSは typeset/css.ts が生成する) */
+
+/* ================================================================
+   色は**ここだけ**に書く(2026-08-20)
+
+   もとは 3,000 行の中に 90 通りの色が直に書かれていて、同じ灰色が
+   場所によって #3a3d44 だったり #3a3d45 だったりした。明るいテーマを足すには、
+   まず「この色は何のための色か」を名前にして1か所へ集める必要があった。
+   **以後、app.css に色を直に書かないこと。** 足すならこの表に名前を足す。
+
+   ---- 明るいテーマの色の出どころ ----
+   あまやどり出版のブランド色 **#95d8d1(ミント)** と **#f6f4dd(クリーム)** から作る。
+   どちらもそのままでは使わず、白へ混ぜて薄くしたものを面に敷く(ユーザー指示)。
+   - **道具の面はミント寄り** … トップバー・工程レール・帯・サイドバー。
+     「ここは操作する場所」という地。
+   - **読み書きする面はクリーム寄り** … 全画面の工程・入口・箱の中。
+   - **押せるもの・いま効いているものは深いミント** … #95d8d1 そのままでは
+     白文字を載せられない(明るすぎる)ので、同じ色相の濃いほう(#0e7c72)を使う。
+     淡いミントは「地」、濃いミントは「操作」と役目で分けている。
+
+   ---- 変えてはいけないもの ----
+   1. **誌面のまわり(--stage / --stage-thumbs)は無彩色**。R=G=B。
+      刷りものの色を見る面なので、ここに色が乗ると利用者が表紙や挿絵の色を
+      判断できなくなる(2026-08-19〜20 の判断。もとの青みがかった灰から直した経緯)。
+   2. **紙の見本(--paper-*)はテーマで変えない**。.demo-page / .slot-pad /
+      .preview-type は「刷り上がりを写したもの」なので、画面が暗かろうが明るかろうが
+      白い紙に黒い字でなければ嘘になる。
+
+   ---- どちらを既定にするか ----
+   **OS の設定に従う**のが既定(ユーザー判断)。手で選んだときだけその選択を覚えて
+   OS より優先させる。仕組みは src/theme.ts が `<html data-theme="light|dark">` を
+   貼るだけで、**CSS には prefers-color-scheme を書いていない**。
+   メディアクエリの中に色を書くと、手で選んだ指定が勝てるかどうかを
+   セレクタの重みで考え続けることになるため、解決は JS 側の1か所に寄せた
+   (初回の一瞬だけ違う色が出ないよう、index.html の先頭でも同じことをしている)。
+   ================================================================ */
+:root {
+  color-scheme: light;
+
+  /* ---- 紙の見本。**テーマで変えない**(上の「変えてはいけないもの」2) ---- */
+  --paper: #ffffff;
+  --paper-ink: #111;
+  --paper-ink-2: #333;
+  --paper-ink-3: #444;
+  --paper-ink-dim: #8a8f99;
+  --paper-ink-soft: #6b7280;
+  --paper-gap-ink: #9aa0aa;
+  --paper-rule: #b9bec9;
+  --paper-rule-2: #c8cdd6;
+  --paper-rule-3: #d6dae1;
+  --paper-face: #e3e6ec;
+  --paper-face-2: #eef1f6;
+  --paper-face-3: #f4f5f8;
+  --paper-face-hover: #d7e2ea;
+  --paper-alert: #d9534f;
+  --paper-alert-line: #b52b27;
+  --paper-link: #1a56c4;
+
+  /* ================= 明るいテーマ(既定の値) ================= */
+
+  /* 地。上から順に「奥」→「手前」 */
+  --bg: #faf7e9;            /* アプリの地。全画面の工程・入口(クリーム) */
+  --bg-chrome: #e6f4f2;     /* トップバー・帯・タブのふた・棚(ミント) */
+  --bg-chrome-on: #dcf0ed;  /* 帯が章スコープに入っているとき */
+  --bg-rail: #dcefec;       /* 工程レール */
+  --bg-rail-on: #f5fbfa;    /* レールのいまここ / hover */
+  --bg-panel: #eff7f5;      /* サイドバーの地 */
+  --bg-box: #fdfcf4;        /* 箱・カード・板・献立 */
+  --bg-tab: #f6fbfa;        /* タブの中身(.tabpane) */
+  --bg-field: #ffffff;      /* 入力欄・押せる面 */
+  --bg-hover: #e2f2ef;      /* hover */
+  --bg-raised: #d8ece8;     /* もう一段起きた面 */
+  --bg-sunken: #eef0e2;     /* 沈んだ面(コード欄・畳みの中身) */
+  --bg-info: #dfeeec;       /* 帯の下段(版面の読み値) */
+  --bg-chip: #dfe9e5;       /* 小さな札の地 */
+
+  /* 誌面のまわり。**無彩色**(上の「変えてはいけないもの」1) */
+  --stage: #a9a9a9;         /* 誌面と表紙を見る面 */
+  --stage-thumbs: #9c9c9c;  /* ページ一覧の地 */
+  --stage-ink: #2b2f2b;     /* その上に出す字(組み直し中の札など) */
+
+  /* 罫と枠 */
+  --line: #c4d4d0;          /* 標準の枠・面の区切り */
+  --line-soft: #dfe9e6;     /* 細い罫 */
+  --line-bold: #8ba09b;     /* はっきり出す枠・破線 */
+  --movable-line: #7f9aae;  /* 動かせるページの枠 */
+  --seg-fill: #d4e2de;      /* タブの中の切り替え(選択) */
+  --seg-line: #93a8a3;
+
+  /* 文字。数字が大きいほど弱い */
+  --text: #1f2320;
+  --text-strong: #0d100e;   /* 見出し */
+  --text-mid: #333833;      /* ラベル・受けの字 */
+  --text-sub: #454b45;      /* 説明文 */
+  --text-dim: #4a504a;      /* .hint・名札 */
+  --text-dim-hi: #434943;   /* 明るい面(.infobar)の上の .hint */
+  --text-faint: #575d57;    /* いちばん弱い添え物 */
+
+  /* 「押せる」「いま効いている」 */
+  --accent: #0e7c72;
+  --accent-strong: #0a6259;      /* 押したとき・濃い塗り */
+  --accent-line: #12857b;        /* 枠・選択の線・focus */
+  --accent-line-rgb: 18, 133, 123; /* 光らせる輪(rgba で使う) */
+  --accent-text: #075851;        /* リンク */
+  --accent-text-hi: #064c45;
+  --accent-fill: #d3efeb;        /* 薄い地(章スコープの札など) */
+  --accent-on-fill: #08514a;
+  --accent-on-fill-dim: #2b6b64;
+  --note-fill: #e0f2ef;          /* 案内(.notice / .step-note) */
+  --note-text: #2c534d;
+
+  /* 塗りの上に載る字 */
+  --on-accent: #ffffff;      /* --accent / --accent-strong の上 */
+  --on-accent-line: #ffffff; /* --accent-line の上 */
+  --on-state: #ffffff;       /* --ok / --warn の上 */
+
+  /* 書き出しの種別(本文=深緑 / 表紙=金茶)。KDP でも別の欄なので色で仕分ける。
+     表紙は紫だったが「とげとげしい」(2026-09-11 ユーザー指摘)。この画面の色は
+     スタジオの基調(生成り・深緑・金茶・藍)から採り、よその色相を持ち込まない */
+  --kind-cover: #8a6d1f;
+  --kind-cover-line: #c8a13a;
+
+  /* 書き出しの柱(紙=印刷の墨 / 電子=藍墨)。見出し文字だけでは紙と電子の
+     区別がぱっと見で付かなかったので、柱ごと色の箱にする(2026-09-11 ユーザー指摘)。
+     紙は土色にしていたが、表紙の札(金茶)と色が被った(同日ユーザー指摘)ので
+     「紙に刷る墨」の無彩色に寄せた */
+  --pillar-paper: #4d4842;
+  --pillar-paper-line: #c9c5bb;
+  --pillar-paper-bg: #eeece6;
+  --pillar-ebook: #2b4a68;
+  --pillar-ebook-line: #9fb6ca;
+  --pillar-ebook-bg: #e9eff4;
+
+  /* 状態 */
+  --ok: #1a6b43;
+  --ok-fill: #ddf0e2;
+  --ok-fill-hover: #cbe8d3;
+  --ok-text: #14603a;
+  --warn: #855300;
+  --warn-fill: #fbf0d5;
+  --warn-text: #6d4400;
+  --bad: #a3211a;
+  --bad-text: #8a2119;
+  --bad-text-hi: #6b1912;
+  --bad-fill: #fbe6e2;
+  --bad-fill-hover: #f4d3cd;
+  --bad-line: #d4a49e;
+  --bad-line-hi: #b3564c;
+
+  /* 誌面に重ねる覆い・札 */
+  --overlay-panel: rgba(255, 255, 255, 0.94);
+  --overlay-chip: rgba(255, 255, 255, 0.9);
+  --backdrop: rgba(31, 35, 32, 0.4);
+  --card-sheen: rgba(255, 255, 255, 0.7);
+
+  /* 工程ごとの色。**レールの下線と帯の上端を同じ色で結ぶための目印**
+     (StepRail.tsx の STEP_ACCENT がこの名前を参照する)。
+     明度をそろえたうえで、隣どうしが混ざらない色相を選んである */
+  --step-shape: #1a63bd;    /* 青   … 器を決める */
+  --step-art: #0c7067;      /* 青緑 … 絵を入れる */
+  --step-colophon: #7a6600; /* 金   … 奥付 */
+  --step-cover: #7248c0;    /* 紫   … 表紙 */
+  --step-ai: #b34418;       /* 橙   … AI */
+  --step-export: #2a7134;   /* 緑   … 書き出す */
+}
+
+/* ================= 暗いテーマ =================
+   2026-08-20 まではこちらしか無かった。`data-theme` は theme.ts が必ず
+   light か dark のどちらかを貼るので、OS の設定で暗いときも、手で暗いを
+   選んだときも、この1か所が効く。
+
+   ---- 2026-08-21 に測り直した ----
+   ユーザーの言: *「暗いテーマは文字もボタンも見にくい」*
+   明るいテーマを足したときに暗いほうは測っていなかったので、同じ走査
+   (`.app` の中の、自分でテキストを持つ要素すべて。誌面・ページ一覧・紙の見本は除く)を
+   工程6つ+副タブに掛けた。**148通りの字と面の組み合わせのうち62通りが 7:1 に届かず、
+   11通りは 4.5:1 も無かった**(最低 3.83:1)。
+
+   直らなかった理由は「字が薄い」ことではなく、**面が明るすぎた**こと。
+   `--bg-info` #3b3e46 や `--bg-field` #33363d のような明るい灰の上に
+   中間の灰(`--text-dim` #9ba0aa)を載せていたので、どう字を足しても頭打ちになる。
+   明るいテーマは地が #faf7e9〜#e6f4f2 と十分に明るいので 5段の字の濃淡を
+   置けたが、暗いテーマは面が明るいぶん置けていなかった。
+   **面を下げ(L* 20.7 → 12.4)、字を上げ**て、明るいテーマと同じ段数を作り直した。
+
+   ---- 押せるものの見分け ----
+   ボタンの地とまわりの地の比は、走査した60通りのうち**46通りが 1.00〜1.25**だった。
+   つまり「押せる面」がまわりと同じ色で、枠 `--line` #4a4d55 だけが目印なのに、
+   その枠がまわりに対して **1.27〜1.79:1** しか無かった。だから押せる場所が分からない。
+
+   **暗い地の上では、塗りだけで 3:1 を作ることはできない。** 地が真っ黒でも
+   塗りの側が #595959 より明るくないと 3:1 に届かない計算で、それは
+   「暗いテーマ」ではなくなる。そこで**枠に持たせた**: `--line` を #6a717f まで上げ、
+   面の側を下げたので、枠は地に対して 3.2〜3.7:1(入力欄の内側の縁だけ 2.9:1)。
+   塗りのボタン(`--accent`)はまわりに対して 3.1〜3.4:1 で、これは目安の 3:1 を満たす。
+
+   ---- 変えていないもの ----
+   `--stage` `--stage-thumbs` は無彩色のまま値も据え置き(誌面のまわりの決まり)。
+   `--paper-*` は明暗で共通なので触っていない。工程ごとの6色も 5.4〜7.6:1 あるので
+   そのまま(地を下げたぶん、4.81〜6.43 から上がった)。明るいテーマの値は一切触っていない */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  /* 面。**明るいテーマと同じ順序に直した** — 道具の面(トップバー・レール・
+     サイドバー)がいちばん沈み、読み書きする面(地・箱・タブ)が少し起き、
+     入力欄がいちばん起きる。もとは地 #2e3138 のほうが箱 #2b2e34 より明るく、
+     明るいテーマと上下が逆だった */
+  --bg: #1e2025;
+  --bg-chrome: #17191c;
+  --bg-chrome-on: #232731;
+  --bg-rail: #141518;
+  --bg-rail-on: #2d3037;
+  --bg-panel: #191b1f;
+  --bg-box: #212328;
+  --bg-tab: #23252a;
+  --bg-field: #2a2c33;
+  --bg-hover: #31343b;
+  --bg-raised: #36383f;
+  --bg-sunken: #101114;
+  --bg-info: #23262b;
+  --bg-chip: #282a30;
+
+  /* **無彩色のまま。値も変えない**(上の「変えてはいけないもの」1)。
+     誌面のまわりの灰の上に出す字だけを上げた。#c4c8cf は 5.28:1 しか無く、
+     表紙の「紙の表紙」「電子書籍の表紙」の見出しがこれだった。#e6e7eb で 7.17:1 */
+  --stage: #4a4a4a;
+  --stage-thumbs: #3a3a3a;
+  --stage-ink: #e6e7eb;
+
+  /* 罫。`--line` は**押せるものの枠**を兼ねているので、ここがいちばん効く。
+     #4a4d55 → #6a717f で、面に対して 1.27〜1.79 → 2.9〜3.7:1 */
+  --line: #6a717f;
+  --line-soft: #383c43;
+  --line-bold: #828894;
+  --movable-line: #7789af; /* ページ一覧の地 #3a3a3a に対して 2.83 → 3.24 */
+  --seg-fill: #515c6e;
+  --seg-line: #7c899c;
+
+  /* 字。数字が大きいほど弱い。いちばん弱い `--text-faint` でも、いちばん明るい面
+     (`--bg-raised`)の上で 4.86:1。よく出る面の上なら 6.2〜7.4:1 */
+  --text: #eff0f2;
+  --text-strong: #ffffff;
+  --text-mid: #d5d7dc;
+  --text-sub: #bdbfc3;
+  --text-dim: #b1b3b7;
+  --text-dim-hi: #b6b7bb;
+  --text-faint: #a5a7ab;
+
+  /* 押せるもの。**白文字が載る濃さまで青を落とした**(#3d6ff2 は白で 4.42:1 しか
+     無く、［保存する］・副タブの選択・AI の工程の4つのボタンが全部これだった)。
+     #3765db で 5.19:1。まわりの地に対しては 3.1〜3.4:1 なので、塗りだけでも見つかる */
+  --accent: #3765db;
+  --accent-strong: #2e54b8; /* 白で 6.83:1(旧 5.76) */
+  --accent-line: #6b9fff;   /* focus の輪。入力欄の地に対して 5.33:1 */
+  --accent-line-rgb: 107, 159, 255;
+  --accent-text: #a4c5ff;
+  --accent-text-hi: #c7dbff;
+  --accent-fill: #203458;
+  --accent-on-fill: #cfe0ff;
+  --accent-on-fill-dim: #a9c8ff;
+  --note-fill: #283141;
+  --note-text: #b8c8e3;
+
+  --on-accent: #ffffff;
+  /* **名前と使われ方がずれている。** このトークンを読んでいるのは
+     `.anchor-pad .anchor-auto.active` の1か所だけで、その地は `--accent-line` ではなく
+     `--accent`。暗い字(#10131a)を青の上に置いていたので 4.21:1 しか無かった。
+     ほかの塗りと同じ白に揃えて 5.19:1(明るいテーマ側はもともと #ffffff) */
+  --on-accent-line: #ffffff;
+  --on-state: #10131a; /* --ok の上で 6.94、--warn の上で 8.38 */
+
+  /* 表紙=金茶(紫を廃止。理由は明るいテーマ側のコメント) */
+  --kind-cover: #8a6d1f;
+  --kind-cover-line: #d9b45a;
+
+  --pillar-paper: #5a554e;
+  --pillar-paper-line: #4c4841;
+  --pillar-paper-bg: #242320;
+  --pillar-ebook: #2b4a68;
+  --pillar-ebook-line: #3a5570;
+  --pillar-ebook-bg: #1a2733;
+
+  --ok: #5fae7e;
+  --ok-fill: #233823;
+  --ok-fill-hover: #2c452c;
+  --ok-text: #b3dab3; /* 地を下げたので 6.72 → 8.18 */
+  --warn: #e0a33a;
+  --warn-fill: #373020;
+  --warn-text: #ffd8a8;
+  --bad: #ff8a80;
+  --bad-text: #ffbbb4;
+  --bad-text-hi: #ffddd9;
+  --bad-fill: #3b2525;
+  --bad-fill-hover: #4c3737;
+  --bad-line: #836565; /* ［すべてリセット］の枠。2.48 → 3.37 */
+  --bad-line-hi: #c07a7a;
+
+  --overlay-panel: rgba(23, 25, 28, 0.94);
+  --overlay-chip: rgba(23, 25, 28, 0.85);
+  --backdrop: rgba(6, 7, 9, 0.66);
+  --card-sheen: rgba(255, 255, 255, 0.05);
+
+  --step-shape: #6b9fff;
+  --step-art: #4fb3a5;
+  --step-colophon: #c9a227;
+  --step-cover: #a97bd6;
+  --step-ai: #e08a5a;
+  --step-export: #5fae5f;
+}
+
+* { box-sizing: border-box; }
+
+/* Vivliostyle が生成するページ要素は content-box 前提でサイズ計算している。
+   グローバルの border-box が波及すると余白(padding)が版面から二重に差し引かれ、
+   本文領域が天地余白ぶん縮む(2026-07-20 に特定した実バグ)。必ず打ち消すこと。
+   サムネイルはページを複製したものなので、同じ打ち消しが要る
+   (掛け忘れると段組みなどの版面が縮んで、誌面と違う姿で並ぶ) */
+.preview-viewport, .preview-viewport *,
+.thumbs, .thumbs * { box-sizing: content-box; }
+
+/* 誌面とページ一覧は**紙を見る場所**。ここだけは color-scheme を light に戻して、
+   ブラウザが勝手に持ち込む暗い配色(スクロールバー・既定の地)を入れない。
+   組版CSSが敷く紙の白の下に暗い地が透けると、刷り上がりの判断ができなくなる */
+.preview, .thumbs { color-scheme: light; }
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: "Noto Sans JP", "Yu Gothic", sans-serif;
+  font-size: 13px;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  background: var(--bg-chrome);
+  border-bottom: 1px solid var(--line);
+}
+.topbar h1 {
+  font-size: 15px;
+  margin: 0 8px 0 0;
+  color: var(--text-strong);
+  white-space: nowrap;
+}
+/* display:flex が [hidden] の display:none を打ち消す(.main と同じ罠)。
+   入口画面のメニューでは「タイトルと3つのボタンだけ」にしたいので明示的に消す */
+.topbar[hidden] { display: none; }
+.topbar .spacer { flex: 1; }
+/* アプリ名の真横に置く帰り道。右端の並びに混ぜると紛れて見つからない(2026-08-19)。
+   主導線ではないので塗りつぶさず、それでも押せると分かる輪郭は残す */
+.home-btn {
+  background: transparent;
+  border: 1px solid var(--line-bold);
+  color: var(--text-mid);
+  padding: 4px 12px;
+}
+.home-btn:hover { background: var(--bg-hover); border-color: var(--accent-line); color: var(--text-strong); }
+.title-input { width: 200px; }
+.author-input { width: 140px; }
+
+input, select, button {
+  font: inherit;
+  color: inherit;
+}
+input[type="text"], input:not([type]), input[type="number"], select {
+  background: var(--bg-field);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 5px 8px;
+}
+input:focus, select:focus { outline: 1px solid var(--accent-line); }
+
+button {
+  background: var(--accent);
+  color: var(--on-accent);
+  border: none;
+  border-radius: 6px;
+  padding: 6px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+button:hover { background: var(--accent-strong); }
+button.ghost {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--text-mid);
+}
+button.ghost:hover { background: var(--bg-hover); }
+
+.main {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+/* display:flex が [hidden] の display:none を打ち消してしまうので明示的に消す */
+.main[hidden] { display: none; }
+
+/* ---- 01 の入口画面(全画面) ----
+   01 は「見ながら決める」他の工程と違い、分岐するだけの場所。
+   なのでサイドバー+プレビューの型を使わず、.main の代わりに画面いっぱいで
+   アプリ名と大きな3択だけを出す(2026-08-18 「01がさっぱりわからなかった」への対応) */
+.start-screen {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 40px 24px;
+  overflow: auto;
+}
+.start-close {
+  position: absolute;
+  top: 14px;
+  right: 18px;
+  padding: 2px 10px;
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--text-dim);
+  font-size: 18px;
+  line-height: 1.4;
+}
+.start-close:hover { background: var(--bg-hover); color: var(--text-strong); }
+
+/* **縦の中央寄せは、はみ出したら上詰めに戻す(margin-block: auto)。** align-items: center の
+   ままだと、中身が画面より高いときに上側が画面の外へ押し出され、スクロールしても戻れない。
+   新規作成に「② 作るもの」を足して背が伸び、書名の欄が見えなくなった(2026-09-23 ユーザー報告) */
+.start-inner { width: min(880px, 100%); text-align: center; margin-block: auto; }
+.start-title {
+  margin: 0 0 8px;
+  font-size: 30px;
+  color: var(--text-strong);
+  letter-spacing: 0.02em;
+}
+/* スタジオの役割を伝える2行。**役割の説明は色を薄くしすぎない**(--text-dim だと
+   すぐ下の start-lede と見分けがつかず、大事な1文が読み飛ばされる) */
+.start-role {
+  margin: 0 auto 14px;
+  max-width: 560px;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--text-mid);
+}
+/* 効きどころの札(2026-08-22 深夜)。**説明ではなく、目印。**
+   長い1文を読まなくても「縦書きも横書きも」「無料」が目に入るための場所なので、
+   数を5つに抑えている。狭い窓では折り返すだけで、札1枚は 560px を超えない
+   (いちばん長い「原稿は Word・テキスト・Markdown」で約 210px) */
+.start-badges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin: 0 auto 26px;
+  padding: 0;
+  /* 5枚を横一列に収める幅(実測663px)。上の説明文より広いが、札は文ではないので
+     行の長さを揃える必要がない。狭い窓では折り返す */
+  max-width: 720px;
+  list-style: none;
+}
+.start-badges li {
+  padding: 4px 11px;
+  background: var(--bg-chip);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-mid);
+  white-space: nowrap;
+}
+.start-lede { margin: 0 0 36px; font-size: 14px; color: var(--text-dim); }
+
+/* 3つの大きな入口。横に並べ、狭ければ折り返す(ウィザードではないので
+   1440x900でも余白が多く出るぶん、カードを大きめに見せる) */
+.start-menu { display: flex; gap: 18px; flex-wrap: wrap; justify-content: center; }
+.start-card {
+  flex: 1 1 220px;
+  max-width: 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 24px 20px;
+  background: var(--bg-field);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  text-align: left;
+  /* button の既定は white-space: nowrap なので、説明文が折り返せるよう打ち消す */
+  white-space: normal;
+}
+.start-card:hover { background: var(--bg-hover); border-color: var(--accent-line); }
+.start-card-title { font-size: 17px; font-weight: 700; color: var(--text-strong); }
+.start-card-desc { font-size: 12.5px; color: var(--text-sub); line-height: 1.6; }
+/* ②原稿を取り込む(新規作成の中)は説明文を持たないので中央寄せにする */
+.start-card-primary { text-align: center; }
+
+/* 新規作成: ①保存先→②取込 の2段。ウィザードというほどではないので
+   1画面に縦積みで出す(戻るだけ付ける) */
+.start-new {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  width: min(480px, 100%);
+  margin: 0 auto;
+  text-align: left;
+}
+.start-step { display: flex; flex-direction: column; gap: 8px; }
+.start-step-title { margin: 0; font-size: 14px; font-weight: 700; color: var(--text-strong); }
+.start-step-desc { margin: 0; font-size: 12.5px; color: var(--text-sub); line-height: 1.6; }
+.start-back { align-self: flex-start; }
+
+/* いま開いている本と、作業画面への入口。3つのカードはどれも画面を閉じないので、
+   ここが唯一の「入る」操作になる(2026-08-19)。上の中身と切り離して見せる */
+.start-current {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  width: min(480px, 100%);
+  margin: 30px auto 0;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+  text-align: left;
+}
+.start-current-book {
+  margin: 0;
+  display: grid;
+  gap: 2px;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+.start-current-book b { font-size: 14px; color: var(--text-strong); }
+.start-current-book small { font-size: 12px; color: var(--text-sub); }
+/* メニュー(3カード)のときは横に広いので、その幅に合わせる */
+.start-menu ~ .start-current { width: min(880px, 100%); }
+/* 直した原稿を取り込み直す道(2026-09-23)。「この本の作業に入る」の下に1段で置く。
+   主役は作業に入るほうなので、こちらは細い一手と添え書きだけ */
+.start-reimport {
+  flex-basis: 100%;
+  display: grid;
+  gap: 4px;
+  justify-items: start;
+}
+.start-reimport small { font-size: 12px; color: var(--text-sub); }
+.start-reimport .error,
+.start-reimport .notice { margin: 4px 0 0; }
+.start-heroed .start-reimport button {
+  background: var(--hero-glass); border: 1px solid var(--hero-glass-line);
+  border-radius: 999px; padding: 7px 16px; font-size: 12.5px; color: var(--hero-ink);
+}
+.start-heroed .start-reimport button:hover { background: var(--hero-glass-hi); }
+.start-heroed .start-reimport small { color: var(--hero-sub); }
+
+/* 入口のいちばん下の一行。**添え物なので小さく、弱く。**
+   ここは操作ではなく行き先の案内で、3つのカードから目を奪ってはいけない */
+.start-foot {
+  margin: 20px 0 0;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--text-faint);
+}
+
+/* ---- 工程レール ----
+   作業の順番そのものを横一列に置く。ウィザードではないので、常に全部見えていて
+   どこへでも飛べる。レールが担うのは順路の提示と「いまどこか」の表示だけ */
+.rail {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  padding: 0 8px;
+  background: var(--bg-rail);
+  border-bottom: 1px solid var(--line);
+  overflow-x: auto;
+  flex: 0 0 auto;
+}
+/* **右まで使い切る。** 左に寄せていたら右半分が空いたままだった(2026-08-19)。
+   セルを等分に伸ばし、札そのものは中で中央に置く */
+.rail-cell { display: flex; align-items: center; flex: 1 1 0; min-width: 0; }
+/* 窓幅が 1100px 前後だと札がセルに収まらず、隣の札に重なって読めなかった(2026-10-09 全体確認)。
+   セルの中で折り返す(Chrome は文節で折る)。広い画面では1行のままで見た目は変わらない */
+.rail-cell .rail-step { flex: 1; justify-content: center; min-width: 0; white-space: normal; text-align: center; word-break: auto-phrase; }
+/* 狭い画面だけに出す案内(App の作業画面。パソコン向けであることを断る) */
+.narrow-notice { display: none; }
+@media (max-width: 899px), (max-height: 500px) {
+  .narrow-notice {
+    display: block;
+    margin: 0;
+    padding: 8px 14px;
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--text);
+    background: var(--bg-rail);
+    border-bottom: 1px solid var(--line);
+  }
+}
+/* スマホの幅では折り返すと1字ずつの縦長になるので、折らずにレールを横に送る */
+@media (max-width: 899px) {
+  .rail-cell { min-width: auto; }
+  .rail-cell .rail-step { white-space: nowrap; }
+}
+/* 上の帯は、入りきらない幅では折り返す(ボタンが画面の外や「画面の色」の下に潜らないように)。
+   入りきる幅では1行のまま(折り返しは入らないときだけ起きる) */
+@media (max-width: 1200px) {
+  .topbar { flex-wrap: wrap; row-gap: 6px; }
+  .projectbar { flex-wrap: wrap; }
+}
+/* 順路の矢印。飾りなので主張させないが、**罫の色だと明るい地で 1.3:1 まで沈む**
+   (2026-08-20 実測)。線の中でははっきり出るほうを当てて、見えるだけは残す */
+.rail-arrow { color: var(--line-bold); font-size: 11px; padding: 0 1px; }
+/* 番号が小さすぎて「01」と気づかれなかった(ユーザーテスト 2026-08-17)。
+   ラベルを大きくし、レール自体の高さも上げて押しやすい行にする */
+.rail-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+  padding: 12px 14px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  color: var(--text-dim);
+  font-size: 14px;
+}
+.rail-step:hover { background: var(--bg-rail-on); color: var(--text-mid); }
+/* **工程ごとの色。**(2026-08-19 ユーザー指摘)
+   帯は工程によって中身が入れ替わるのに見た目が同じで、
+   「変わったことに初見では気づけない」。レールの下線と帯の左端に同じ色を出し、
+   2か所に同じ色が見えることで帯がどの工程のものかを読めるようにする。
+   色は StepRail.tsx の STEP_ACCENT から --accent で渡る */
+.rail-step.on {
+  background: var(--bg-rail-on);
+  border-bottom-color: var(--step-accent, var(--accent));
+  color: var(--text-strong);
+}
+/* 番号を丸バッジにする。以前は「番号(薄い10px)」と「rail-dot(緑の点=設定済み)」が
+   別々に付いていて、どちらも小さく見落とされていた。バッジ1つに役目を統合し、
+   いま/済/要確認/未着手を塗り分けで示す(dot は廃止。StepRail.tsx 側も対応済み) */
+/* 工程の印。**残っているのは「!」(要確認)だけ**(2026-09-04 外部レビュー
+   「✓マークに意味がない」で ✓/○/● は廃止。StepRail.tsx のコメント参照) */
+.rail-no {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  border: 1.5px solid transparent;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+}
+/* 出力はできるが確かめてほしい: 分かる色(オレンジ)で塗る */
+.rail-no.attention {
+  background: var(--warn);
+  border-color: var(--warn);
+  color: var(--on-state);
+}
+
+/* ---- ステップのパネル ----
+   .sidebar と同じ見た目の上に、ステップ用の間隔と見出しを足す */
+.panel { width: 264px; gap: 12px; }
+.panel-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 0 2px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-strong);
+  letter-spacing: 0.02em;
+}
+.panel-no {
+  font-size: 11px;
+  color: var(--accent-text);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.1em;
+}
+/* そのステップで何をするのかを1行だけ。仕組みの説明はマニュアルへ */
+.step-lede {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-sub);
+  line-height: 1.65;
+}
+/* 直前の入力にくっつけて読ませる補足。既定の 12px アキだと離れて対応が分からない */
+.panel > .hint + .hint,
+.panel > label + .hint,
+.panel > .seg + .hint,
+.panel > .readout + .hint,
+.panel > .readout + .error,
+.panel > ol + .hint { margin-top: -7px; }
+
+/* そのステップの主役になる操作。ステップに1〜2個まで */
+.primary-action {
+  padding: 10px 12px;
+  font-size: 13px;
+  font-weight: 700;
+}
+.row-buttons { display: flex; flex-wrap: wrap; gap: 6px; }
+.row-buttons button { flex: 1; }
+
+/* 手順そのものを操作にする並び(Word 往復のように、順番に意味があるもの) */
+.procedure {
+  list-style: none;
+  counter-reset: proc;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 9px;
+}
+.procedure li {
+  counter-increment: proc;
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+}
+/* **手順の中のボタンは塗る。** ghost(枠だけ)にしていたら、1と3が
+   ボタンだと気づかれなかった(2026-08-19 ユーザー指摘)。ここは押してもらう場所 */
+.procedure li > button.ghost {
+  background: var(--bg-field);
+  border-color: var(--line-bold);
+  color: var(--text-strong);
+  font-weight: 700;
+  padding: 7px 12px;
+}
+.procedure li > button.ghost:hover { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.procedure li::before {
+  content: counter(proc);
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--bg-chip);
+  color: var(--text-mid);
+  font-size: 10px;
+  display: grid;
+  place-items: center;
+}
+.procedure li > span:not(.procedure-plain) {
+  grid-column: 2;
+  font-size: 11px;
+  color: var(--text-faint);
+  line-height: 1.5;
+}
+.procedure li > button { justify-self: start; }
+.procedure li > button + span { margin-top: -4px; }
+.procedure-plain { font-size: 12.5px; color: var(--text); }
+
+/* ---- 「細かく決める」の畳み ----
+   ラベルには中身を列挙する。「細かく決める」とだけ書くと、何が畳まれているのか
+   分からず結局すべて開くことになる */
+/* 「畳みがただの文章に見えて一生開かれない」という指摘(2026-08-17)への対応。
+   枠線と背景を付けて押せるボタンだと見た目で分かるようにする */
+.fold { padding-top: 10px; }
+.fold-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  background: var(--bg-box);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--accent-text);
+  font-size: 12px;
+  text-align: left;
+}
+.fold-toggle:hover { background: var(--bg-field); border-color: var(--line); color: var(--accent-text-hi); }
+/* 開いている間は枠を強調して、いま出ている中身がこのボタンの続きだと分かるようにする */
+.fold.open .fold-toggle {
+  border-color: var(--accent-line);
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+/* ▸(三角)は畳みの記号として弱く、押せる印象が薄かったので ＋/− に変える。
+   実際の文字の出し分けは Fold.tsx 側(open で ＋⇔− を切り替え) */
+.fold-caret {
+  flex: 0 0 auto;
+  width: 15px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  color: inherit;
+}
+/* **畳みのボタンは `button` の nowrap を継いでいる**(2026-08-21 実測)。
+   ラベルには中身を列挙するうえ件数まで付くので、長くなると縮みも折り返しもできず、
+   そのまま枠の外へ出る。ユーザー報告「2件という文字がはみ出している」の正体はこれ。
+
+   実測(1440×900・文庫サンプル・暗いテーマ):
+   ```
+   .fold-toggle の内寸        252px（タブの中身274 − 枠1×2 − 余白10×2）
+   .fold-label に使える幅      215px（252 − ＋/−15 − 間8 − しるし6 − 間8）
+   「ページごとに変える（目次・章・奥付）　2件」  260.08px → 45.08px あふれる
+   ```
+   件数を消しても 233.36px あり、**もともと 18.36px あふれていた**(件数で見えただけ)。
+   名前は ArtStep 側で短くしたが、章が増えれば件数も伸びるので**器のほうも直す**。
+   `min-width: 0` はフレックスの自動最小サイズを外すため(これが無いと縮まない) */
+.fold-label { flex: 1; min-width: 0; white-space: normal; }
+
+/* ---- 目立たせる畳み(.fold.strong) ----
+   04 背景の「目次・章・奥付の背景を変える」用。地味な畳みだと同じ枠の中の
+   「本文全体」の付属品に見えて探されてしまった(2026-09-14 ユーザー報告)。
+   色地(--accent-fill)と大きめの字で、大扉・本文全体と同格の入り口に見せる。
+   色は両テーマとも札(章スコープの札)で使っている組なので、暗い側でもそのまま効く */
+.fold.strong { padding-top: 14px; }
+.fold.strong .fold-toggle {
+  background: var(--accent-fill);
+  border-color: var(--accent-line);
+  color: var(--accent-on-fill);
+  font-size: 13.5px;
+  font-weight: 600;
+  padding: 10px 12px;
+}
+.fold.strong .fold-toggle:hover {
+  background: var(--accent-fill);
+  border-color: var(--accent-strong);
+  color: var(--accent-on-fill);
+  filter: brightness(1.03);
+}
+.fold.strong .fold-caret { font-size: 15px; }
+/* 開いたら中身が続いて見えるように、器は通常の畳みと同じふるまいに戻す */
+.fold.strong.open .fold-toggle {
+  border-color: var(--accent-line);
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+/* 色地の上では accent-line の点が沈むので、文字と同じ色にそろえる */
+.fold.strong .fold-dot { background: var(--accent-on-fill); }
+
+.fold-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent-line);
+  flex: 0 0 auto;
+}
+.fold-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 12px 10px;
+  background: var(--bg-chrome);
+  border: 1px solid var(--accent-line);
+  border-top: none;
+  border-bottom-left-radius: 7px;
+  border-bottom-right-radius: 7px;
+}
+
+/* 章立ての付け方。取込のたびに要る情報なので、注釈ではなく取込ボタンの近くに置く。
+   「テキストでは見出しが付けられない」と思い込んで諦める人を減らすため */
+.marker-guide {
+  padding: 10px;
+  background: var(--bg-box);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+}
+.marker-guide h4 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-mid);
+}
+.marker-guide dl { margin: 0; display: grid; gap: 7px; }
+.marker-guide dl > div { display: grid; gap: 2px; }
+.marker-guide dt { margin: 0; font-size: 11px; color: var(--text-dim); }
+.marker-guide dt code {
+  background: var(--bg-sunken);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 1px 5px;
+  margin-right: 5px;
+  color: var(--accent-text);
+  font-size: 11px;
+  white-space: pre;
+}
+.marker-guide dd { margin: 0; font-size: 12px; color: var(--text); }
+.marker-guide dd code {
+  background: var(--bg-sunken);
+  border-radius: 3px;
+  padding: 0 4px;
+  color: var(--accent-text);
+}
+.marker-guide .hint { margin-top: 9px; }
+
+/* 文字色の1項目。指定を外して本文に戻せるようにする */
+.color-block { display: grid; gap: 3px; }
+
+/* 章ごとの色。1章ぶんを1つの塊に見せる(本文と章見出しが並ぶため) */
+.chapter-colors {
+  display: grid;
+  gap: 5px;
+  padding: 8px 10px;
+  background: var(--bg-box);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+}
+.chapter-colors h4 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-mid);
+}
+
+/* そのステップ全体にかかる案内。副タブのどれを開いても同じことが言えるもの */
+.step-note {
+  margin: 0;
+  padding: 6px 9px;
+  background: var(--note-fill);
+  border-radius: 5px;
+  color: var(--note-text);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+/* ---- 副タブ(01 絵 のみ)。階層は2段まで ---- */
+.subtabs {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  background: var(--bg-chrome);
+  border: 1px solid var(--line-soft);
+  border-radius: 7px;
+}
+.subtabs button {
+  flex: 1;
+  padding: 5px 4px;
+  background: none;
+  border: none;
+  border-radius: 5px;
+  color: var(--text-faint);
+  font-size: 11.5px;
+}
+.subtabs button:hover { background: var(--bg-rail-on); color: var(--text-mid); }
+.subtabs button.on { background: var(--accent); color: var(--on-accent); }
+
+/* ---- 表紙: 面を選ぶタブと、その面の中身 ----
+   **段差をはっきりさせる。** タブ(表1/背/表4/まるごと1枚)と、その中の
+   ［単色/自前の画像/プリセット］が、どちらも「ボタンが並んだ行」に見えていて
+   親子だと分からなかった(2026-08-19 ユーザー指摘)。
+   タブを箱のふたにし、中身をその箱の中へ落とすことで上流・下流を示す */
+.tabbox {
+  display: flex;
+  flex-direction: column;
+  /* ふたと中身をくっつける。離すと箱に見えない */
+  gap: 0;
+}
+/* ふた: 選んでいる面だけ中身と地続きになるよう、下の角と境界を殺す */
+.tabbox .subtabs {
+  gap: 0;
+  padding: 4px 4px 0;
+  border-bottom: none;
+  border-radius: 8px 8px 0 0;
+  background: var(--bg-chrome);
+}
+.tabbox .subtabs button {
+  padding: 9px 6px;
+  border-radius: 6px 6px 0 0;
+  font-size: 12.5px;
+  font-weight: 700;
+  /* **タブ同士の境目を引く。** gap だけだと「背」のように短い名前の札が
+     地に溶けて、そこにボタンがあること自体が見えなかった(2026-08-19 ユーザー指摘) */
+  border-right: 1px solid var(--line-soft);
+  color: var(--text-sub);
+}
+/* **選んでいる札の字は塗りの上の字にする。**(2026-08-20)
+   `.tabbox .subtabs button` は `.subtabs button.on` と重みが同じで後に出るぶん勝つので、
+   選んだ札だけ地が青(明るいテーマでは深いミント)なのに字は地の文の色のまま残っていた。
+   実測 2.0:1(暗いテーマ) / 1.9:1(明るいテーマ)で、いま選んでいる面の名前がいちばん読めなかった */
+.tabbox .subtabs button.on { color: var(--on-accent); }
+.tabbox .subtabs button:last-child { border-right: none; }
+/* 選ばれている札の左右は、札そのものの縁になるので境目を消す */
+.tabbox .subtabs button.on,
+.tabbox .subtabs button.on + button { border-right-color: transparent; }
+.tabbox .subtabs button.on:last-child { border-right: none; }
+/* 中身: ふたと同じ幅の箱。左に色の柱を立てて「この中はさっき選んだ面の話」と示す */
+.tabpane {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 14px 12px;
+  /* サイドバーの地(`--bg-panel`)より1段明るくして、箱の内と外を分ける。
+     わずかな差だと「薄すぎて分からない」と言われる(2026-08-18 の指摘と同じ轍) */
+  background: var(--bg-tab);
+  border: 1px solid var(--line);
+  border-top: none;
+  border-radius: 0 0 8px 8px;
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+.tabpane > * { flex-shrink: 0; }
+/* 箱の中でも階層は同じ。地が明るいぶん罫だけ明るくする */
+.tabpane h2 { color: var(--text-strong); border-top-color: var(--line); }
+.tabpane > section:first-of-type > h2:first-child,
+.tabpane > h2:first-child { margin-top: 0; padding-top: 0; border-top: none; }
+/* 画像の一覧を開いているあいだは箱を消して、サイドバーをその一覧に明け渡す */
+.tabbox.plain .tabpane {
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+/* 中身の中の切り替え(単色/自前の画像/プリセット)は、ふたと同じ青で塗らない。
+   同じ色だと「タブがもう1段ある」ように見えてしまう */
+.tabpane .seg button.active {
+  background: var(--seg-fill);
+  border-color: var(--seg-line);
+  /* **字の色も戻す。** 地だけ淡い色に差し替えると、下の .seg button.active が置いた
+     白文字が残って読めなくなる(明るいテーマで実測 1.33:1) */
+  color: var(--text-strong);
+  font-weight: 700;
+}
+
+/* ---- 表紙のマウント先。書き出しから呼べるよう常時マウントし、表示だけ切り替える ---- */
+.cover-host { display: flex; flex: 1; min-height: 0; }
+.cover-host[hidden] { display: none; }
+
+/* ---- プレビュー + 情報バー ---- */
+.stage {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---- 版面の帯 ----
+   工程の外に置く道具(判型・組み方向・段組み・目次・刷り色・書体・文字と行)。
+   どの画面にいても同じ場所にあるよう、画面の下端に常駐させる。
+   **上が操作、下が読み値。** 混ぜない */
+.formatbar {
+  flex: 0 0 auto;
+  /* **工程の色を上端に出す。** レールの下線と同じ色で、帯がどの工程のものかを示す
+     (2026-08-19 ユーザー指摘「初見だとわからない」)。線1本ぶんなので操作の邪魔にならない */
+  border-top: 2px solid var(--step-accent, var(--line));
+}
+.formatbar-tools {
+  display: flex;
+  align-items: center;
+  gap: 6px 8px;
+  padding: 6px 10px;
+  background: var(--bg-chrome);
+  overflow-x: auto;
+}
+/* **狭い画面では折り返して2段にする。**
+   12インチ級だと横スクロールでしか届かない組が出て、あることに気づけない
+   (2026-08-19 ユーザーの心配)。折り返せば全部見えるし、字も小さくしなくて済む */
+@media (max-width: 1500px) {
+  .formatbar-tools {
+    flex-wrap: wrap;
+    overflow-x: visible;
+    row-gap: 8px;
+  }
+  /* 折り返したときは区切りを線ではなく改行で示す(縦線が行の途中に出ると読みにくい) */
+  .formatbar-tools .barsep { display: none; }
+}
+/* 帯の名札。**工程タブと同じ大きさにする。**
+   帯の中でいちばん先に読ませたい語なのに、いちばん小さかった(2026-08-19 ユーザー指摘) */
+.formatbar-title {
+  flex: 0 0 auto;
+  padding-right: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+/* ひと組。**畳まない。** 見出しは小さく、操作はそのまま出す。
+   板に隠していたころは、帯の overflow-x に切り取られて開いても見えず、
+   「文字」と「行送り」のように続けて触りたいものも1枚に埋もれていた(2026-08-19) */
+.barfield {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 0 0 auto;
+}
+.barfield-label {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  font-size: 10px;
+  color: var(--text-dim);
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+/* 値のうしろの短い読み(行送り倍率・濃さの%)。数字なので等幅に寄せる。
+   **色は枠の色(--accent-line)ではなくリンクの色。** 枠の色は線として見える濃さで
+   選んでいるので、10px の字に当てると明るい地で 4.1:1 まで落ちる(2026-08-20 実測) */
+.barfield-label em {
+  font-style: normal;
+  color: var(--accent-text);
+  font-variant-numeric: tabular-nums;
+}
+.formatbar-tools select {
+  max-width: 132px;
+  padding: 3px 6px;
+  font-size: 12px;
+}
+.formatbar-tools select.wide { max-width: 190px; }
+.formatbar-tools select:disabled { opacity: 0.5; }
+.formatbar-tools .num { display: flex; align-items: center; gap: 3px; font-size: 11px; }
+.formatbar-tools .num input { width: 56px; padding: 3px 6px; font-size: 12px; }
+.barrange { width: 108px; accent-color: var(--accent-line); }
+.barcolor { width: 42px; height: 26px; padding: 1px; }
+/* 絵の色の一覧(ColorInput)。色の欄の右下に小さな ▾ を重ね、押すと札が開く。
+   欄の大きさは変えない(帯の丈・サイドバーの行が伸びないように、重ねるだけ) */
+.colorpal { position: relative; display: inline-flex; flex: 0 0 auto; line-height: 0; }
+.colorpal-btn {
+  position: absolute; right: -3px; bottom: -3px;
+  width: 13px; height: 13px; padding: 0; margin: 0;
+  font-size: 9px; line-height: 11px; text-align: center;
+  color: var(--text-strong); background: var(--bg-field);
+  border: 1px solid var(--line-bold); border-radius: 50%;
+  cursor: pointer;
+}
+.colorpal-btn:hover, .colorpal-btn[aria-expanded='true'] { background: var(--bg-raised); border-color: var(--accent-line); }
+.colorpal-pop {
+  position: fixed; z-index: 1000; width: 224px; box-sizing: border-box;
+  padding: 8px 10px 10px; display: flex; flex-direction: column; gap: 6px;
+  background: var(--bg-box); color: var(--text);
+  border: 1px solid var(--line-bold); border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.22);
+}
+.colorpal-name { font-size: 11px; color: var(--text-dim); }
+.colorpal-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.colorpal-sw {
+  width: 22px; height: 22px; padding: 0; border-radius: 4px; cursor: pointer;
+  border: 1px solid var(--line-bold);
+}
+.colorpal-sw:hover { outline: 2px solid var(--accent-line); outline-offset: 1px; }
+.colorpal-sw.on { outline: 2px solid var(--text-strong); outline-offset: 1px; }
+/* 帯の中のボタンは、操作の列に埋もれない程度に小さく */
+.barbtn { align-self: flex-end; padding: 5px 11px; font-size: 12.5px; }
+/* 強い操作。**並んだ操作のひとつに見えてはいけない**ので、地も枠も別にする */
+.barreset {
+  background: transparent;
+  border: 1px dashed var(--bad-line);
+  color: var(--bad-text);
+}
+.barreset:hover { background: var(--bad-fill); border-color: var(--bad-line-hi); color: var(--bad-text-hi); }
+/* 触る対象のプルダウン。**これが帯の名札そのもの。**
+   はじめは「デザインする」という名札の隣に小さく置いたが、操作を平らに並べたら
+   埋もれた(2026-08-19 ユーザー指摘)。対象は他のすべての操作の意味を変えるので、
+   いちばん先に読む語と一体にする。だから工程タブと同じ大きさで出す */
+.barscope { flex: 0 0 auto; }
+.barscope select {
+  max-width: 260px;
+  padding: 6px 10px;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  background: var(--bg-field);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--text);
+}
+/* 章スコープは目立たせる。青は「いま効いている」印として帯の中で統一している */
+.barscope.on select {
+  background: var(--accent-fill);
+  border-color: var(--accent-line);
+  color: var(--accent-on-fill);
+}
+/* **帯ぜんたいの地も変える。** プルダウン1つの色では、
+   操作に目を落としているあいだに対象を見失う。左端に太い印を足して、
+   目の端でも「いまは1章だけ」と分かるようにする */
+.formatbar.by-chapter { border-top-color: var(--accent-line); }
+.formatbar.by-chapter .formatbar-tools {
+  background: var(--bg-chrome-on);
+  box-shadow: inset 3px 0 0 var(--accent-line);
+}
+
+/* 書体の見本。**選ぶのに要るのは名前ではなく字面。**
+   板に置いていた例文(1行)は帯には長すぎるので、短い見本に置き換えた */
+.barspecimen {
+  font-size: 15px;
+  line-height: 1;
+  color: var(--text);
+  white-space: nowrap;
+  padding-left: 2px;
+}
+.barfontpick { display: flex; align-items: center; gap: 6px; }
+
+/* 章ごとの指定を落とす［×］。**値の隣に置く。**
+   離すとどれを戻すのか分からないので、名札や読み値のすぐ後ろに付ける */
+.barswatch-reset {
+  padding: 0 3px;
+  min-width: 0;
+  line-height: 1.1;
+  font-size: 11px;
+  background: transparent;
+  border: 0;
+  color: var(--text-dim);
+}
+.barswatch-reset:hover { color: var(--bad); background: transparent; }
+
+/* 色見本を横一列に。**名前は色の下に小さく。**
+   名前を左に置くと3つで幅が3倍になり、帯に載らない */
+.barswatches { display: flex; gap: 6px; }
+.barswatch { display: flex; flex-direction: column; align-items: center; gap: 1px; position: relative; }
+.barswatch input[type='color'] { width: 34px; height: 22px; padding: 1px; }
+.barswatch em { font-style: normal; font-size: 9.5px; color: var(--text-dim); }
+/* 継いでいる色(自前の指定が無い)。**枠を破線にして「借りもの」だと示す** */
+.barswatch.inherited input[type='color'] { opacity: 0.55; border-style: dashed; }
+.barswatch .barswatch-reset { position: absolute; top: -7px; right: -7px; }
+/* 色の一覧の ▾(ColorInput)。既定の右下だと色の下の小さな名前(em)に重なって読めないので、
+   **左上**へ寄せる(右上は［×］の場所)。色の欄の角に半分かかるだけなので、見落としにくさは変わらない */
+.barswatch .colorpal-btn { top: -4px; bottom: auto; left: -4px; right: auto; }
+
+/* 表1の文字色が自動で白へ振られていることの断り。**色見本と同じ行に、その右へ。**
+   下に積むと帯の丈が伸びて、色を触るたびに誌面が上下する(実測 68px → 131px)。
+   幅は切る。切らないと1行で帯を押し広げる(帯の他の要素は nowrap 前提でできている) */
+.barink {
+  align-self: center;
+  max-width: 236px;
+  font-size: 10.5px;
+  line-height: 1.45;
+  color: var(--warn-text);
+  white-space: normal;
+}
+.barink b { color: var(--text-strong); }
+
+/* 章スコープに入ったときの断り書き。板の先頭に置く */
+.barmenu-panel .scope-note {
+  margin: 0 0 8px;
+  padding: 6px 8px;
+  background: var(--accent-fill);
+  border-left: 3px solid var(--accent-line);
+  border-radius: 3px;
+}
+
+/* 組のまとまりの区切り。判型｜段組み｜文字｜色 の4つ */
+.barsep {
+  flex: 0 0 auto;
+  width: 1px;
+  align-self: stretch;
+  margin: 2px 4px;
+  /* 細い罫の色だと、明るい地の帯の上ではほとんど見えない。組の切れ目は読ませたいので標準の罫 */
+  background: var(--line);
+}
+
+/* 中身の多い組(文字の色)だけの板。**ボタンは畳んだ見た目のまま** */
+/* **帯は4つのボタンだけ。** 20個を平らに並べていたころは、
+   一度決めたら触らないもの(判型)と何度も往復するもの(サイズ)が同じ顔で並び、
+   毎回20個を目で走査することになっていた(2026-08-19 ユーザー整理)。
+   ボタンにはいまの値を並べるので、押さなくても現状が読める */
+.barmenu-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  flex: 0 0 auto;
+  padding: 6px 14px;
+  background: var(--bg-field);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--text);
+}
+.barmenu-btn:hover { background: var(--bg-raised); border-color: var(--line-bold); }
+.barmenu-btn.on { background: var(--bg-raised); border-color: var(--accent-line); }
+.barmenu-value { font-size: 13px; font-weight: 700; color: var(--text-strong); }
+/* 板の中は縦積み。横一列だった帯には置けなかった説明文をここで戻す */
+.barmenu-panel .hint { font-size: 12px; line-height: 1.6; }
+.barmenu-panel .bg-label { margin-top: 6px; }
+/* **色は上書きしない。** 白い紙の上に置く見本なので、地の文と同じ黒のまま
+   (板の中は暗いからと明るい色を当てたら、白地に薄い灰色になって読めなかった) */
+.barmenu-panel .preview-type { margin: 0; font-size: 15px; }
+.barmenu-panel .barrange { width: 120px; }
+.barmenu-caret { display: none; }
+
+/* **document.body に出す。** 帯は横スクロールするので、中に置くと切り取られる。
+   位置は開くたびにボタンから測って渡す(FormatBar の BarMenu) */
+.barmenu-panel {
+  position: fixed;
+  z-index: 60;
+  max-height: 62vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  padding: 14px;
+  background: var(--bg-panel);
+  border: 1px solid var(--line-bold);
+  border-radius: 9px;
+  box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.5);
+}
+.barmenu-panel > * { flex-shrink: 0; }
+/* サイドバーの label と同じ規則(既定は横並び、.stack だけ縦積み)。
+   .sidebar の中ではないので、ここに写しておかないと数値欄が縦に伸びる */
+.barmenu-panel label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+}
+.barmenu-panel label.stack { flex-direction: column; align-items: stretch; gap: 5px; }
+.barmenu-panel h3, .barmenu-panel h4 { margin: 0; }
+.barmenu-panel h3 { font-size: 11px; font-weight: 700; color: var(--text-dim); letter-spacing: 0.08em; }
+
+/* 版面の読み値。操作ではなく結果なので、設定の列ではなく帯の下段に置く */
+.infobar {
+  flex: 0 0 auto;
+  background: var(--bg-info);
+  border-top: 1px solid var(--line);
+  color: var(--text);
+  font-size: 11.5px;
+}
+.infobar-line {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+  padding: 7px 14px;
+}
+.infobar-line .sep {
+  width: 1px;
+  height: 11px;
+  background: var(--line);
+}
+.infobar .mono { font-variant-numeric: tabular-nums; }
+.infobar .mono small { color: var(--text-dim); margin-left: 3px; }
+/* 画像の推奨サイズ。ラベルは1つ、数値だけを並べて視線の往復を減らす */
+.infobar-img { display: flex; align-items: center; gap: 8px; color: var(--text-dim); }
+.infobar-img b { color: var(--text); font-weight: 400; }
+.infobar-more {
+  margin-left: auto;
+  padding: 3px 10px;
+  background: var(--bg-field);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  color: var(--accent-text);
+  font-size: 11px;
+}
+.infobar-detail {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  padding: 4px 14px 14px;
+  border-top: 1px solid var(--line);
+  max-height: 40vh;
+  overflow-y: auto;
+}
+.infobar-detail h4 {
+  margin: 10px 0 5px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-dim);
+  letter-spacing: 0.08em;
+}
+.infobar-detail p { margin: 0 0 4px; line-height: 1.6; }
+.infobar-detail .mono { font-variant-numeric: tabular-nums; color: var(--text); }
+
+.sidebar {
+  width: 340px;
+  padding: 12px;
+  overflow-y: auto;
+  background: var(--bg-panel);
+  border-right: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+/* パネルは縦フレックス。**子を縮ませないこと。**
+   `overflow` を持つ子(角丸のために overflow:hidden を掛けた箱など)は
+   自動最小サイズがゼロになるため、フレックスアイテムとして高さ0まで潰れる。
+   実際に入稿値の一覧が枠線ぶんの 2px になって消えた(2026-08-17)。
+   パネル自身がスクロールするので、子は本来の高さのまま並べてよい */
+.sidebar > * { flex-shrink: 0; }
+/* プリセットを開いているあいだだけサイドバーを広げる。
+   閉じた340px・3列だと1枚約100pxにしかならず「絵柄が判別できない」と
+   初見ユーザーから強い不満が出た(2026-08-18)。PresetScreen が .bg-picker.bg-picker-open を
+   名乗るので、:has() で祖先の .sidebar だけ広げて、閉じたら自動で340pxへ戻す。
+   **表紙タブ(.cover .sidebar、340px指定)にも掛かる。** :has() の重みは中の
+   .bg-picker.bg-picker-open ぶんまで数えるので (0,3,0) となり、
+   .cover .sidebar の (0,2,0) に勝つ。共通の PresetScreen へ寄せた今はそれが正しい
+   (2026-08-19。以前は表紙タブが別実装で、この行は掛からなかった) */
+.sidebar:has(.bg-picker.bg-picker-open) { width: 440px; }
+.sidebar section { display: flex; flex-direction: column; gap: 6px; }
+/* **まとまりの名前は、中の項目より大きく。**
+   11px の灰色にしていたので、「地(背景)」より中の「色」のほうが大きく見えていた。
+   とくに表紙では「位置」「大きさ」が書名と著者名で2回ずつ出るので、
+   どちらの話をしているのか分からなくなっていた(2026-08-19 ユーザー指摘) */
+.sidebar h2 {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-strong);
+  margin: 12px 0 2px;
+  letter-spacing: 0.02em;
+  /* 上に細い罫を引いて、ここから新しいまとまりが始まることを示す */
+  padding-top: 12px;
+  border-top: 1px solid var(--line-soft);
+}
+/* 先頭の見出しには罫も余白も要らない(その上に何も無い) */
+.sidebar > section:first-of-type > h2:first-child,
+.sidebar > h2:first-child,
+.sidebar .tabpane > section:first-of-type > h2:first-child { margin-top: 0; padding-top: 0; border-top: none; }
+/* 中の項目は h2 より小さく、灰色で受ける。
+   **サイドバー全体の字はここで底上げする。**(2026-08-19 ユーザー指摘)
+   「本のかたち」タブだけ読みやすいと言われたが、実測すると差は字の大きさではなく
+   **行間**だった(あちらは .hint が 12px/18px、画像タブの説明は 11px/17px)。
+   タブごとに書き分けると必ずずれるので、サイドバーの中の字と行間をここで決める */
+.sidebar { line-height: 1.7; }
+.sidebar label { font-size: 13px; color: var(--text-mid); }
+.sidebar p { font-size: 13px; line-height: 1.7; }
+.sidebar .hint { font-size: 12.5px; line-height: 1.65; }
+.sidebar select, .sidebar input, .sidebar textarea, .sidebar button { font-size: 13px; }
+/* 読み値の箱と小さな添え物だけは、本文より一段落とす(数字が主役なので) */
+.sidebar .readout { font-size: 12.5px; }
+.sidebar small { font-size: 11.5px; }
+.sidebar select, .sidebar input { width: 100%; }
+.sidebar label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.sidebar .num { display: flex; align-items: center; gap: 4px; }
+.sidebar .num input { width: 64px; }
+/* ラベルの下に入力を置く行(複数行の入力など、横並びだと窮屈なもの) */
+.sidebar label.stack {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 5px;
+}
+.sidebar label.check { justify-content: flex-start; gap: 8px; cursor: pointer; }
+/* width:auto は必須。.sidebar input の width:100% が効くと、チェックボックスが
+   サイドバー幅いっぱいの白い箱になってラベルが下へ押し出される */
+.sidebar label.check input { width: auto; margin: 0; }
+
+/* トップバーのプロジェクト操作。本を作る手順ではないので工程レールには載せない */
+.projectbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.projectbar button { padding: 5px 10px; font-size: 11.5px; }
+.projectbar-sep { width: 1px; height: 18px; background: var(--line); margin: 0 2px; }
+/* 2つのボタンが何に対する操作かを、名詞ひとつで示す */
+.projectbar-label { flex: 0 0 auto; font-size: 11px; color: var(--text-faint); white-space: nowrap; }
+/* 押した結果。押した場所に出す(左パネルの通知だと視線が届かない) */
+.projectbar-flash {
+  padding: 3px 9px;
+  border: none;
+  border-radius: 5px;
+  background: var(--ok-fill);
+  color: var(--ok-text);
+  font-size: 11px;
+  white-space: nowrap;
+}
+/* 詳しい話を持っているときはボタンになる。押せると分かる程度に輪郭を出す */
+button.projectbar-flash { cursor: pointer; }
+button.projectbar-flash:hover { background: var(--ok-fill-hover); }
+button.projectbar-flash.bad:hover { background: var(--bad-fill-hover); }
+.projectbar-flash.bad { background: var(--bad-fill); color: var(--bad-text); }
+.backup-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  background: var(--line);
+}
+.backup-dot.on { background: var(--ok); }
+.backup-dot.bad { background: var(--bad); }
+/* 状態は長くなりがちなので、幅を食い過ぎないよう省略する(全文は title に出る) */
+.backup-status {
+  font-size: 11px;
+  color: var(--text-faint);
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.backup-status.bad { color: var(--bad-text); font-weight: 700; }
+
+/* 端末への自動保存が失敗しているときの赤い帯。**トップバーの先頭に強く出す。**
+   「開き直せば続きから」を支える最後のとりでが死んでいる合図なので、省略しない */
+.projectbar-alert {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: var(--bad-fill);
+  color: var(--bad-text);
+  border: 1px solid var(--bad-line);
+  font-size: 11.5px;
+  font-weight: 700;
+  line-height: 1.4;
+  white-space: normal;
+  max-width: 460px;
+}
+.projectbar-alert button { font-size: 11.5px; padding: 4px 10px; }
+
+/* ---- このアプリについて ----
+   AGPL 13条のソース表示を兼ねるので、隠さず常に押せるところに置く */
+.about-open {
+  flex: 0 0 auto;
+  padding: 5px 10px;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--text-dim);
+  font-size: 11.5px;
+}
+.about-open:hover { background: var(--bg-hover); color: var(--text); }
+
+/* ---- 画面の色(明るい / 暗い) ----
+   **本の設定ではない**ので、工程レールにも版面の帯にも載せない。
+   ヘルプ・このアプリについてと同じ「アプリそのものの操作」の並びに置く。
+   名札を付けるのは、択が「OSに合わせる / 明るい / 暗い」の3つあり、
+   プルダウンだけでは何を選ばせているのか読めないため */
+.theme-pick {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+.theme-pick select {
+  padding: 3px 6px;
+  font-size: 11.5px;
+}
+/* 入口画面ぶん。閉じる［×］の反対側(左上)に置いて、中身の3択と競らせない */
+.start-theme {
+  position: absolute;
+  top: 14px;
+  left: 18px;
+  z-index: 1;
+}
+
+.about-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: var(--backdrop);
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+.about {
+  position: relative;
+  width: min(560px, 100%);
+  max-height: 100%;
+  overflow-y: auto;
+  padding: 26px 28px;
+  background: var(--bg-chrome);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.5);
+  line-height: 1.85;
+}
+/* AI の工程。**左が往復の手順、右が頼みかたの見本。**
+   幅が無いときは縦に積む(1画面に収めるより、読める幅のほうが大事) */
+/* ---- AI の工程 ----
+   **主役は「やることは3つだけ」。** 3つの段のひとつに埋めていたら、
+   隣の段と同格に見えて最初に目に入らなかった(2026-08-19 ユーザー指摘)。
+   上に横一列で置き、参照(頼み方・記法)はその下に回す */
+.ai-flow-title { margin: 22px 0 0; }
+.ai-flow {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 16px;
+}
+.ai-flow li {
+  display: grid;
+  gap: 9px;
+  justify-items: start;
+  padding: 18px 20px 20px;
+  background: var(--bg-field);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.ai-flow li > b { font-size: 16px; color: var(--text-strong); }
+.ai-flow li > span:last-child { font-size: 12.5px; color: var(--text-sub); line-height: 1.7; }
+.ai-flow .primary-action { width: 100%; }
+/* 手順の番号。丸で大きく出す(3つが順番であることを一目で) */
+.ai-flow-no {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--accent-strong);
+  color: var(--on-accent);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1;
+}
+/* 押すものではない手順(AI に頼む)。ボタンと同じ高さで受けて、並びを崩さない */
+.ai-flow-plain {
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--bg-panel);
+  border: 1px dashed var(--line-bold);
+  border-radius: 6px;
+  color: var(--text-mid);
+  font-size: 13px;
+  text-align: center;
+}
+/* 注釈。本筋ではないが知っておくと得をする話を、罫線で囲って本文から外す */
+.ai-note {
+  margin: 4px 0 0;
+  padding: 12px 16px;
+  background: var(--bg-box);
+  border: 1px dashed var(--line-bold);
+  border-radius: 8px;
+  font-size: 12.5px;
+  color: var(--text-sub);
+  line-height: 1.75;
+}
+
+/* 参照の段。**4段まで入る。** 下限を 270px にして段数を稼ぎ、
+   段間は広めに取って隣と混ざらないようにする */
+.ai-cols {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+  gap: 30px 46px;
+  align-items: start;
+  margin-top: 8px;
+}
+.ai-col .primary-action { width: 100%; }
+.ai-col { display: flex; flex-direction: column; gap: 12px; }
+.ai-col h2 { margin: 6px 0 0; }
+.ai-col h2:first-child { margin-top: 0; }
+
+/* 記号の対応表。**記号は等幅で、そのまま写せる形で見せる** */
+.notation {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.notation th {
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--line);
+  color: var(--text-dim);
+  font-size: 11px;
+  font-weight: 700;
+  text-align: left;
+  white-space: nowrap;
+}
+.notation td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--line-soft);
+  color: var(--text-mid);
+  vertical-align: top;
+}
+.notation code {
+  padding: 2px 6px;
+  background: var(--bg-field);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: var(--text-strong);
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+
+/* ---- 記法の見本(全面) ----
+   表の1行では「どう変わるのか」が伝わらないので、原稿と刷り上がりを並べて見せる */
+.demo-panel { width: min(860px, 100%); }
+.demo-row { margin-bottom: 18px; }
+.demo-row h3 { margin: 0 0 7px; font-size: 13px; color: var(--text-strong); }
+.demo-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+}
+@media (max-width: 700px) {
+  .demo-pair { grid-template-columns: minmax(0, 1fr); }
+  .demo-arrow { transform: rotate(90deg); }
+}
+/* 「原稿に書く」「刷り上がり」の札。10.5px の #9ba0aa では小さすぎて読めなかった
+   (2026-08-19 ユーザー報告)。大きくして明るくする */
+.demo-side {
+  display: block;
+  margin-bottom: 5px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: 0.06em;
+}
+/* その記号が要る理由。見本の上に1行だけ添える */
+.demo-note {
+  margin: 0 0 7px;
+  font-size: 12px;
+  color: var(--text-sub);
+  line-height: 1.6;
+}
+.demo-arrow { color: var(--accent-line); font-size: 18px; }
+/* 原稿はそのまま写せるよう等幅。改行も見せたいので pre */
+.demo-raw {
+  margin: 0;
+  padding: 12px 14px;
+  background: var(--bg-sunken);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--text);
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 12px;
+  line-height: 1.8;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+/* 刷り上がりは紙の上。**本文と同じ変換に通した結果**をそのまま置く */
+.demo-page {
+  padding: 12px 14px;
+  background: var(--paper);
+  border-radius: 6px;
+  color: var(--paper-ink);
+}
+/* **色を明示する。** 見本は `.about` の中に出るので、`.about p` の
+   薄いグレー(`--text-mid`)を継いで紙の上で読めなくなっていた(2026-08-19 ユーザー報告) */
+.demo-page .demo-p { margin: 0; font-size: 12.5px; line-height: 2; text-indent: 1em; color: var(--paper-ink); }
+.demo-page .demo-p em { font-style: normal; font-weight: 700; }
+/* 見本の中の飾り。紙の上で見えるよう、色は黒のまま */
+.demo-page .demo-p i { font-style: italic; }
+.demo-page .demo-p u { text-decoration: underline; }
+.demo-page .demo-p s { text-decoration: line-through; }
+.demo-page .demo-p a { color: var(--paper-link); text-decoration: underline; }
+/* 傍点。**見本にも同じ指定が要る。** 組版側の指定(typeset/css.ts)は
+   プレビューの中だけに効くもので、アプリの画面には届かない */
+.demo-page .demo-p .boten {
+  -webkit-text-emphasis: filled sesame;
+  text-emphasis: filled sesame;
+  -webkit-text-emphasis-position: over right;
+  text-emphasis-position: over right;
+}
+/* 傍点は字の上に出るので、その行だけ上に余白がいる */
+.demo-page:has(.boten) { padding-top: 20px; }
+.demo-page .demo-p ruby rt { font-size: 0.5em; }
+/* 見本の中の添え物。**本文ではない**ことを色で示す */
+.demo-page .demo-dim { color: var(--paper-ink-dim); }
+/* 行末寄せの見本(署名・日付)。**見本の紙面は横組み**なので右へ寄る。
+   縦組みの本では地(下)へ寄る — 組版側は論理値(text-align: end)で書いてある */
+.demo-page .demo-align-end { text-indent: 0; text-align: right; }
+/* 場面転換の記号(＊ / ＊　＊　＊)。**行の中央に置く**(組版の p.scene-break.mark と同じ)。
+   前後のアキは組版では半行ずつ。見本の行送りに合わせて 0.5em で近づける。
+   色は本文のまま — 添え物ではなく、紙に刷られる字そのものだから */
+.demo-page .demo-scene-mark { text-indent: 0; text-align: center; margin: 0.5em 0; }
+/* 空いた1行を字で示す。ちょうど1行ぶんの高さを占める */
+.demo-gap {
+  margin: 0;
+  height: 2em;
+  display: grid;
+  place-items: center;
+  color: var(--paper-gap-ink);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  border-top: 1px dashed var(--paper-rule-3);
+  border-bottom: 1px dashed var(--paper-rule-3);
+}
+.demo-h3 {
+  margin: 1em 0 0.6em;
+  font-family: "Noto Sans JP", sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--paper-ink);
+}
+.demo-break {
+  margin: 0 0 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px dashed var(--paper-rule);
+  color: var(--paper-ink-soft);
+  font-size: 10.5px;
+  text-align: center;
+}
+/* 段落そのものの種類の見本。**組版の見た目に寄せる**(css.ts と同じ形にする) */
+.demo-quote {
+  margin: 0.8em 0;
+  padding-inline-start: 1em;
+  border-inline-start: 2px solid var(--paper-rule-2);
+  color: var(--paper-ink-2);
+  font-size: 12.5px;
+  line-height: 1.9;
+}
+.demo-list {
+  margin: 0;
+  padding-inline-start: 1.4em;
+  color: var(--paper-ink);
+  font-size: 12.5px;
+  line-height: 1.9;
+}
+.demo-list li { margin: 0; }
+.demo-hr {
+  margin: 1em auto;
+  width: 40%;
+  border: 0;
+  border-top: 1px solid var(--paper-rule);
+}
+.demo-chapter-no { margin: 0; font-size: 11px; color: var(--paper-ink-3); }
+.demo-chapter {
+  margin: 4px 0 0;
+  font-family: "Noto Sans JP", sans-serif;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--paper-ink);
+}
+
+/* AI に頼む例文。**コピーして使うもの**なので、見出しと本文を分けて読みやすく置く */
+.prompt-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.prompt-list li {
+  display: grid;
+  gap: 3px;
+  padding: 9px 10px;
+  background: var(--bg-box);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent-line);
+  border-radius: 6px;
+}
+.prompt-list b { font-size: 12px; color: var(--text-strong); }
+/* 一覧を全面で見せるときは、1つずつコピーできるようにボタンを付ける */
+.prompt-list .ghost { justify-self: start; margin-top: 4px; padding: 4px 10px; font-size: 11.5px; }
+.prompt-list span {
+  font-size: 12px;
+  color: var(--text-mid);
+  line-height: 1.6;
+  /* 選んでコピーしやすいよう、文そのものは折り返して全部見せる */
+  user-select: text;
+}
+
+/* サイドバーでも使う困りごとの箇条書き(ヘルプと同じ見た目に揃える) */
+.sidebar .help-list {
+  margin: 0;
+  padding-left: 1.2em;
+  font-size: 12px;
+  color: var(--text-sub);
+  line-height: 1.6;
+}
+.sidebar .help-list li { margin-bottom: 6px; }
+.sidebar .help-list code {
+  padding: 1px 4px;
+  background: var(--bg-field);
+  border-radius: 3px;
+  font-size: 11px;
+}
+
+/* ヘルプの箇条書き。困りごとを並べる用 */
+.about .help-list {
+  margin: 0 0 8px;
+  padding-left: 1.2em;
+  font-size: 12.5px;
+  color: var(--text-mid);
+}
+.about .help-list li { margin-bottom: 5px; }
+/* 全画面の工程(AI)でも同じ見た目で使う */
+.fullstage .help-list {
+  margin: 0;
+  padding-left: 1.2em;
+  font-size: 12.5px;
+  color: var(--text-mid);
+  line-height: 1.7;
+}
+.fullstage .help-list li { margin-bottom: 7px; }
+.fullstage .help-list code, .fullstage .hint code {
+  padding: 1px 5px;
+  background: var(--bg-field);
+  border-radius: 3px;
+  font-size: 11.5px;
+}
+.about .help-list code {
+  padding: 1px 4px;
+  background: var(--bg);
+  border-radius: 3px;
+  font-size: 11.5px;
+}
+
+/* パネルの先頭に置くダウンロード。下まで読まないと落とせないのは効率が悪い */
+.panel-download { align-self: flex-start; margin-bottom: 14px; }
+
+.about-close {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  padding: 2px 9px;
+  background: transparent;
+  border: none;
+  color: var(--text-faint);
+  font-size: 18px;
+  line-height: 1.4;
+}
+.about-close:hover { background: var(--bg-hover); color: var(--text-strong); }
+.about h2 { margin: 0 0 6px; font-size: 17px; color: var(--text-strong); }
+.about h3 {
+  margin: 22px 0 6px;
+  font-size: 12px;
+  color: var(--text-dim);
+  letter-spacing: 0.06em;
+}
+.about p { margin: 0 0 8px; font-size: 12.5px; color: var(--text-mid); }
+.about-lede { margin-bottom: 18px !important; }
+.about a { color: var(--accent-text); }
+.about a:hover { color: var(--accent-text-hi); }
+/* 項目名と中身。名前を左に固定して読み下せるようにする */
+.about-list { display: grid; gap: 8px; margin: 0; }
+.about-list > div { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 10px; }
+.about-list dt { font-size: 11.5px; color: var(--text-faint); }
+.about-list dd { margin: 0; font-size: 12.5px; color: var(--text); word-break: break-all; }
+/* 貼ってもらうバナーの見本。**実寸で出す。** 縮めて見せると、貼ったときの
+   大きさが分からない。ダイアログの中身は 502px 幅なので 468 の帯もそのまま入る。
+   窓が 600px を切るとダイアログごと縮むので、そのときだけ帯も縮める
+   (実測: 560px の窓で 454px。はみ出させるよりは小さく見せるほうがまし) */
+.about-banners {
+  display: grid;
+  gap: 14px;
+  margin: 4px 0 12px;
+  padding: 0;
+  list-style: none;
+}
+.about-banners li { display: grid; gap: 5px; justify-items: start; }
+.about-banners img {
+  max-width: 100%;
+  height: auto;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+}
+.about-banners a { font-size: 11.5px; }
+.about-foot {
+  margin: 20px 0 0 !important;
+  padding-top: 14px;
+  border-top: 1px solid var(--line-soft);
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+
+/* タブと書名・著者名の入力は役割が違うので、区切り線とアキで離す */
+.topbar .tabs {
+  flex: 0 0 auto;
+  margin-right: 14px;
+  padding-right: 16px;
+  border-right: 1px solid var(--line);
+}
+.topbar .tabs button { padding: 6px 16px; font-size: 13px; }
+
+/* ---- 表紙エディタ ---- */
+.cover {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+/* プリセットのサムネイルを見分けられる幅がいる(基準の .sidebar と同じ340pxに揃える) */
+.cover .sidebar { width: 340px; }
+/* 表紙を見る面。**本文と同じ無彩色の灰にそろえる。**(2026-08-20 ユーザー指摘)
+   もとの #43464e は青みがかった灰で、表紙の色を見る面としては色が乗っていた
+   (理由は .preview のコメントを参照) */
+.cover-preview {
+  flex: 1;
+  min-width: 0;
+  padding: 20px;
+  overflow: auto;
+  background: var(--stage);
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  /* flex-start だと子が内容幅(=キャンバスの実寸)になり、表紙が画面からはみ出す */
+  align-items: stretch;
+}
+.cover-sheet { max-width: 100%; min-width: 0; }
+.cover-sheet h3 {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--stage-ink);
+  letter-spacing: 0.08em;
+  margin: 0 0 8px;
+}
+/* canvas は縦横比を持つので width/height を auto にし、max-* の小さい方に合わせる。
+   こうすると倍率1.0で「表1・背・表4の全体」が縦にも横にも収まる */
+.cover-sheet canvas {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: calc(100% * var(--zoom, 1));
+  max-height: calc(58vh * var(--zoom, 1));
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.5);
+  background: var(--text-strong);
+}
+.cover-sheet.ebook canvas { max-width: calc(200px * var(--zoom, 1)); max-height: none; }
+/* 紙を作らない本では、電子の表紙が唯一の見本。小さな添え物のままだと確かめられない */
+.cover-sheet.ebook.solo canvas { max-width: calc(360px * var(--zoom, 1)); }
+
+/* いま選んでいる面(表1/背/表4)をキャンバスに重ねて示す囲い。
+   display:inline-block にすると、内容が canvas 1枚だけなので
+   キャンバスの実際の描画サイズ(width/height:auto + max-* で決まる)に
+   ぴったり合わせてラップできる。ここに position:relative を置き、
+   絶対配置のオーバーレイをキャンバスと同じ座標系に重ねる */
+.cover-canvas-wrap { position: relative; display: inline-block; max-width: 100%; }
+/* overlay 自体は pointer-events:none のまま(帯の隙間をクリックしても下のキャンバスへ
+   突き抜けさせたいので)。押せるのは中の各面(.cover-face)だけ、下で個別に戻す */
+.cover-face-overlay { position: absolute; inset: 0; pointer-events: none; }
+/* 面ごとの帯。選んでいない面は暗く落とし、選んでいる面は縁取りだけにして
+   キャンバスの絵をそのまま見せる(暗幕を掛けない)。
+   **押して面を切り替えられるので、ここだけ pointer-events を戻してポインタを立てる。**
+   (2026-09-14 ユーザー要望「表4をクリックすると表4がアクティブになる、という操作」) */
+.cover-face {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: rgba(10, 12, 16, 0.55);
+  transition: background 0.15s, box-shadow 0.15s;
+  pointer-events: auto;
+  cursor: pointer;
+}
+.cover-face-on {
+  background: transparent;
+  box-shadow: inset 0 0 0 3px var(--accent-line), inset 0 0 0 4px rgba(0, 0, 0, 0.35);
+}
+/* 選んでいない面だけ、押せると分かる程度にうっすら明るくする。
+   選んでいる面(cover-face-on)は枠で既に示せているので、ここでは触らない */
+.cover-face:not(.cover-face-on):hover { background: rgba(10, 12, 16, 0.4); }
+.cover-face:focus-visible { outline: 2px solid var(--accent-line); outline-offset: -2px; }
+/* まるごと1枚のときは絵の色をそのまま見せる。暗幕も枠も掛けない。
+   この2つは「面」という単位が無いモードなので、クリックも受け付けない
+   (JSX 側も role/tabIndex/onClick を外している。ここは見た目の保険) */
+.cover-face-clear { background: transparent; pointer-events: none; cursor: default; }
+/* 足したばかりの行。スクロールで寄ったうえで、どれが新顔かを一拍だけ光らせる
+   (挿絵・コラムの一覧共通。2026-09-04「追加された行が見えるように」) */
+.plate-list li.row-flash,
+.colpage-list li.row-flash {
+  animation: row-flash 2.2s ease-out;
+  border-radius: 10px;
+}
+@keyframes row-flash {
+  0% { background: var(--accent-fill); box-shadow: 0 0 0 2px var(--accent-line); }
+  70% { background: var(--accent-fill); box-shadow: 0 0 0 2px var(--accent-line); }
+  100% { background: transparent; box-shadow: none; }
+}
+
+/* まるごと1枚のときの背。**塗らずに折り目だけ破線で示す。**
+   実線の inset 枠(cover-face-on)だと、細い背(数mm)では枠どうしがくっついて
+   背全体が塗りつぶされて見え、「背に別の色が入ってしまう」と読まれた
+   (2026-09-04 ユーザー報告)。破線なら「ここで折れる」という目印にしか見えない */
+.cover-face-guide {
+  background: transparent;
+  border-left: 2px dashed var(--accent-line);
+  border-right: 2px dashed var(--accent-line);
+  /* こちらも面ではなく折り目の目印なので、.cover-face-clear と同じくクリックを受けない */
+  pointer-events: none;
+  cursor: default;
+}
+
+/* 中綴じの折り目の破線。背が無いので幅 0 の1本だけ(左右の破線を重ねない) */
+.cover-face-guide.cover-face-fold { border-right: 0; }
+
+/* 背文字の大きさ(書名・著者・版元の3つ)。
+   **縦に3行並べない。** 見出しと［ぎりぎりまで大きく］で1行、数値3つで1行の、
+   合わせて2行に収める。1440×900・289ページ・［背］タブでの実測(2026-08-22):
+
+     背の文字の欄ぜんぶ   旧(大きさ1つ) 757px → 横に並べる 824px → 縦に3つ 913px
+
+   横に並べると、縦に積む場合より 89px 低い。この板はもともと長く、
+   背の文字を「刷る」にした時点でサイドバー全体は 1356px(表示できるのは 739px)。
+   ここを縦に伸ばすほど、下の［文字の色］や断り書きが遠くなる */
+.spine-sizes { display: flex; flex-direction: column; gap: 6px; }
+.spine-sizes-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-mid);
+}
+.spine-sizes-head button { padding: 4px 9px; font-size: 11.5px; }
+.spine-sizes-head button:disabled { opacity: 0.5; cursor: default; }
+.spine-sizes-row { display: flex; gap: 8px; }
+/* .sidebar label の「左右いっぱいに広げる」を上書きして、3つを等分に並べる。
+   **white-space は必須。** 無いと「書名」の2字が縦に折れて行が2つになり、
+   欄1つで 41px(= 20.4 × 2)を食う(2026-08-22 実測。折らなければ 32px) */
+.spine-sizes-row label {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 4px;
+  font-size: 12px;
+  min-width: 0;
+  white-space: nowrap;
+}
+/* .sidebar input の width:100% だと、ラベルが押し出されて改行する */
+.spine-sizes-row input { flex: 1; width: 100%; min-width: 0; padding: 4px 6px; }
+
+.zoom-bar {
+  display: flex;
+  align-items: center;
+  /* 読み値(.zoom-readout)を右に足したぶん横に伸びる。
+     窓が狭いときは操作列を押し出さず、読み値のほうを次の行へ落とす */
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--text);
+  position: sticky;
+  top: -20px;
+  z-index: 1;
+  margin: -6px 0 -10px;
+  padding: 6px 10px;
+  background: var(--bg-info);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  align-self: flex-start;
+}
+.zoom-bar input[type="range"] { width: 150px; }
+.zoom-bar b { min-width: 3.4em; }
+.zoom-bar button {
+  background: var(--bg-field);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 3px 10px;
+  color: var(--text);
+  cursor: pointer;
+}
+/* 背幅と仕上がり寸法。**操作ではなく結果**なので、設定の列(サイドバー)ではなく
+   いま見ている絵の上に置く(2026-08-19)。倍率の操作とは縦罫で切って、
+   「押せるもの」と「読むだけのもの」を見分けられるようにする */
+.zoom-readout {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding-left: 10px;
+  border-left: 1px solid var(--line);
+  font-variant-numeric: tabular-nums;
+}
+/* 倍率の数字用に付けた min-width: 3.4em は、ここでは字間が空くだけなので打ち消す */
+.zoom-readout b { min-width: 0; color: var(--text-strong); }
+.zoom-readout em { font-style: normal; color: var(--text-dim); }
+.sidebar textarea {
+  width: 100%;
+  background: var(--bg-field);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font: inherit;
+  color: inherit;
+  resize: vertical;
+}
+/* ギャラリーはサイドバーを占領しないよう高さを切ってスクロールさせる */
+.preset-box {
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 6px;
+  background: var(--bg-box);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+}
+/* 背景ピッカー(BackgroundPicker.tsx)側は、窓の中に窓を作らない。
+   以前は .preset-box 自身にも max-height(460px) + overflow-y:auto を持たせていたが、
+   .sidebar 自身のスクロールと二重になり、スクロールバーが2本並んで
+   「どちらを動かせばよいか分からない・一覧性がない」という不満につながった(2026-08-18)。
+   ここでは高さを制限せず、一覧の縦の長さはサイドバー1本のスクロールに委ねる。
+   ※ 表紙タブの一覧も PresetScreen へ寄せたので、いま .preset-box が出るのは
+   .bg-picker の中だけ。素の260px は残してあるが、実質この行が効いている(2026-08-19) */
+.bg-picker .preset-box { max-height: none; overflow-y: visible; }
+/* **テーマの見出しは絵の流れを切らない大きさに。**
+   段落のような見出しが数枚ごとに挟まると、Canva のように「絵が続く面」に見えない。
+   一覧の上に貼り付けて、どこを見ているかだけ分かるようにする */
+.preset-theme { margin-bottom: 10px; }
+.preset-theme > .hint {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin: 0 0 4px;
+  padding: 3px 0;
+  background: var(--bg-panel);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  color: var(--text-faint);
+}
+/* テーマ単位の断り書き(帯つきの地は文庫の版面に合わせてある、など)。文言は manifest が持つ。
+   **色は足さない。** テーマの見出しと同じ灰のまま、そのすぐ下に1行挟むだけにする
+   (画面には手順だけ、という方針なので、注意書きを目立たせて手を止めさせない)。
+
+   直前の `.preset-theme > .hint` を打ち消している。テーマ名と同じ位置に置いたので
+   **貼り付き(sticky)まで引き継いでしまい、見出しと断り書きが上端で重なった**(実測)。
+   貼り付くのは見出しだけでよい。詰め物と地色も戻す */
+.preset-theme > .preset-note {
+  position: static;
+  margin: -2px 0 5px;
+  padding: 0;
+  background: none;
+  letter-spacing: 0;
+  line-height: 1.5;
+}
+/* 同梱プリセットの使いどころ。箱の外に出す(理由は次の .preset-pinned を参照) */
+.preset-terms {
+  margin: 6px 0 4px;
+  padding: 7px 9px;
+  background: var(--bg-box);
+  border-left: 3px solid var(--line-bold);
+  border-radius: 5px;
+  line-height: 1.55;
+}
+/* テーマ・キーワードの絞り込み。select/input は .sidebar select, .sidebar input の
+   width:100%にそのまま乗せる(横並びにすると打ち消しが要って事故のもとになるので縦積み) */
+/* **1行にまとめる。**(2026-08-19 Canva と見くらべて)
+   縦積みだと、絵にたどり着くまでに操作の行が3本(戻る・テーマ・キーワード)続く。
+   あちらは検索欄が1本だけで、開いた瞬間に絵が目に入る。
+   440px あれば横に並べても両方打てる */
+.preset-filter { display: grid; grid-template-columns: 150px 1fr; gap: 6px; margin: 2px 0 6px; }
+.preset-filter > * { min-width: 0; }
+/* PresetTerms(利用条件)とテーマ・キーワードの絞り込みをまとめて、
+   スクロールしても上に留まるようにする。
+   .preset-box が自前のスクロールを持っていた頃は、この2つを箱の外に置くだけで
+   「探しているうちに流れて消える」ことを防げていたが、窓の中の窓をやめた(直上の変更)ことで
+   サイドバー自身が長くスクロールするようになり、置いておくだけでは流れて消えてしまう。
+   sticky で画面上部に押さえておく(2026-08-18) */
+.bg-picker .preset-pinned {
+  position: sticky;
+  /* **-12px は .sidebar の padding ぶん。**
+     sticky が留まるのはスクロール枠の padding の内側なので、top: 0 だと
+     上に 12px の帯が残り、そこを絵が流れていくのが見えてしまう
+     (2026-08-19 ユーザー報告)。12px ぶん高く留めて、その帯ごと隠す */
+  top: -12px;
+  z-index: 2;
+  background: var(--bg-panel);
+  /* **上下の余白はこの箱の padding で持つ。** 子の margin は箱の外へ出るので、
+     やはりその隙間から絵がのぞく。上は留まる位置を上げたぶんを足し戻す */
+  padding: 20px 0 6px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.bg-picker .preset-pinned > .preset-filter { margin: 0; }
+.preset-empty { padding: 4px 2px; }
+/* 5列だとサイドバー幅では1枚30px程度になって絵柄が判別できない */
+.preset-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 5px;
+}
+/* 開いた分の幅(440px)を使って2列・1枚200px前後に拡大。
+   「見づらい」という初見ユーザーの不満に対応(2026-08-18)。
+   表紙タブも同じ PresetScreen を使うようになったので、こちらも2列になる(2026-08-19) */
+/* **3列に戻す。ただし440pxの幅で。**(2026-08-19 ユーザー指摘)
+   2列(1枚197px)だと、開いた瞬間に見えるのが1枚半しかなく
+   「選べる」感が出ない。Canva は送らずに6枚見えていて、選ぶ物がたくさんある空気が出る。
+   3列なら1枚144px。**340px時代の3列(約100px)とは別物**で、絵柄は十分見分けられる。
+   隙間 4px は Canva と同じくらいの見え方になる幅
+   (広げると1枚が小さくなるだけで、区切りの役には立たない。枠をやめたので隙間が区切り) */
+.bg-picker .preset-grid { grid-template-columns: repeat(3, 1fr); gap: 4px; }
+/* **枠を描かない。**(2026-08-19 Canva と見くらべて)
+   同じ幅でもあちらがすっきり見えるのは、絵のまわりに線も余白も無く、
+   暗い地の上で**明るいのは絵だけ**だから。こちらは1枚ずつに枠(2px)を回していたので、
+   目が「枠の格子」を先に拾って絵柄が入ってこなかった。
+   選択と hover は outline で外側に出す(枠を内側に描くと絵の大きさが揺れる) */
+.preset-item {
+  padding: 0;
+  background: none;
+  border: 0;
+  border-radius: 6px;
+  overflow: hidden;
+  cursor: pointer;
+  line-height: 0;
+}
+.preset-item img { width: 100%; height: auto; display: block; border-radius: 6px; }
+.preset-item:hover { outline: 2px solid var(--line-bold); outline-offset: 0; }
+.preset-item.active,
+.preset-item.active:hover { outline: 3px solid var(--accent-line); outline-offset: 0; }
+
+/* いま選んでいるプリセット1枚。設定の列(340px)に一覧を並べるのをやめた代わりに置く。
+   **44pxの .bg-thumb では絵柄が分からない**ので、ここだけ96pxにする
+   (どれを選んだか確かめるために一覧を開き直す、が起きないだけの大きさ) */
+.preset-chosen { display: flex; gap: 10px; align-items: flex-start; }
+.preset-chosen img {
+  display: block;
+  width: 96px;
+  flex: 0 0 auto;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+}
+.preset-chosen-empty {
+  display: grid;
+  place-items: center;
+  width: 96px;
+  height: 136px;
+  flex: 0 0 auto;
+  padding: 0 6px;
+  font-size: 11px;
+  text-align: center;
+  color: var(--text-faint);
+  background: var(--bg-box);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+}
+.preset-chosen-side { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.preset-chosen-name {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--text-dim);
+  word-break: break-word;
+}
+
+/* 章ごとの背景。章が多いと縦に伸びるので、既定では畳んでおく */
+.chapter-bg {
+  margin: 10px 0 4px;
+  padding: 8px;
+  background: var(--bg-box);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+}
+.chapter-bg > summary { cursor: pointer; font-size: 12px; font-weight: 700; }
+.chapter-bg[open] > summary { margin-bottom: 6px; }
+
+/* 奥付の「ここから任意」の区切り */
+.optional-rule {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0 6px;
+  color: var(--text-faint);
+  font-size: 11px;
+}
+.optional-rule::before,
+.optional-rule::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+/* 挿絵ページの一覧。1件が1ページになるので、絵と位置を並べて見せる */
+.plate-list { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 10px; }
+.plate-list li {
+  display: grid;
+  grid-template-columns: 40px 1fr;
+  gap: 8px;
+  align-items: start;
+  padding: 8px;
+  background: var(--bg-box);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+}
+.plate-thumb {
+  width: 40px;
+  height: 56px;
+  object-fit: cover;
+  border-radius: 4px;
+  border: 1px solid var(--line);
+}
+/* クッションページ。絵も文字も置かない1ページ(背景は出る)。紙が1枚あることだけ示す */
+.plate-thumb.blank {
+  display: grid;
+  place-items: center;
+  background: var(--bg-field);
+  border-style: dashed;
+  font-size: 9px;
+  color: var(--text-dim);
+}
+.plate-fields { display: grid; gap: 5px; }
+/* 挿絵ページの欄。**サイドバー共通の 13px に合わせる。**
+   ここだけ 12px にしていたので「画像タブの字が小さい」と言われた(2026-08-19) */
+.plate-fields select { font-size: 13px; padding: 5px 6px; }
+.plate-page { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+.plate-page input { width: 64px; padding: 5px 6px; font-size: 13px; }
+.plate-fields button { justify-self: start; padding: 5px 9px; font-size: 12.5px; }
+.plate-list .hint { grid-column: 1 / -1; margin: 0; }
+/* **知らせの黄色い囲み(.warn。絵の細かさなど)も、行いっぱいに置く。**(2026-10-03 ユーザー報告
+   「挿絵タブの注釈の改行がおかしい」。1字ずつ縦に折れていた)
+   li は `40px 1fr` の格子。.warn には列の指定が無く、書いた順に流れて**サムネの 40px の枠**に落ち、
+   その幅で1字ずつ折り返していた。.hint と同じ理由で、こちらにも要る(章の途中の絵・クッションページの行も同じ) */
+.plate-list li > .warn { grid-column: 1 / -1; min-width: 0; }
+/* ジャンプリンクは行のいちばん上。.hint を土台に使うので `1 / -1` は上と共通だが、
+   すぐ下にサムネ・欄の行が来るとくっつきすぎて窮屈だったので、ここだけ下に少し space を足す
+   (コラムページの見出し帯 .colpage-head がカードの頭で1段独立して見えるのに寄せた) */
+.plate-list .plate-jump { margin-bottom: 4px; }
+/* **絵を選ぶピッカーも、行いっぱいに置く。**(2026-08-20 ユーザー報告
+   「挿絵タブ、３つ並んだボタンがはみ出ているのがなんかみっともない」)
+
+   li は `40px 1fr`(サムネ+欄)の格子で、子は書いた順に流れる。
+   3つめに置いたピッカーは**次の行の1列目=40px の枠**に落ちていた。
+   中のボタンは white-space: nowrap(button の既定)なので 40px まで縮めず、
+   枠を突き破って**サイドバーの外まで 9px はみ出していた**(実測 2026-08-20)。
+   .hint が先に `1 / -1` を持っていたのと同じ理由で、こちらにも要る */
+.plate-list .bg-picker { grid-column: 1 / -1; }
+
+/* 行の頭の札。**章の切れ目のページか、章の途中の絵か**を先に言う(2026-09-23)。
+   2通りが1つの一覧にページ順で混ざるので、札が無いと場所の欄の読み方が分からない */
+.plate-kind { font-size: 12px; font-weight: 700; color: var(--text-strong); }
+/* 章の途中の絵の場所。直前の段落の書き出しで言う(番号では本文のどこか思い出せない) */
+.plate-where { font-size: 12.5px; color: var(--text-sub); line-height: 1.5; }
+.plate-fields input[type='text'] { font-size: 13px; padding: 5px 6px; }
+
+/* ---- 章の途中に絵を入れる場所を選ぶ画面(ParagraphPicker)----
+   開いているあいだサイドバーを丸ごと使う(画像パックの一覧と同じ扱い) */
+.para-picker { display: grid; gap: 8px; min-width: 0; }
+.para-picker select { width: 100%; }
+.para-picker h3 { margin: 4px 0 0; font-size: 14px; }
+.para-back { justify-self: start; padding: 5px 10px; }
+.para-search { width: 100%; box-sizing: border-box; font-size: 13px; padding: 6px 8px; }
+.para-list { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 4px; }
+.para-list button {
+  width: 100%;
+  box-sizing: border-box;
+  /* button の既定は折り返さない。段落の書き出しがサイドバーの外へはみ出して
+     横スクロールが出た(2026-09-23 実測)ので、行の中で折り返させる */
+  white-space: normal;
+  display: grid;
+  gap: 2px;
+  text-align: left;
+  padding: 7px 9px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text);
+  background: var(--bg-box);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.para-list button:hover { border-color: var(--accent-line); background: var(--bg-raised); }
+/* 動かしている絵が、いまどの段落のあとにあるか */
+.para-list button.here { border-color: var(--accent-line); }
+.para-ch { font-size: 11px; color: var(--text-dim); }
+.para-text { word-break: break-all; }
+.para-here { justify-self: start; font-size: 11px; color: var(--accent-text-hi); }
+
+/* 選んだ本文書体の見本。実際の字面をその場で確かめられるようにする */
+.preview-type {
+  margin: 8px 0 4px;
+  padding: 8px 10px;
+  background: var(--paper);
+  color: var(--paper-ink);
+  border-radius: 6px;
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+/* 一覧を開いているあいだ、サイドバー上部に出す［← 戻る］と見出し。
+   ArtStep.tsx(背景の各面)・PlateEditor.tsx(挿絵ページ)の両方から使う */
+.bg-focus { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.bg-focus-back { align-self: flex-start; }
+.bg-focus-title { margin: 0; font-size: 13px; font-weight: 700; }
+
+/* 本文・大扉の背景ピッカー。今どの絵が入っているかを小さく見せる */
+.bg-picker { display: grid; gap: 6px; }
+.bg-picker + .bg-picker { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line-soft); }
+.bg-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+}
+.bg-state {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--bg-chip);
+  color: var(--text-dim);
+  font-size: 11px;
+  font-weight: 400;
+}
+.bg-state.on { background: var(--ok-fill); color: var(--ok-text); }
+.bg-row { display: flex; gap: 8px; align-items: flex-start; }
+.bg-thumb {
+  width: 44px;
+  height: 62px;
+  flex: 0 0 auto;
+  object-fit: cover;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--bg-box);
+}
+.bg-thumb.empty {
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+/* **絵を選ぶボタンは「この画面の中の操作」。塗って立たせる。**(2026-08-21 ユーザー報告
+   「本文のボタンが埋もれがち。BOOTHボタンと勘違いが多発する」)
+
+   もとは `button.ghost` のまま(地は透け、枠は --line、12px の細字)で、
+   同じサイドバーの下端にある BOOTH の導線だけが色つきの枠と塗りを持っていた。
+   **押せるものとして目立っていたのが、外へ出ていくリンクのほうだった**ことになる。
+
+   実測(1440×900・文庫サンプル・04 の背景タブ。**枠と地の対比**):
+   ```
+                        明るい 前→後      暗い 前→後
+   本文のボタン 枠      1.47 → 2.64      1.47 → 2.57
+   BOOTH の枠           3.98 → 2.45      5.80 → 3.14
+   BOOTH が何倍強いか   2.71倍 → 0.93倍   3.95倍 → 1.22倍
+   ```
+   **押せるものの序列が逆さまだったのが、ほぼ並んだ。** 強さで競わせず、
+   役目で分ける: **中の操作は「塗った実線の箱」/ 外へ出るリンクは「破線＋下線＋↗」。**
+   高さも 32px → 42px、字も 12px の細字から 13px の太字にして、押す場所だと分かるようにした。
+   BOOTH の置き場は動かさない(サイドバー下端に固定。理由は .shop-foot を参照)。
+
+   挿絵タブ(.bg-add)が先にこの見た目になっていたので、**土台をこちらへ移した**。
+   .bg-add に残したのは「絵の枠が無いぶん横いっぱいに伸ばす」差分だけ。
+   幅は足りている — 背景タブは絵の枠 44px を除いて 222px あり、
+   ［画像を選ぶ］83 +［プリセットから］109 + 間6 = 198px で 24px 余る(実測) */
+.bg-buttons { display: flex; flex-wrap: wrap; gap: 6px; }
+.bg-buttons button {
+  padding: 9px 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  background: var(--bg-field);
+  border: 1px solid var(--line-bold);
+  border-radius: 8px;
+}
+.bg-buttons button:hover { background: var(--bg-raised); border-color: var(--accent-line); color: var(--text-strong); }
+/* 外すほうは主役ではない。**行を分けて、右へ寄せて、字も細く。**
+   `flex: 0 0 auto` で伸ばさないので、上の2つと同じ行には並ばず必ず落ちる
+   (2つで 198px、3つめを足すと 287px。挿絵の箱 256px も背景の 222px も越える)。
+
+   **挿絵タブ限定だったのを全部のピッカーへ広げた**(2026-08-21)。上の2つを塗った
+   とたん、背景タブでは［画像を外す］まで同じ太さの箱になり、
+   **消す操作がいちばん目立つ**という逆転が起きた。この打ち消しは .bg-add 側ではなく
+   ここに要る(「絵を選ぶ2つの道の仲間ではない」のはどのピッカーでも同じ) */
+.bg-buttons .bg-clear {
+  flex: 0 0 auto;
+  margin-left: auto;
+  padding: 5px 9px;
+  font-size: 12.5px;
+  font-weight: 400;
+  color: var(--text-mid);
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.bg-buttons .bg-clear:hover { background: var(--bg-raised); color: var(--text-strong); }
+
+/* 継承へ戻す小さな導線。押せると分かる程度に留め、操作の主役を奪わない */
+.link-btn {
+  align-self: flex-start;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: 0;
+  color: var(--accent-text);
+  font-size: 11px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.link-btn:hover { background: none; color: var(--accent-text-hi); }
+
+/* 入稿前チェック。各ステップに散っている判定を集めただけの一覧。
+   引っかかっても書き出しは止めないので、赤ではなく「確かめて」の色にする */
+.checklist { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px; }
+.checklist li {
+  display: grid;
+  grid-template-columns: 15px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.checklist .ic { font-weight: 700; text-align: center; }
+.checklist .ok .ic { color: var(--ok); }
+.checklist .ng .ic { color: var(--warn); }
+.checklist .ng { color: var(--warn-text); }
+.checklist .link-btn { margin-left: 6px; }
+/* KDP の入稿画面で選ぶ値。画面を開いたまま、ここを見て写せる形にする */
+.spec-list {
+  display: grid;
+  gap: 1px;
+  margin: 0;
+  background: var(--line);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  overflow: hidden;
+}
+.spec-list > div { background: var(--bg-box); padding: 7px 10px; }
+.spec-list dt {
+  font-size: 10.5px;
+  color: var(--text-dim);
+  letter-spacing: 0.04em;
+}
+.spec-list dd {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--text-strong);
+  font-variant-numeric: tabular-nums;
+}
+.spec-list dd em {
+  display: block;
+  margin-top: 1px;
+  font-style: normal;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+/* 入稿値のうち、アプリからは言い切れないものを手で足すための操作。
+   **必ず label.check と併せて使う** — 幅の指定はあちらが持っている
+   (.sidebar input の width:100% を打ち消さないと、チェックボックスが
+   サイドバー幅いっぱいの白い箱になってラベルが右へ押し出される) */
+.sidebar label.spec-check {
+  /* 2行になるので、チェックは1行目の高さに合わせる */
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--text-mid);
+}
+.sidebar label.spec-check input { margin-top: 1px; }
+/* 入稿値の下に添える一言。操作ではないので、値の説明(em)とは離して置く */
+.spec-list .spec-note { margin-top: 4px; }
+.sidebar label.spec-check input:disabled { cursor: default; }
+.sidebar label.spec-check input:disabled + span { color: var(--text-dim); }
+
+/* 素材の販売先への導線。押せると分かる程度に立てるが、鬱陶しくしない。
+   **ただし「この画面の中の操作」には見せない。**(2026-08-21 ユーザー報告
+   「本文のボタンが埋もれがち。BOOTHボタンと勘違いが多発する」)
+
+   もとは塗り(--bg-field)＋色つきの実線枠(--accent-line)で、サイドバーの中で
+   いちばん強いボタンだった。中の操作(.bg-buttons)が枠だけの細字だったので、
+   **押せるものの序列が逆さま**になっていた。位置は動かせない決めがあるので、
+   **見た目の種類のほうを変える**:
+
+   - 中の操作 … 塗った実線の箱（--bg-field ＋ --line-bold）
+   - 外へ出る … 塗らない破線の箱 ＋ 下線 ＋ ↗（--line-bold の破線）
+
+   --line-bold は「はっきり出す枠・破線」の色なので、そのまま使える。
+   実測(1440×900・枠と地の対比): 暗い 5.80 → 3.14、明るい 3.98 → 2.45。
+   同じ画面の中の操作(.bg-buttons の枠)は 2.57 / 2.64 なので、**枠の強さはほぼ並ぶ。**
+   見分けるのは強さではなく、実線か破線か・塗ってあるか・↗ が付くか */
+.shop-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 10px;
+  background: none;
+  border: 1px dashed var(--line-bold);
+  border-radius: 6px;
+  color: var(--accent-text);
+  font-size: 12px;
+  text-align: center;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+/* 外部サイトへ出るしるし。**文言は足さない**(画面に説明を増やさない方針)ので、
+   1文字の記号だけで「ここから外へ出る」と分かるようにする */
+.shop-link::after { content: '↗'; font-size: 13px; text-decoration: none; }
+.shop-link:hover { background: var(--bg-hover); border-color: var(--accent-line); color: var(--accent-text-hi); }
+/* 導線に添える紹介文。ここまでが「追加で買う」話だという切れ目にもなる */
+.shop-hint { padding-bottom: 10px; border-bottom: 1px solid var(--line-soft); }
+
+/* 文字を置く位置を選ぶ9マス。表紙の縮図に見えるよう縦長にする */
+.anchor-pad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 3px;
+  width: 96px;
+  padding: 3px;
+  background: var(--bg-box);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+}
+.anchor-pad button {
+  aspect-ratio: 2 / 3;
+  padding: 0;
+  background: var(--bg-chip);
+  border: 1px solid transparent;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.anchor-pad button:hover { background: var(--bg-raised); }
+.anchor-pad button.active { background: var(--accent); border-color: var(--accent-text); }
+.anchor-pad .anchor-auto {
+  grid-column: 1 / -1;
+  aspect-ratio: auto;
+  padding: 3px 0;
+  font-size: 10px;
+  color: var(--text);
+}
+.anchor-pad .anchor-auto.active { color: var(--on-accent-line); }
+
+/* 色を選ぶ行。ラベルを左、見本を右に置いて押せると分かるようにする */
+.sidebar label.color-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  cursor: pointer;
+}
+.sidebar label.color-row input[type="color"] {
+  flex: 0 0 auto;
+  width: 52px;
+  height: 28px;
+  padding: 2px;
+  border: 1px solid var(--line-bold);
+  border-radius: 5px;
+  background: var(--bg-field);
+  cursor: pointer;
+}
+
+.seg { display: flex; gap: 6px; }
+.seg button {
+  flex: 1;
+  background: var(--bg-field);
+  border: 1px solid var(--line);
+  color: var(--text-mid);
+  padding: 6px 4px;
+  font-size: 12px;
+}
+.seg button.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+
+/* 11px/#8a8f99 は背景 #292c32 に対して約4.3:1で WCAG AA(4.5:1) 未達だった。
+   12px にし、色は他の補足文言(readout small など)と同じ `--text-dim` に揃える。
+   明るいテーマでは 6.9〜8.3:1 まで上がっている(2026-08-20 実測) */
+.hint { font-size: 12px; color: var(--text-dim); margin: 0; line-height: 1.5; }
+/* 情報バー(.infobar 系, 背景 #3b3e46)は他より明るく、#9ba0aa だと約4.08:1でAA未達になる。
+   ここだけ明るくして揃える */
+.infobar-detail .hint { color: var(--text-dim-hi); }
+.readout {
+  font-size: 12px;
+  margin: 0;
+  padding: 6px 8px;
+  background: var(--bg-field);
+  border-radius: 6px;
+  line-height: 1.5;
+}
+.readout small {
+  display: block;
+  margin-top: 5px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+/* ラベルと数値を並べる読み値(挿絵の推奨サイズなど)。数字を右端で揃える */
+.readout small b {
+  float: right;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.readout small::after { content: ''; display: block; clear: both; }
+.error { color: var(--bad); font-size: 12px; }
+/* 出力はできるが、そのままだと意図とちがう結果になることの予告 */
+.warn {
+  font-size: 11.5px;
+  margin: 0;
+  padding: 7px 9px;
+  color: var(--warn-text);
+  background: var(--warn-fill);
+  border-left: 3px solid var(--warn);
+  border-radius: 4px;
+  line-height: 1.6;
+}
+.notice {
+  font-size: 12px;
+  margin: 0;
+  padding: 8px 10px;
+  background: var(--note-fill);
+  border-left: 3px solid var(--accent-line);
+  border-radius: 4px;
+  line-height: 1.6;
+}
+
+/* **誌面の地は無彩色にする。**(2026-08-19 ユーザーの疑問)
+   もとの #43464e は青が赤より 11 高い**青みがかった灰**で、
+   紙の色や絵の色を判断する面としては色が乗ってしまう。
+   刷りものを見るときに中間灰を使うのはこのためで、R=G=B にそろえた。
+   白だと紙の端が消え、黒だとコントラストが誇張される。
+   アプリの他の面は色が付いていてよい(そこは色を見る場所ではない)。
+   **明るいテーマでも同じ約束。** `--stage` は明るい無彩色(#a9a9a9)にしてあり、
+   ブランド色のミントは1滴も入れていない(2026-08-20)。紙(白)との比は 2.35:1 で、
+   暗いテーマの 8.86:1 より弱いぶんは紙に落とす影が受け持つ */
+.preview {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  position: relative;
+  background: var(--stage);
+  overflow: auto;
+}
+/* EPUB の1ページ目に入る表紙(.preview-first-page)は外した(2026-08-21)。
+   ［電子書籍の本文］が下見の無い全画面になったので、立てる場所が消えた。
+   「このファイルに表紙も入る」ことは ExportStep の［EPUB の出し先］が言葉で言い、
+   絵そのものは［電子書籍の表紙］で見てもらう(板に入れると 109px 食って入らない。実測) */
+.preview-viewport {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+}
+.loading {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  /* 誌面の地は無彩色なので、その上の字も専用に持つ(サイドバーの .hint とは別) */
+  color: var(--stage-ink);
+}
+
+/* Vivliostyle が生成するページに影を付ける */
+.preview-viewport [data-vivliostyle-page-container] {
+  background: transparent !important;
+}
+.preview-viewport [data-vivliostyle-page-box] {
+  /* 紙の白は組版CSSが背景レイヤーの最下段に敷いている。
+     ここで塗ると @page の背景画像を覆って、画面でだけ背景が消える(実測で確認) */
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.45);
+}
+
+/* ---- ページサムネイル ---- */
+.preview-body { position: absolute; inset: 0; display: flex; }
+/* **ページ一覧は右へ。**(2026-08-19 ユーザー要望)
+   左に置くと、左バー(340px)＋サムネイル(116px)で操作の列が2本続き、
+   紙面がいちばん端に寄る。紙は真ん中にあってほしいので、一覧を右端へ回した。
+   order で入れ替えるだけにしてあるのは、DOM の並び(紙 → 一覧)を変えると
+   キーボードの読み上げ順まで変わるため */
+.thumbs {
+  order: 2;
+  width: 116px;
+  flex: 0 0 auto;
+  padding: 10px 8px 60px;
+  overflow-y: auto;
+  /* 一覧の地も無彩色に(誌面と同じ理由。ここでも絵の色を見る) */
+  background: var(--stage-thumbs);
+  border-left: 1px solid var(--bg-box);
+}
+/* 組版中の札。まだ1枚も出ていないときに「これから出る」と分かるように */
+.thumbs-busy {
+  margin: 0 0 6px;
+  padding: 6px 4px;
+  color: var(--stage-ink);
+  font-size: 11px;
+  line-height: 1.4;
+  text-align: center;
+}
+.thumbs-busy:empty { display: none; }
+.thumbs-busy.on { animation: thumbs-pulse 1.2s ease-in-out infinite; }
+@keyframes thumbs-pulse { 50% { opacity: 0.45; } }
+.thumb-list { display: flex; flex-direction: column; gap: 8px; }
+
+.thumbs .thumb {
+  position: relative;
+  width: 92px;
+  flex: 0 0 auto;
+  padding: 0;
+  overflow: hidden;
+  background: var(--text-strong);
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  cursor: pointer;
+}
+.thumbs .thumb:hover { border-color: var(--accent-line); }
+.thumbs .thumb.active { border-color: var(--accent-line); box-shadow: 0 0 0 2px var(--accent-line); }
+/* 複製した中身はクリックを拾わない。ページ送りの邪魔になるため */
+.thumbs .thumb > *:not(.thumb-no) { pointer-events: none; }
+/* **ブラウザのネイティブ・ドラッグを止める。**(2026-08-20 実測)
+   サムネイルは組み上がったページの複製なので、中の <img> が既定でドラッグできる。
+   それが始まると pointerup が飛ばなくなり、離しても何も起きない */
+.thumbs .thumb, .thumbs .thumb * { -webkit-user-drag: none; user-select: none; }
+.thumb-no {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  z-index: 2;
+  padding: 0 4px;
+  border-radius: 3px;
+  /* **テーマで変えない。** 白い紙の上に置く札なので、明るいテーマでも濃いままにする
+     (薄くすると紙に溶けて番号が読めない)。紙の見本と同じ扱い */
+  background: rgba(20, 22, 26, 0.72);
+  color: var(--paper);
+  font-size: 10px;
+  line-height: 1.5;
+  pointer-events: none;
+}
+.preview-body .preview-viewport { position: relative; inset: auto; flex: 1; min-width: 0; }
+/* サムネイルを畳んだぶんは誌面が広がる(hidden 済みなので幅の指定を消すだけでよい) */
+.preview-body.no-thumbs .thumbs { display: none; }
+
+.page-nav {
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 8px;
+  z-index: 10;
+}
+.page-nav button {
+  background: var(--overlay-panel);
+  border: 1px solid var(--line);
+  color: var(--text);
+  padding: 6px 14px;
+}
+.page-nav button:hover { background: var(--accent); }
+/* いま選んでいる見せ方。ページ送り(押すたび動くもの)と、
+   見せ方の切り替え(選んだまま留まるもの)を、塗りで見分けられるようにする */
+.page-nav button.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+  font-weight: 700;
+}
+.page-nav-sep {
+  width: 1px;
+  align-self: stretch;
+  margin: 2px 2px;
+  background: var(--line);
+}
+
+/* 縦中横の断り書き。**ページ送りの帯のすぐ上に、1行だけ。**
+   小さく表示しているときにだけ出るので、いつも場所を取ることはない。
+   帯の中に入れると帯が横に伸びて、狭い画面でボタンがあふれる */
+.preview-hint {
+  position: absolute;
+  bottom: 48px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  margin: 0;
+  max-width: min(92%, 560px);
+  padding: 4px 12px;
+  border-radius: 4px;
+  background: var(--overlay-panel);
+  border: 1px solid var(--line);
+  color: var(--text-mid);
+  font-size: 11.5px;
+  line-height: 1.5;
+  text-align: center;
+  cursor: default;
+}
+.preview-hint b { color: var(--text-strong); font-weight: 600; }
+
+/* ---- 仕上がり線(裁つ位置の点線。2026-10-02 ユーザー要望) ----
+   下見の紙は塗り足し込みの用紙なので、線が無いと「どこまでが本か」が見分けられない
+   (ユーザー「小口とノドで同じサイズだよね？」— 小口は塗り足しぶん広く見えていた)。
+
+   - 用紙の全面の箱([data-vivliostyle-bleed-box])の ::before に、辺ごとの点線を背景で描く。
+     「印刷所の決まり」の色の帯は同じ箱の ::after(preview/rulesGuide.ts)で、線の上に重なる
+   - **位置は面ごとの CSS 変数**(--trim-top / -bottom / -fore / -gutter。VivliostylePreview の applyTrimVars が、
+     その面の紙面を組んだ HTML の塗り足しから書く)。組み直しで面が入れ替わっても、紙面と線が食い違わない
+   - 塗り足しが 0 の辺には引かない(--trim-◯-on が 0 = 太さ 0。KDP のノド側は裁たない)
+   - **2色を交互に**(濃い色と白): 白い紙の上では濃い色の点線に見え、全面の暗い絵の上では白が見える
+   - 太さと刻みは、下見の倍率(--pv-zoom)で割って**画面の上で一定**にする。ページの箱は transform: scale で縮むので、
+     割らないと「全体」表示(27% など)で 0.4 画素になって消える
+   - 出す・出さないは .show-trim(下見のボタン)。ページ一覧には出さない(.preview-viewport の外)。
+     印刷の枠(別の iframe)には、この CSS そのものが無い */
+/* **版面の枠も、同じ ::before に重ねて描く**(2026-10-02。絵の中の文字が版面の外に出ているとき、全ページに出す。
+   src/textcheck)。箱は仕上がりの四角なので、枠はその内側へ、余白(--area-◯)ぶん寄せた位置に引く。
+   線は実線・赤(はみ出した文字に重ねる色と同じ系統)。出す・出さないは .show-area。
+   どちらの線も、出していないときは太さ 0(--trim-vis / --area-vis が 0)。両方出していなければ、箱ごと作らない */
+.preview-viewport { --trim-vis: 0; --area-vis: 0; }
+.preview-viewport.show-trim { --trim-vis: 1; }
+.preview-viewport.show-area { --area-vis: 1; }
+.preview-viewport:is(.show-trim, .show-area) [data-face] [data-vivliostyle-page-container] > [data-vivliostyle-bleed-box]::before {
+  content: '';
+  position: absolute;
+  box-sizing: border-box;
+  pointer-events: none;
+  z-index: 4;
+  --trim-t: calc(1.5px / var(--pv-zoom, 1) * var(--trim-vis));
+  --trim-d: calc(5px / var(--pv-zoom, 1));
+  --trim-h: repeating-linear-gradient(90deg, var(--accent) 0 var(--trim-d), rgba(255, 255, 255, 0.92) var(--trim-d) calc(var(--trim-d) * 2));
+  --trim-v: repeating-linear-gradient(0deg, var(--accent) 0 var(--trim-d), rgba(255, 255, 255, 0.92) var(--trim-d) calc(var(--trim-d) * 2));
+  --area-t: calc(1.5px / var(--pv-zoom, 1) * var(--area-vis) * var(--area-on, 0));
+  --area-c: linear-gradient(var(--bad), var(--bad));
+  --area-w: calc(100% - var(--area-left) - var(--area-right));
+  --area-h: calc(100% - var(--area-top) - var(--area-bottom));
+  top: var(--trim-top);
+  bottom: var(--trim-bottom);
+  left: var(--trim-left);
+  right: var(--trim-right);
+  background:
+    var(--trim-h) 0 0 / 100% calc(var(--trim-t) * var(--trim-top-on)) no-repeat,
+    var(--trim-h) 0 100% / 100% calc(var(--trim-t) * var(--trim-bottom-on)) no-repeat,
+    var(--trim-v) 0 0 / calc(var(--trim-t) * var(--trim-left-on)) 100% no-repeat,
+    var(--trim-v) 100% 0 / calc(var(--trim-t) * var(--trim-right-on)) 100% no-repeat,
+    var(--area-c) left var(--area-left) top var(--area-top) / var(--area-w) var(--area-t) no-repeat,
+    var(--area-c) left var(--area-left) bottom var(--area-bottom) / var(--area-w) var(--area-t) no-repeat,
+    var(--area-c) left var(--area-left) top var(--area-top) / var(--area-t) var(--area-h) no-repeat,
+    var(--area-c) right var(--area-right) top var(--area-top) / var(--area-t) var(--area-h) no-repeat;
+}
+/* ノドは常に見開きの内側: 左の頁は右端、右の頁は左端(縦組みも横組みも同じ。rulesGuide.ts の帯と同じ対応) */
+.preview-viewport:is(.show-trim, .show-area) [data-face] [data-vivliostyle-page-container][data-vivliostyle-page-side="left"] > [data-vivliostyle-bleed-box]::before {
+  --trim-left: var(--trim-fore);
+  --trim-right: var(--trim-gutter);
+  --trim-left-on: var(--trim-fore-on);
+  --trim-right-on: var(--trim-gutter-on);
+  --area-left: var(--area-fore);
+  --area-right: var(--area-gutter);
+}
+.preview-viewport:is(.show-trim, .show-area) [data-face] [data-vivliostyle-page-container][data-vivliostyle-page-side="right"] > [data-vivliostyle-bleed-box]::before {
+  --trim-left: var(--trim-gutter);
+  --trim-right: var(--trim-fore);
+  --trim-left-on: var(--trim-gutter-on);
+  --trim-right-on: var(--trim-fore-on);
+  --area-left: var(--area-gutter);
+  --area-right: var(--area-fore);
+}
+/* **大扉には、版面の枠を出さない。** 大扉だけは左右の余白が対称で(typeset/css.ts の titlepage)、本文の版面と合わない。
+   そこへ本文の枠を引くと、書名が赤い線にかかって「直すところ」に見える(2026-10-02 見直しで指摘) */
+.preview-viewport.show-area [data-face] [data-vivliostyle-page-container]:has(section.titlepage) > [data-vivliostyle-bleed-box]::before {
+  --area-vis: 0;
+}
+/* ボタンと説明。見本の点線(.trim-swatch)は、紙面の線と同じ2色(濃い色と白)で描く */
+.trim-swatch {
+  display: inline-block;
+  width: 18px;
+  height: 2px;
+  margin-right: 6px;
+  vertical-align: middle;
+  background: repeating-linear-gradient(90deg, var(--accent) 0 4px, rgba(255, 255, 255, 0.92) 4px 8px);
+}
+.page-nav button.on .trim-swatch,
+.page-nav button:hover .trim-swatch {
+  background: repeating-linear-gradient(90deg, var(--on-accent) 0 4px, transparent 4px 8px);
+}
+/* 説明は、ずっとは出さない(はじめて線が出たとき・ボタンで出したとき・ボタンに触れているあいだ)。
+   縦中横の断り書きと重なるときは1段上(.upper) */
+.preview-hint.trim { pointer-events: none; max-width: min(94%, 680px); }
+.preview-hint.trim.upper { bottom: 82px; }
+/* 版面の枠の説明(絵の中の文字が版面の外に出ているとき)。見本は、枠と同じ赤の実線 */
+.preview-hint.area { pointer-events: none; max-width: min(94%, 680px); border-color: var(--bad); }
+.preview-hint.area.upper { bottom: 82px; }
+.area-swatch {
+  display: inline-block;
+  width: 18px;
+  height: 2px;
+  margin-right: 6px;
+  vertical-align: middle;
+  background: var(--bad);
+}
+/* 挿絵の一覧の、その絵の行に出す知らせ(絵の中の文字が版面の外)。直し方のボタンを横に並べる */
+.text-check { grid-column: 1 / -1; display: grid; gap: 6px; margin: 4px 0 0; padding: 8px 10px; border: 1px solid var(--bad); border-radius: 6px; background: var(--bg-box); }
+.text-check p { margin: 0; }
+/* 折り目にかかっているだけ(見開き。版面の外ではない)は、赤ではなくやわらかい色の枠 */
+.text-check.soft { border-color: var(--warn); }
+.text-check .text-check-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* 「この下見は紙の組み方です」の札(.preview-what)は外した(2026-08-21 ユーザー判断)。
+   ［電子書籍の本文］で下見そのものをやめたので、断る相手が居なくなった。
+   > チェックできないのに、わざわざチェックさせる意味がないじゃん
+   下見と電子書籍の食い違いは、ExportStep の .epub-stage の結論と
+   ［詳しくは：紙と電子で何が変わるか］の中で言っている */
+
+/* 組み直しのあいだの覆い(VivliostylePreview)。
+   新しいビューアは1ページ目から描き始めるので、覆わないと
+   「直すたびに大扉へ飛んで、しばらくして戻ってくる」ように見える。
+   外すのは見ていたページへ戻したあと(2026-08-18 ユーザー報告への対応) */
+.preview-busy {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 8px;
+  /* **誌面を覆うものなので、地はアプリの地ではなく誌面の地。**
+     ここに色を乗せると、覆いが外れる瞬間だけ紙のまわりの色が変わって見える */
+  background: var(--stage);
+  color: var(--stage-ink);
+  letter-spacing: 0.04em;
+  /* ページ送りの帯(z-index:10)より上。待っているあいだ押しても何も起きないので、
+     見えているほうが紛らわしくない */
+  z-index: 11;
+}
+.preview-busy b { font-size: 15px; color: var(--text); font-weight: 700; }
+.preview-busy span { font-size: 12px; }
+/* **2回目からは覆わない。**(2026-08-19 ユーザー指摘)
+   前の誌面が残っているので、全面を塗ると「毎回まっさらから作り直している」ように見える。
+   出来たことだけ隅で知らせて、紙面はそのまま読ませる */
+/* **画面の中央に出す。**(2026-08-20 ユーザー指摘
+   「気が付かず、動かそうとしてしまう」)
+   下の隅に出していたので、紙を見ている目に入らなかった */
+.preview-busy.small {
+  inset: 50% auto auto 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: max-content;
+  max-width: 90%;
+  padding: 6px 14px;
+  background: var(--overlay-panel);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+}
+.preview-busy.small b { font-size: 12.5px; }
+.preview-busy.small span { font-size: 11.5px; }
+
+/* 04 書き出しの「何を書き出すか」を選ぶ並び。
+   以前は本文2つと表紙2つのボタンが説明文と一緒に縦に並んでいて、
+   どれを押せばよいのか読めなかった(2026-08-18)。1つずつ選んで片づける形にする */
+/* サイドバーでは1列、全画面では2列。カードは押すものなので、
+   幅いっぱいに間延びさせるより並べたほうが選びやすい */
+.export-menu { display: grid; gap: 8px; }
+/* 紙/電子の柱(2026-09-04 外部レビュー「4つ固まっているとわかりにくい」)。
+   小さな見出しを掛けるだけでは「ぱっと見で別物」と読めなかった
+   (2026-09-11 ユーザー指摘)ので、柱ごとに色の付いた頭と囲いを持つ箱にする */
+.export-pillar {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg-box);
+  overflow: hidden;
+  margin: 0 0 14px;
+}
+/* 中の札の上限(760px)+左右の余白に合わせて、箱だけ間延びしないように */
+.fullstage .export-pillar { max-width: 792px; }
+.export-pillar.paper { border-color: var(--pillar-paper-line); }
+.export-pillar.ebook { border-color: var(--pillar-ebook-line); }
+.export-pillar-head {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--line);
+}
+.export-pillar.paper .export-pillar-head { background: var(--pillar-paper-bg); border-bottom-color: var(--pillar-paper-line); }
+.export-pillar.ebook .export-pillar-head { background: var(--pillar-ebook-bg); border-bottom-color: var(--pillar-ebook-line); }
+.export-pillar-mark {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  min-width: 40px;
+  height: 40px;
+  padding: 0 9px;
+  border-radius: 9px;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 0.08em;
+  color: #fff;
+}
+.export-pillar.paper .export-pillar-mark { background: var(--pillar-paper); }
+.export-pillar.ebook .export-pillar-mark { background: var(--pillar-ebook); }
+.export-pillar-titles h3 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 17px;
+  letter-spacing: 0.05em;
+  color: var(--text-strong);
+}
+.export-pillar-titles p { margin: 2px 0 0; font-size: 11.5px; color: var(--text-sub); }
+.export-pillar .export-menu { padding: 12px 14px 14px; }
+/* 札の右端の「ここから書き出す」矢印。狭いサイドバーでは場所が無いので全画面だけ */
+.export-go {
+  margin-left: auto;
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: none;
+  place-items: center;
+  border: 1.5px solid var(--accent-line);
+  color: var(--accent-strong);
+  font-size: 15px;
+  font-weight: 700;
+}
+.fullstage .export-go { display: grid; }
+.fullstage .export-card.cover .export-go { border-color: var(--kind-cover-line); color: var(--kind-cover); }
+/* **全画面では正方形の大きな札にする。** ここでやることはデータの書き出しで、
+   この4つがこの画面の主役。字だけ大きくするより、面積そのものを取ったほうが
+   「これを押す場所だ」と伝わる(ジャンプ率。2026-08-19 ユーザー判断) */
+.fullstage .export-menu {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  /* 4つとも1画面に収める。カードは横長なので、伸ばすのは幅だけでよい */
+  max-width: 760px;
+  /* 行の中で上に揃える。既定のままだと札が行の中で上下に散った(実測: 同じ行で 8px ずれた) */
+  align-items: start;
+  gap: 14px;
+}
+.export-card {
+  display: grid;
+  gap: 3px;
+  text-align: left;
+  padding: 11px 13px;
+  background: var(--bg-box);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text);
+  white-space: normal;
+}
+.export-card:hover { background: var(--bg-field); border-color: var(--accent-line); }
+.export-card b { font-size: 13px; font-weight: 700; }
+.export-card small { font-size: 11px; color: var(--text-dim); line-height: 1.5; }
+/* 紙と電子のあいだの間合いは柱の箱(.export-pillar)が取る。
+   以前ここにあった「3枚目だけ上を空ける」は、柱ごとに2枚ずつへ
+   分かれて3枚目が無くなったので削除(2026-09-11) */
+
+/* ---- ［電子書籍の本文］の画面(2026-08-21 作り直し) ----
+   下見を出さない全画面(.fullstage)に載せ替えた。理由は App.tsx と ExportStep。
+   全画面が使えるぶん説明を足せるが、**ずらずらした文章にはしない**(ユーザー指示)。
+   縦の並びは「結論 → なぜ → 詳しく(畳む) → 決めること(横に2つ) → 書き出す」で、
+   **［書き出す］がいちばん下・いちばん大きい**。1440×900 で折り返さないことが条件 */
+.epub-stage {
+  display: grid;
+  gap: 16px;
+  /* 1本の行を伸ばさない。広い画面では下の .epub-choices が段を増やして使う */
+  max-width: 1000px;
+}
+
+/* **まず結論。** この画面で言いたいのは「お店のプレビューで見てください」の1つだけ。
+   箱に入れて左に色の線を引き、ほかの段よりも先に目が行くようにする */
+.epub-first {
+  display: grid;
+  gap: 10px;
+  padding: 14px 18px;
+  background: var(--bg-box);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--accent);
+  border-radius: 10px;
+}
+.epub-shout {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.6;
+  color: var(--text-mid);
+}
+.epub-shout b { color: var(--accent-text); font-weight: 700; }
+
+/* 理由・断りの箇条書き。**文章で流さない**(ユーザー指示「箇条書きなど使ってください」) */
+.epub-points {
+  margin: 0;
+  padding-left: 1.2em;
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+  line-height: 1.75;
+  color: var(--text-sub);
+}
+.epub-points b { color: var(--text-strong); font-weight: 700; }
+
+/* **決めることは横に並べる。** 縦に積むと［書き出す］が折り返しの下へ落ちる。
+   **段は幅を分け合う。** 上限を決め打ちにすると、色の欄が出ないカラー本のときに
+   片側だけ細長く残り、行が増えてそのぶん背が高くなる(実測)。
+   1本の行が伸びすぎないようにするのは .epub-stage の max-width の役目 */
+.epub-choices {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 16px 20px;
+  align-items: start;
+}
+.epub-block {
+  display: grid;
+  gap: 9px;
+  padding: 13px 15px;
+  background: var(--bg-box);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.epub-block h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-strong);
+  letter-spacing: 0.02em;
+}
+.epub-block .epub-points { font-size: 12.5px; line-height: 1.7; gap: 5px; }
+
+/* 二択のボタン。**大きい字は「何が入るか」、小さい字はお店の代表例。**
+   店名だけを大きく出していると「この2つ以外の店には出せない」と読める
+   (2026-08-21 ユーザー指摘)。色の二択も同じ形にそろえてある */
+/* 段が1つしか無いとき(カラー本)に、二択が板いっぱいへ間延びしないよう頭を押さえる */
+/* ---- 作るもの(紙・電子)と出し先(OutputsChooser)。2026-09-23 ----
+   新規作成・本のかたち・書き出しの入口の3か所で同じ形。
+   行の頭に「紙の本」「電子書籍」、その右に出し先のボタンと［作らない］ */
+.outputs { display: grid; gap: 8px; margin: 4px 0 8px; }
+/* **行の名前は上、ボタンは1行に3つ。** 名前を左に置くと、狭いサイドバー(324px)で
+   ボタンが2段に割れ、［作らない］だけが下の段に落ちた(2026-09-23 実測) */
+.outputs-row { display: grid; gap: 4px; }
+.outputs-name { font-size: 12.5px; font-weight: 700; color: var(--text-strong); }
+/* 出し先の名前は長い(「Amazon Kindle（KDP）」)。ボタンの中で折り返させ、3つを同じ幅に */
+.outputs-seg button { flex: 1 1 0; min-width: 0; white-space: normal; line-height: 1.35; padding: 6px 6px; }
+.outputs-seg button:disabled { opacity: 0.45; cursor: not-allowed; }
+.outputs-hints { margin: 0; padding-left: 1.2em; font-size: 12px; color: var(--text-sub); line-height: 1.6; }
+.outputs-note { margin: 0; }
+/* 書き出しの入口の1行(作るもの：…［変える］) */
+.export-outputs {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 0 0 10px;
+  padding: 8px 12px;
+  background: var(--bg-box);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+/* **［変える］は文のすぐ後ろ。**(2026-09-23 ユーザー指摘「右端にありすぎて存在に気が付けない」)
+   文を flex: 1 で伸ばしていたので、広い画面ではボタンが行の反対の端まで離れていた */
+.export-outputs p { margin: 0; font-size: 13px; }
+.export-outputs button {
+  padding: 5px 14px;
+  border-color: var(--accent-line);
+  color: var(--accent-text);
+  font-weight: 700;
+}
+/* プリセット一覧の上に常に出す、同梱の画像の大きさの断り */
+.preset-res { margin: 0 0 8px; font-size: 12px; line-height: 1.6; }
+/* ［電子書籍の本文］で、選んである出し先を言い切る行 */
+.epub-target-now { margin: 0 0 6px; font-size: 13px; }
+.epub-target-now .linklike { margin-left: 10px; }
+.epub-seg { gap: 8px; max-width: 460px; }
+.epub-seg button {
+  display: grid;
+  gap: 2px;
+  padding: 9px 10px;
+  line-height: 1.4;
+  white-space: normal;
+}
+.epub-seg button b { font-size: 13px; font-weight: 700; }
+/* **地の色を透かして薄めない。** opacity を掛けると、選んでいる側(濃い塗り)の上で
+   コントラストが落ちる。色は親から継いだままにして、大きさだけで上下を付ける */
+.epub-seg button small { font-size: 11.5px; font-weight: 600; }
+/* **選んでいる側だけ、塗りを一段深くする。**(2026-08-21 実測)
+   ふつうの .seg は1行の字しか載せないが、こちらは店名を 11.5px で載せる。
+   共通の --accent(暗いテーマで #3d6ff2)に白だと 4.42:1 で AA(4.5:1)に届かない。
+   同じ色相の濃いほう --accent-strong に替えると 5.76:1 になる(明るいテーマは 8.6:1)。
+   **色は直書きせず、既にあるトークンの中から選び直しただけ** */
+.epub-seg button.active { background: var(--accent-strong); border-color: var(--accent-strong); }
+
+/* 同梱される表紙の絵(.epub-cover)は置かないことにした(2026-08-21 実測)。
+   小さく入れると 109px を食い、白ページの断りが出る本で板が 46px あふれた。
+   縮めれば入るが「小さくて確認ができない」と言われた形に戻るだけで、
+   そもそもここは下見を出さないと決めた画面。絵は［電子書籍の表紙］で見る */
+
+/* 白ページの断りは、既にある .warn(「出力はできるが、意図とちがう結果になる予告」)に
+   のせる。ただし全画面はサイドバーより字に余裕があるので、そのぶん大きく */
+.epub-stage .warn { font-size: 12.5px; padding: 10px 14px; line-height: 1.75; }
+.epub-stage .warn b { font-weight: 700; }
+
+/* **主役は［書き出す］。** いちばん下に、いちばん大きく置く。
+   ほかのボタン(出し先・色・戻り道)より一回り大きくして、押す先を迷わせない。
+   白ページの断りは**同じ行の右**へ。上に積むとボタンが下がって折り返しの下に落ちる */
+.epub-go { display: flex; align-items: center; gap: 18px; }
+.epub-go .primary-action { flex: 0 0 auto; padding: 13px 30px; font-size: 15px; }
+.epub-go .warn { flex: 1 1 auto; }
+
+/* 全画面で「いま何を書き出そうとしているか」を受ける見出し。
+   工程の名前(.fullstage-title = 完成データを書き出す)の下に付く小見出しなので、
+   あちら(20px)より小さく、色も一段落とす */
+.fullstage .export-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-mid);
+  letter-spacing: 0.02em;
+}
+/* 全画面では板いっぱいに伸ばさない(1240px のボタンになってしまう)。文字ぶんだけ */
+.fullstage button.export-back { align-self: start; margin-top: 0; }
+
+/* 電子書籍が下見のとおりに出ないことの一覧。**ボタンの中に畳む**(理由は ExportStep)。
+   19件を開いたまま積むと画面が倍の高さになり、［書き出す］が折り返しの下へ落ちる。
+   **summary はボタンに見せる。** 前は小さな太字で、押せるものだと気づけなかった
+   (2026-08-21 ユーザー指示「見出しやボタンも効果的に使うべき」) */
+.epub-diff { margin: 0; }
+.epub-diff > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  width: fit-content;
+  padding: 8px 14px;
+  background: var(--bg-field);
+  border: 1px solid var(--line-bold);
+  border-radius: 6px;
+  color: var(--text-strong);
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  /* 既定の三角を消して、自前の ＋ / − に替える(開いているかを1字で出す) */
+  list-style: none;
+}
+.epub-diff > summary::-webkit-details-marker { display: none; }
+.epub-diff > summary::before {
+  content: '＋';
+  color: var(--accent-text);
+  font-size: 12px;
+  line-height: 1;
+}
+.epub-diff[open] > summary::before { content: '−'; }
+.epub-diff > summary:hover { background: var(--bg-hover); border-color: var(--accent-line); }
+.epub-diff-body {
+  margin-top: 10px;
+  padding: 14px 16px;
+  background: var(--bg-sunken);
+  border-radius: 8px;
+}
+.epub-diff-lead {
+  margin: 0 0 12px;
+  font-size: 12.5px;
+  line-height: 1.75;
+  color: var(--text-sub);
+}
+/* **2つの一覧は横に並べる。** 縦に積むと、開いたときの高さが倍になる */
+.epub-diff-cols {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 14px 28px;
+  align-items: start;
+}
+.epub-diff-head {
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-mid);
+}
+.epub-diff ul { margin: 0; padding-left: 1.1em; display: grid; gap: 5px; }
+.epub-diff li { font-size: 11.5px; color: var(--text-dim); line-height: 1.6; }
+
+/* ［← 書き出すものを選び直す］。板のいちばん下に置く戻り道(理由は ExportStep)。
+   **埋もれないだけの見た目にする。** 枠だけの ghost で説明文のあいだに挟まっていたら
+   「完全に埋もれる」と言われた(2026-08-20)。面を塗ってボタンだと分かるようにし、
+   幅も板いっぱいに取る。**ただし［書き出す］より目立たせない** —
+   灰色・12.5px・並の太さで、青くて太い primary-action とは一目で差が付く。
+   上に少しアキを足して、書き出しボタンの連れに見えないようにする */
+button.export-back {
+  margin-top: 4px;
+  padding: 8px 12px;
+  background: var(--bg-field);
+  border: 1px solid var(--line);
+  color: var(--text-mid);
+  font-size: 12.5px;
+  white-space: normal;
+}
+button.export-back:hover { background: var(--bg-hover); border-color: var(--line-bold); }
+
+/* 白ページ(クッション)の断りの箱(.blank-plates)は落とした(2026-08-21)。
+   「その場で消すボタン」は 2026-08-20 に撤回されていて、断り1行だけが残っていた。
+   いまは ExportStep が .warn(意図とちがう結果になる予告)にのせている */
+
+/* 分岐するだけの全画面(いまは 07 の「何を書き出すか」)。
+   入口(StartScreen)と同じ扱いで、プレビューを出さない。
+   選んだあとはプレビューのある通常の画面に戻る */
+.fullstage {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  background: var(--bg);
+  padding: 28px 32px 48px;
+  /* サイドバー(340px に詰め込む)と違って幅に余裕があるので、そのぶん字を大きくする */
+  font-size: 13px;
+}
+.fullstage .hint { font-size: 12.5px; line-height: 1.7; }
+.fullstage-inner {
+  max-width: 560px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.fullstage-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-strong);
+  letter-spacing: 0.04em;
+}
+/* 07 で表紙を書き出すときの見本。本文プレビューの上にかぶせる。
+   組版エンジンは外さずに置いたまま隠す(作り直すと再初期化が高いうえ例外を招く) */
+.preview-cover {
+  position: absolute;
+  inset: 0;
+  /* ページ送り(.page-nav は z-index:10)より上に置く。
+     表紙は1枚なので、送るボタンが残っていると押せそうに見えて紛らわしい */
+  z-index: 12;
+  display: grid;
+  padding: 20px;
+  /* 表紙の色を見る面なので、地は誌面と同じ無彩色にそろえる */
+  background: var(--stage);
+}
+/* 絵の枠と説明を上下に積む。上の行を minmax(0, 1fr) にして**高さを確定させる**のが要点で、
+   これが auto だと絵の max-height: 100% が効かず、縦長(電子)がはみ出す */
+.preview-cover figure {
+  margin: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 10px;
+  justify-items: center;
+  align-items: center;
+}
+/* **伸ばさない。** width:100% + object-fit で埋めると、余白の部分にも
+   img の地色と影が乗って、紙が横に伸びたように見える(縦長の電子表紙で顕著)。
+   max だけを与えて、要素の箱そのものを絵にぴったり合わせる */
+.preview-cover img {
+  max-width: 100%;
+  max-height: 100%;
+  background: var(--text-strong);
+  box-shadow: 0 2px 14px rgba(0, 0, 0, 0.45);
+}
+.preview-cover figcaption { font-size: 12px; color: var(--stage-ink); text-align: center; }
+
+/* 07 の選ぶ画面だけ広げる。左右2列に置くため(下記 .export-hub) */
+/* 文字だけの工程(AI・書き出し)は器を広げる。
+   **ただし1本の行を伸ばさない。** 行が長いと目が戻る先を見失って読みにくくなるので、
+   広がったぶんは**段を増やして**使う(下の auto-fit)。
+   940px で止めていたころは 1400px の画面で 32% が空いていた(2026-08-19 実測) */
+.fullstage-inner.wide { max-width: min(1400px, 100%); }
+/* **左が主役。** ここでやることはデータの書き出しで、KDP の入稿値は
+   入稿画面を開いたときに見返す控え。同じ幅で縦に並べると、
+   どちらが本題なのか分からなくなる(2026-08-19 ユーザー指摘) */
+.export-hub {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+  gap: 26px;
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .export-hub { grid-template-columns: minmax(0, 1fr); }
+}
+.export-hub-main, .export-hub-side { display: flex; flex-direction: column; gap: 10px; }
+.export-hub h2 { margin: 0; }
+/* 控えなので、主役より一段おとなしく */
+.export-hub-side { font-size: 12.5px; color: var(--text-sub); }
+.export-hub-side h2 { color: var(--text-mid); }
+
+/* 全画面のときは大きく見せる。**ただし正方形にはしない。**
+   357角まで大きくしたら「ボタンに見えない」と言われた(2026-08-19)。
+   面積で主役だと示しつつ、横長のままにして押すものだと分かる形を保つ。
+   4つが1画面に収まる高さ(2段で 234px)にも収める */
+.fullstage .export-card {
+  /* **グリッドではなく横並び。** 札を2行にまたがらせていたときは、
+     行の高さの配り方が札ごとに変わって数px ずれ続けた(実測) */
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 20px;
+  /* **全部この高さで揃える。** `align-self: stretch` はボタンには効かず、
+     名前が折り返した札(電子書籍の表紙)だけ高くなって隣と 8px ずれた(実測)。
+     **高さは決め打ち。** min-height にすると1枚だけ 8px 高くなって隣とずれた(実測)。
+     中身は 81px(札 46px + 上下の余白)なので、104px で足りる */
+  height: 104px;
+}
+.fullstage .export-card b { font-size: 18px; letter-spacing: 0.02em; }
+.fullstage .export-card small { font-size: 12.5px; line-height: 1.6; color: var(--text-sub); }
+/* 種別の札。**本文と表紙は KDP でも別の欄**なので、色で仕分けて見せる */
+.fullstage .export-text {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  text-align: left;
+}
+/* 種別の46px色札(.export-kind)は 2026-09-14 に外した。カードの名前が「本文」「表紙」に
+   なり(柱の見出しが紙/電子を言うため)、札と名前が同じ言葉の二度書きになった。
+   本文/表紙の色分けは左端の色線(border-left)が引き継ぐ */
+.fullstage .export-card.body { border-left: 3px solid var(--accent-strong); }
+.fullstage .export-card.cover { border-left: 3px solid var(--kind-cover); }
+/* 押せることをはっきり出す。主役なので hover も強めに */
+.fullstage .export-card:hover {
+  background: var(--bg-field);
+  border-color: var(--accent-line);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
+}
+.fullstage .export-card.cover:hover { border-color: var(--kind-cover-line); }
+
+/* ---- プリセットを選ぶ画面 ----
+   **開いたら、選ぶことだけに使う。** 以前は上に見出し・サムネイル・ボタン列・利用条件が
+   残っていて、画像を見るために開いたのに画面の半分が説明で埋まっていた
+   (2026-08-19 ユーザー指摘)。戻る道・絞り込み・一覧・BOOTH の4つだけを、
+   サイドバーの高さいっぱいに積む */
+/* **サイドバーいっぱいに敷く。** 高さを % や flex で渡そうとすると、
+   `.sidebar > * { flex-shrink: 0 }` と、ピッカーが直接の子ではない入れ子構造の
+   両方に阻まれる(実測: 画面 659px に対して中身が 9074px になった)。
+   位置で決めてしまえば、どこに埋まっていても画面ぴったりに収まる */
+.sidebar:has(.preset-view) { overflow: hidden; padding: 0; position: relative; }
+.preset-view {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  /* 下に敷かれたままの他の項目が隙間から透けないように、地を塗る
+     (コラムの「このページの地」を全面表示にした際、リード文が1行覗いた) */
+  background: var(--bg-panel);
+}
+.preset-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
+  /* 絵にたどり着くまでの高さを削る。見出しは面の名前が読めれば足りる */
+  padding: 8px 12px;
+  background: var(--bg-chrome);
+  border-bottom: 1px solid var(--line);
+}
+.preset-head > .ghost { padding: 4px 10px; font-size: 12px; }
+.preset-head h3 { margin: 0; font-size: 13px; font-weight: 700; color: var(--text-strong); }
+/* 絞り込みは一覧の上に固定。**ここだけは流さない**(探しているあいだずっと使う) */
+.preset-view .preset-pinned {
+  position: static;
+  flex: 0 0 auto;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line-soft);
+}
+/* 一覧だけがスクロールする */
+.preset-view .preset-box {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px;
+}
+/* **下端に貼り付ける。** 流れの中に置くと、絵を探してスクロールするたびに
+   購入ボタンと説明が割り込んで邪魔になる(2026-08-19 ユーザー指摘) */
+.preset-foot {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--bg-chrome);
+  border-top: 1px solid var(--line);
+}
+.preset-foot {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+.preset-foot .preset-terms { margin: 6px 0 0; }
+.preset-foot .shop-hint { margin: 6px 0 0; }
+/* 利用条件は一度読めばよいので畳む。開くと下から生えて一覧を押し上げない
+   ように、絶対配置で盤の上へ出す */
+.preset-terms-fold { position: relative; flex: 0 0 auto; }
+.preset-terms-fold > summary {
+  cursor: pointer;
+  font-size: 11.5px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+.preset-terms-fold[open] > summary { color: var(--text); }
+.preset-terms-body {
+  position: absolute;
+  /* **一覧のテーマ見出し(貼り付き・z-index: 1)より上に出す。**(2026-09-23 ユーザー報告
+     「画像の使いかたを開いたらレイアウトが崩れている」)。重なり順を持たないままだと、
+     貼り付いた見出しが吹き出しの文の上に割り込んで見えた */
+  z-index: 5;
+  bottom: 100%;
+  left: 0;
+  width: 300px;
+  margin-bottom: 6px;
+  padding: 8px 10px;
+  background: var(--bg-box);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  box-shadow: 0 -4px 14px rgba(0, 0, 0, 0.35);
+}
+.preset-terms-body .preset-terms { margin: 0; }
+.preset-terms-body .shop-hint { margin: 6px 0 0; }
+
+/* ---- 余白のどこに刷るかを選ぶ盤(ページ番号・柱) ----
+   紙のかたちのまま選ばせる。3列は左からノド寄り・中央・小口寄りで、
+   **左右ではなく綴じからの遠近**(裏のページでも同じところに刷られる) */
+.slot-pad-wrap { display: flex; flex-direction: column; gap: 6px; }
+.slot-pad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  padding: 6px;
+  background: var(--paper);
+  border: 1px solid var(--paper-ink-soft);
+  border-radius: 4px;
+}
+.slot-pad button {
+  height: 20px;
+  padding: 0;
+  background: var(--paper-face);
+  border: 1px solid var(--paper-rule);
+  border-radius: 2px;
+}
+.slot-pad button:hover { background: var(--paper-face-hover); border-color: var(--accent-line); }
+.slot-pad button.active { background: var(--accent); border-color: var(--accent-strong); }
+/* もう一方(ノンブル/柱)が取っている枠。**薄く、でも読めるように。**
+   相手の居場所が見えていないと、重ねてから警告文で気づくことになる */
+.slot-pad button.taken {
+  background: var(--paper-face-2);
+  border-style: dashed;
+  color: var(--paper-ink-dim);
+  font-size: 9px;
+  line-height: 1;
+}
+/* 取り合っている枠。刷るときはページ番号が勝ち、柱は出ない */
+.slot-pad button.clash {
+  background: var(--paper-alert);
+  border-color: var(--paper-alert-line);
+  color: var(--paper);
+}
+/* 誌面そのもの。ここには刷らないので押せない */
+.slot-pad-page {
+  grid-column: 1 / -1;
+  display: grid;
+  place-items: center;
+  height: 52px;
+  background: var(--paper-face-3);
+  border: 1px dashed var(--paper-rule);
+  border-radius: 2px;
+  color: var(--paper-ink-soft);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+}
+.slot-pad-legend {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  padding: 0 6px;
+  font-size: 10.5px;
+  color: var(--text-dim);
+  text-align: center;
+}
+/* 「入れない」を選んでいるあいだは、盤のどこも光っていないので目印を強くする */
+.slot-pad-wrap .active-off { border-color: var(--accent-line); color: var(--text-strong); background: var(--bg-hover); }
+
+/* 入口画面で「この操作の話をしています」と指すための強調。
+   説明文で［保存する］と書いても、どのボタンか分からないと意味がない */
+@keyframes pulse-ring {
+  0% { box-shadow: 0 0 0 0 rgba(var(--accent-line-rgb), 0.75); }
+  70% { box-shadow: 0 0 0 9px rgba(var(--accent-line-rgb), 0); }
+  100% { box-shadow: 0 0 0 0 rgba(var(--accent-line-rgb), 0); }
+}
+button.pulse { animation: pulse-ring 1.8s ease-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  button.pulse { animation: none; box-shadow: 0 0 0 3px rgba(var(--accent-line-rgb), 0.8); }
+}
+/* 3つの入口。以前は枠が薄すぎて「ボタンかどうか分からない」と言われた(2026-08-18) */
+.start-card {
+  background: var(--bg-field);
+  border: 1px solid var(--line-bold);
+  box-shadow: 0 1px 0 var(--card-sheen) inset;
+}
+.start-card:hover { background: var(--bg-raised); border-color: var(--accent-line); }
+/* 保存のしかたはこの画面の主役。枠で囲って読み飛ばされないようにする */
+.start-step-save {
+  padding: 12px 14px;
+  background: var(--bg-box);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent-line);
+  border-radius: 8px;
+}
+
+
+/* ---- 表紙の作り方の分かれ道 ----
+   「まるごと1枚」は面ごとの地と**排他**なので、面のタブと同じ並びに置くと
+   「表1を選んでいるつもりでまるごと1枚が効いている」という取り違えが起きた
+   (2026-08-19 ユーザー指摘)。タブの上に、作り方そのものの選択として置く */
+.cover-mode { display: flex; gap: 8px; margin: 0 0 10px; }
+.cover-mode button {
+  flex: 1 1 0;
+  /* **折り返させる。** button は既定で nowrap を継ぐので、`flex: 1 1 0` を書いても
+     字の幅より縮まない。2つ合わせて 337.7px になり、300px の器から 45.7px はみ出して
+     サイドバーに横スクロールが出ていた(2026-08-21 実測。背景タブの「2件」と同じ原因)。
+     min-width: 0 も要る — フレックスの子は既定で「中身の最小幅」より縮まない */
+  min-width: 0;
+  white-space: normal;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  align-items: flex-start;
+  padding: 8px 10px;
+  background: var(--bg-box);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 700;
+  text-align: left;
+}
+.cover-mode button em {
+  font-style: normal;
+  font-size: 10.5px;
+  font-weight: 400;
+  color: var(--text-dim);
+  line-height: 1.4;
+}
+.cover-mode button:hover { border-color: var(--line-bold); background: var(--bg-field); }
+.cover-mode button.active { background: var(--accent-fill); border-color: var(--accent-line); color: var(--accent-on-fill); }
+.cover-mode button.active em { color: var(--accent-on-fill-dim); }
+
+/* 表紙のときの帯に置く一言。操作ではないので、色を落として右端へ流す */
+.barnote {
+  margin: 0;
+  margin-left: auto;
+  max-width: 320px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+.barnote b { color: var(--text); }
+
+/* ---- コラムページ（本文と組み方向の違う1ページ）----
+   挿絵ページ(.plate-list)と同じ見た目の箱に並べる。ちがうのは中身が文字なので、
+   見出し・本文・収まり具合を1件の中に縦に積むところ */
+.colpages { display: grid; gap: 8px; }
+.colpage-list { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 10px; }
+.colpage-list li {
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  background: var(--bg-box);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+}
+/* **1枚ごとの区切りをはっきりさせる。**(2026-09-13 ユーザー報告
+   「どこまでが今編集しているページなのかがわからない」)
+   カードの枠を濃くして間隔を広げ、さらに**操作中のカードだけ緑の枠で光らせる**
+   (focus-within = その中の欄に文字を打っている・選んでいる間) */
+.plate-list li,
+.colpage-list li {
+  border: 1.5px solid var(--line-bold);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.06);
+}
+.plate-list { gap: 14px; }
+.colpage-list { gap: 14px; }
+/* **「直すところ」から来たときに、該当の画像を示す。**(2026-10-09 ユーザー指摘「どの挿絵の話なのかがわからない」)
+   上に該当の画像を並べた札、一覧では該当の行を注意の色の枠で囲む(札を閉じるまで残す) */
+.spot-box {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  background: var(--warn-fill);
+  border: 1.5px solid var(--warn);
+  border-radius: 8px;
+  color: var(--warn-text);
+}
+.spot-box p { margin: 0; }
+.spot-box .spot-title { font-size: 13px; }
+.spot-box ul { margin: 0; padding: 0 0 0 1.2em; display: grid; gap: 4px; font-size: 12.5px; }
+.spot-box li span { margin-left: 8px; font-size: 11.5px; }
+.spot-box > button { justify-self: start; padding: 4px 10px; font-size: 12px; }
+.plate-list li.row-spot {
+  outline: 3px solid var(--warn);
+  outline-offset: 1px;
+}
+.plate-list li:focus-within,
+.colpage-list li:focus-within {
+  outline: 2px solid var(--accent-line);
+  outline-offset: 1px;
+}
+/* コラムカードの頭(◯枚目)を帯にして、カードの始まりを一目で分かるように */
+.colpage-list li > .colpage-head {
+  background: var(--accent-fill);
+  margin: -8px -8px 2px;
+  padding: 6px 8px;
+  border-radius: 6px 6px 0 0;
+}
+.colpage-head { display: flex; align-items: center; justify-content: space-between; }
+.colpage-head b { font-size: 12px; color: var(--text); }
+.colpage-head button { padding: 4px 8px; font-size: 12px; }
+.colpage-list select,
+.colpage-list input[type="text"] { font-size: 12px; padding: 4px 6px; }
+.colpage-list textarea {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--bg-field);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font: inherit;
+  font-size: 12px;
+  color: inherit;
+  resize: vertical;
+}
+/* あふれの警告。**枠まで赤くする。** 文字色だけだと他の補足文と同じ大きさで並び、
+   「刷られない」という取り返しのつかない話が読み飛ばされる */
+.colpage-over {
+  margin: 0;
+  padding: 7px 9px;
+  background: var(--bad-fill);
+  border-left: 3px solid var(--bad);
+  border-radius: 4px;
+  line-height: 1.6;
+}
+
+
+/* **一覧を開いているあいだは出さない。** PresetScreen が自前で下端に持っているので、
+   両方出ると同じボタンが上下に2つ並ぶ(2026-08-19 ユーザーの画面で発生) */
+.sidebar:has(.preset-view) .shop-foot { display: none; }
+
+/* ---- 素材の購入導線。サイドバーの下端に貼り付ける ----
+   タブの中に置くと、そのタブを開いた人にしか見えない。買える物があることは
+   タブに関係なく分かっていてよい(2026-08-19 ユーザー指摘)。
+
+   **sticky だけでは足りない。** sticky は「はみ出したぶんを貼り付ける」仕掛けなので、
+   中身が短いタブ(クッション)では貼り付く相手が無く、**中身のすぐ下に浮いて止まる**。
+   タブを切り替えるたびに BOOTH の位置が上下して見える(2026-08-21 ユーザー報告)。
+   縦フレックスの `margin-top: auto` を足して、**短いときは下端へ送る**。
+
+   **貼り付け(sticky)はやめた。**(2026-09-25 見直し S2-18) 高さ 900px くらいの画面で、
+   貼り付いた帯が表紙の「文字の位置」の9マスの下段と［おまかせ］、背景の［目次・章・奥付の背景を変える］
+   の上に重なり、押すと BOOTH が開いた(1080px では下までスクロールしても重なったまま)。
+   帯は中身の下に置き、短いタブでは margin-top: auto で下端へ送る(位置が上下しない件はこれで足りる) */
+.shop-foot {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-right: -12px;
+  margin-bottom: -12px;
+  margin-left: -12px;
+  padding: 10px 12px;
+  background: var(--bg-chrome);
+  border-top: 1px solid var(--line);
+}
+.shop-foot .shop-link { margin: 0; }
+.shop-foot-more > summary {
+  cursor: pointer;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+.shop-foot-more .hint { margin: 6px 0 0; }
+
+
+/* コラムページの書体・サイズ。**帯ではなく編集欄の中に置く。**
+   1ページに収める紙面なので、ここが入る字数を直に決める。
+   すぐ下の「入る字数の目安」がその場で動くので、因果が見える(2026-08-19) */
+.colpage-type {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 6px 10px;
+  padding: 8px;
+  background: var(--bg-box);
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+}
+.colpage-type > label { margin: 0; font-size: 11px; }
+.colpage-type .num input { width: 54px; }
+.colpage-type > button { padding: 4px 8px; font-size: 11px; }
+
+
+/* ページを足すボタン。**その面でいちばんやることなので、大きく出す。**
+   説明文にまぎれた小さなボタンだと「何をやればいい面なのか」が読めない
+   (2026-08-19 ユーザー指摘) */
+.add-page {
+  width: 100%;
+  padding: 11px 14px;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text);
+  background: var(--bg-field);
+  border: 1px solid var(--line-bold);
+  border-radius: 8px;
+}
+.add-page:hover { background: var(--bg-raised); border-color: var(--accent-line); color: var(--text-strong); }
+
+/* 同じ工程の中で、別の副タブへ移るボタン。**「足す」ボタン(.add-page)とは別の顔にする。**
+   あちらは横いっぱいの太字で、こちらは案内(.hint)に添える細い一手。
+   案内のすぐ下に置くので、上の余白を詰めて一組に見せる。
+   矢印は書かない — 文字だけで行き先(面の名前)が読めるようにしてある。
+   字の大きさは触らない(`.sidebar button` の 13px。ここで書いても効かない) */
+.go-pane {
+  align-self: flex-start;
+  margin-top: -2px;
+  padding: 6px 12px;
+}
+.go-pane:hover { border-color: var(--accent-line); color: var(--text-strong); }
+
+
+/* ---- サムネイルの並べ替え(2026-08-19 ユーザー要望) ----
+   **動かせるページと動かせないページを、見た目で分ける。**
+   ふつうに考えるとどのページも動かせそうに見えるので、
+   できることだけに印を付けて、できないことは掴んだときに言う */
+
+/* 動かせるページの取っ手。点の並びは掴む場所の万国共通の印 */
+.thumb-grip {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  z-index: 3;
+  padding: 0 3px;
+  border-radius: 3px;
+  background: var(--overlay-chip);
+  color: var(--accent-on-fill);
+  font-size: 12px;
+  line-height: 1.25;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.thumbs .thumb.movable { cursor: grab; }
+.thumbs .thumb.movable:hover .thumb-grip,
+.thumbs.dragging .thumb.movable .thumb-grip { opacity: 1; }
+/* 動かせるページは枠でも分かるようにする(取っ手は hover で出るので、
+   一覧をざっと見たときにも「これは動く」と読めるように) */
+.thumbs .thumb.movable { border-color: var(--movable-line); }
+.thumbs .thumb.movable:hover { border-color: var(--accent-line); }
+
+/* 落とし場所の目印。**当たり判定はページ1枚ぶん、線はその縁に出す。**
+   もとは隙間に 6px の帯を差し込んでいたが、そこを狙わせるのが無理で、
+   帯を外すと「置けない」扱いになって何も起きなかった(2026-08-20 ユーザー報告)。
+   いまはページの上半分／下半分で「この前／この後ろ」を決める */
+/* 置ける場所は**掴んだ瞬間から全部見せる**。カーソルの下にしか出さないと、
+   どこへ運べばよいか分からず彷徨うことになる(2026-08-20 ユーザーの録画) */
+.thumbs .thumb.drop-ok::before {
+  content: "";
+  position: absolute;
+  left: -3px;
+  right: -3px;
+  top: -5px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--accent-line);
+  opacity: 0.4;
+  z-index: 5;
+}
+/* 置けないページは沈める。目が置ける場所へ向く */
+.thumbs.dragging .thumb:not(.drop-ok):not(.lifting) { opacity: 0.4; }
+.thumbs .thumb.drop-above::before {
+  content: "";
+  position: absolute;
+  left: -3px;
+  right: -3px;
+  top: -5px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--accent-line);
+  box-shadow: 0 0 0 2px rgba(var(--accent-line-rgb), 0.3);
+  opacity: 1;
+  z-index: 6;
+}
+/* ドラッグ中は、置ける場所が分かるようにページの縁を薄く見せる */
+.thumbs.dragging .thumb { opacity: 0.85; }
+.thumbs.dragging .thumb.drop-above { opacity: 1; }
+
+/* できないことを伝える札。**掴んだその場に出す**(下まで探しに行かせない) */
+.thumb-toast {
+  position: sticky;
+  bottom: 0;
+  z-index: 4;
+  margin: 8px 0 0;
+  padding: 0 8px;
+  /* **高さで畳まない。** max-height で伸ばしていたので、長い文が途中で切れていた
+     (2026-08-19 ユーザー報告)。出す・出さないは display で決めて、
+     中の文は必ず最後まで見せる */
+  display: none;
+  background: var(--bg-chrome);
+  border: 1px solid var(--line-bold);
+  border-radius: 7px;
+  color: var(--text);
+  font-size: 11px;
+  line-height: 1.55;
+  opacity: 0;
+  transition: opacity 0.15s;
+  /* **札は受け皿の上に乗せない。**(2026-08-20 実測)
+     一覧の下端に貼りついたまま、下にあるページのサムネイルを覆っていた。
+     落とし場所はカーソルの下を elementFromPoint で拾っているので、
+     札が返ってきた瞬間に「置ける場所が無い」になり、掴んでも落とせなかった。
+     実測: 一覧の高さ482pxのうち、札の高さぶん(短い文で約100px、長い文で223px)が
+     そのまま死んでいた。掴んだ瞬間に必ず札を出す作りなので、毎回そうなる。
+     読むだけの札なので、ポインタは素通しでよい */
+  pointer-events: none;
+}
+.thumb-toast.on { display: block; padding: 8px 9px; opacity: 1; }
+
+/* 右クリックの小さな献立 */
+.thumb-menu {
+  position: fixed;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  min-width: 176px;
+  padding: 4px;
+  background: var(--bg-box);
+  border: 1px solid var(--line-bold);
+  border-radius: 8px;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.5);
+}
+.thumb-menu button {
+  padding: 7px 10px;
+  background: none;
+  border: 0;
+  border-radius: 5px;
+  color: var(--text);
+  font-size: 12.5px;
+  text-align: left;
+}
+.thumb-menu button:hover { background: var(--bg-raised); color: var(--text-strong); }
+
+
+/* コラムページの中の小見出し。**「見出し」「本文」「ページ全体」の3つに割る。**
+   もとは 見出し欄 → 本文欄 → 見た目まとめて、の順で、
+   どの設定がどちらに掛かるのか読めなかった(2026-08-19 ユーザー指摘) */
+.colpage-part {
+  margin: 10px 0 0;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+}
+.colpage-part::before { content: "— "; color: var(--line-bold); }
+
+/* ---- コラムのカードの中の区画(2026-10-09 ユーザー指摘) ----
+   「原稿を入れる場所と画像を入れる場所がわかりにくい」「どこまでが1つのコラムの話なのか
+   わかりにくい」。カードの中を ①文章 と ②地の画像 の2区画に割り、**地の色と左の線を変える**。
+   文章は電子書籍の柱と同じ青み、画像は紙の柱と同じ生成り(どちらも明暗の両テーマに値がある) */
+.colpage-head { gap: 6px; }
+.colpage-name {
+  display: flex;
+  align-items: baseline;
+  gap: 2px;
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+}
+.colpage-name span {
+  min-width: 0;
+  font-weight: 400;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.colpage-head > button { flex: 0 0 auto; white-space: nowrap; }
+/* **カードを欄の幅より広げない。** 「置く場所」の選択肢は章題をそのまま出すので長く、
+   select は既定でいちばん長い選択肢の幅になる。グリッドの子は中身の幅まで縮まないので、
+   ここで 0 まで縮めてよいと言っておかないと、欄ごと横にはみ出した */
+.colpages > *,
+.colpage-list > li { min-width: 0; }
+.colpage-list > li,
+.colpage-sec { grid-template-columns: minmax(0, 1fr); }
+/* 頭の帯は、狭い欄では［見る］［削除］を次の行へ送る(見出しを潰さない) */
+.colpage-list li > .colpage-head { flex-wrap: wrap; row-gap: 4px; }
+.colpage-place { display: flex; flex-wrap: wrap; gap: 6px 10px; }
+.colpage-place > label { margin: 0; font-size: 11px; flex: 1 1 140px; min-width: 0; }
+.colpage-place select { width: 100%; min-width: 0; }
+.colpage-sec {
+  display: grid;
+  gap: 6px;
+  padding: 8px 9px 9px;
+  border-radius: 6px;
+  border: 1px solid var(--line-soft);
+  border-left-width: 4px;
+}
+.colpage-sec > label { margin: 0; font-size: 11px; }
+.colpage-sec-text { background: var(--pillar-ebook-bg); border-left-color: var(--pillar-ebook-line); }
+.colpage-sec-art { background: var(--pillar-paper-bg); border-left-color: var(--pillar-paper-line); }
+.colpage-sec-title {
+  margin: 0 0 2px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text);
+}
+.colpage-sec .colpage-type { background: var(--bg-field); }
+.colpage-design-note { margin: 2px 0 0; }
+
+
+/* 章の切れ目の「＋」。**ドラッグしていなくても出す。**
+   左の欄から足すと必ず本の最後に付くので、見ているページから遠く離れた場所に
+   増えて探し回ることになっていた(2026-08-19 ユーザー指摘)。
+   ここに足せることが目に入っていれば、そもそも探さずに済む */
+.thumb-add {
+  align-self: center;
+  width: 22px;
+  height: 22px;
+  margin: 1px 0;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  background: var(--bg-field);
+  border: 1px dashed var(--line-bold);
+  border-radius: 50%;
+  color: var(--text-dim);
+  font-size: 11px;
+  line-height: 1;
+  opacity: 0.55;
+  transition: opacity 0.12s, background 0.12s;
+}
+.thumbs:hover .thumb-add { opacity: 1; }
+.thumb-add:hover {
+  background: var(--accent-fill);
+  border-color: var(--accent-line);
+  border-style: solid;
+  color: var(--accent-on-fill);
+}
+/* ドラッグ中は受け皿が主役。＋は引っ込める */
+.thumbs.dragging .thumb-add { display: none; }
+
+
+/* 足したばかりのページ。**光らせて「ここに増えた」と言う。**
+   左の欄とページ一覧は画面の反対側にあるので、足しても
+   「何も増えないじゃん」に見えていた(2026-08-19 ユーザー指摘) */
+@keyframes thumb-flash {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(var(--accent-line-rgb), 0); }
+  15%, 65% { box-shadow: 0 0 0 4px rgba(var(--accent-line-rgb), 0.95); }
+}
+.thumbs .thumb.flash {
+  animation: thumb-flash 2.2s ease-in-out;
+  border-color: var(--accent-line);
+}
+
+/* 左の欄から誌面へ飛ぶ道。**文の中に置くので、ボタンには見せない。**
+   「1枚目」と書いてあってもプレビューのどこか分からない、という声への答え */
+.linklike {
+  padding: 0;
+  background: none;
+  border: 0;
+  /* **文の中に出る字なので、枠の色ではなくリンクの色。**
+     .link-btn / .about a と同じ持ち方にそろえてある */
+  color: var(--accent-text);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.linklike:hover { color: var(--accent-text-hi); background: none; }
+
+
+/* 追加用のピッカー。**ボタンが主役。**(2026-08-20 ユーザー指摘)
+   リード → 見出し → 小さなボタン、の3段になっていて、
+   どこに何があるのかが読めなかった。見出しをやめ、
+   絵を選ぶ2つの道を同じ大きさで横に並べる */
+.bg-add .bg-row { margin-top: 2px; }
+/* **3つめが来ても横に伸ばさない。**(2026-08-20 ユーザー報告
+   「挿絵タブ、３つ並んだボタンがはみ出ているのがなんかみっともない」)
+
+   実測(1440×900・文庫サンプル・挿絵タブ):
+   ```
+   サイドバーの内寸            300px（幅340 − 枠1 − スクロールバー15 − 余白12×2）
+   挿絵1枚ぶんの箱(li)の内寸   256px（タブの中身274 − li の余白8×2 − 枠1×2）
+   ボタンの最小幅              画像を選ぶ 83 / プリセットから 109 / 画像を外す 83
+   3つを横一列に並べた合計      83+109+83 + 間6×2 = 287px  → 箱から 31px あふれる
+   ```
+   nowrap のまま伸ばしていたので、箱どころかサイドバーの右端(312px)まで越えて
+   321px まで出ていた。**［画像を選ぶ］と［プリセットから］は「絵を選ぶ2つの道」**なので
+   同じ大きさのまま残し(2つなら 198px で収まる)、逆向きの［画像を外す］だけを
+   下の行へ落として小さく置く。折り返しなので、絵が入っていないときは
+   これまでどおり2つが1行に並ぶだけで見た目は変わらない
+
+   **塗り・枠・字の太さは .bg-buttons へ移した**(2026-08-21)。背景タブのボタンが
+   BOOTH の導線に埋もれていたので、この見た目を全部のピッカーの土台にした。
+   ここに残すのは「絵の枠が無いぶん横いっぱいに伸ばす」差分だけ */
+/* **`:not(.bg-clear)` は必須。**(2026-08-21 実測で捕まえた)
+   `.bg-add .bg-buttons button`(0,2,1)は `.bg-buttons .bg-clear`(0,2,0)に勝つので、
+   素直に書くと［画像を外す］まで `flex: 1` を拾って**横いっぱいの 256px** に伸びる
+   (実測: 挿絵タブで 83px のはずが 256px、高さも 32→45.25px になった) */
+.bg-add .bg-buttons { flex: 1; }
+.bg-add .bg-buttons button:not(.bg-clear) { flex: 1; padding: 11px 8px; }
+
+
+/* つまんでいるページ。**持ち上がって見えるようにする。**
+   HTML5 の drag をやめてポインタで組んだので、掴んでいる印も自前で出す
+   (2026-08-20 ユーザー報告「入れ替えられない」→ drag そのものを作り直した) */
+.thumbs .thumb.lifting {
+  opacity: 0.45;
+  border-style: dashed;
+  border-color: var(--accent-line);
+}
+/* ドラッグ中は文字を選ばせない(掴んだまま動かすと選択が走ってしまう) */
+.thumbs.dragging { user-select: none; cursor: grabbing; }
+.thumbs.dragging .thumb.movable { cursor: grabbing; }
+
+
+/* 本文プレビューの表示倍率。**表紙と同じ形にそろえる**(2026-08-20 ユーザー要望) */
+.page-zoom { display: flex; align-items: center; gap: 6px; }
+.page-zoom input[type="range"] { width: 96px; accent-color: var(--accent-line); }
+.page-zoom b {
+  min-width: 3.2em;
+  color: var(--text);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+
+/* 拡大しているあいだの誌面。**掴んで動かせることを手の形で言う。**
+   拡大したのに送りしかできないと、見たいところへ寄れない(2026-08-20 ユーザー指摘) */
+.preview-viewport.pannable { cursor: grab; }
+.preview-viewport.pannable:active { cursor: grabbing; }
+/* 掴んで動かすあいだ、文字を選ばせない。
+   選択が始まると紙が動かず、青い帯だけが伸びる(2026-08-20 ユーザー指摘) */
+.preview-viewport.pannable, .preview-viewport.pannable * { user-select: none; }
+
+
+/* ---- ヘルプ ----
+   工程ごとの解説と困りごとの2本立て。**中身は src/help/content.ts に1つだけ持つ**
+   (画面と .md を別々に書くと、必ず片方が古くなる) */
+.about.help { max-width: 760px; }
+.about.help .help-dl { margin-top: 10px; }
+.about.help .help-tabs { margin: 14px 0 4px; }
+.help-sec { margin-top: 18px; }
+.help-sec h3 {
+  margin: 0 0 4px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line-soft);
+  font-size: 14.5px;
+  color: var(--text-strong);
+}
+.help-sec > p { margin: 0 0 8px; font-size: 13px; line-height: 1.7; color: var(--text-mid); }
+.about.help .help-list { margin: 0; padding-left: 1.3em; font-size: 13px; line-height: 1.75; }
+.about.help .help-list li { margin-bottom: 2px; color: var(--text-mid); }
+/* 気をつけること。**できることの一覧と地を分ける**(読む理由が違う) */
+.help-note-head {
+  margin: 10px 0 4px;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+}
+.about.help .help-notes {
+  padding: 8px 10px 8px 2em;
+  background: var(--bg-box);
+  border-left: 3px solid var(--line-bold);
+  border-radius: 5px;
+}
+.about.help .help-notes li { color: var(--text-dim); }
+/* 帯は工程ではないので、少し離して置く */
+.help-bar h3 { border-top-color: var(--accent-line); }
+
+.help-qa { margin: 14px 0 0; }
+.help-qa > div { padding: 12px 0; border-top: 1px solid var(--line-soft); }
+.help-qa dt { font-size: 13.5px; font-weight: 700; color: var(--text-strong); margin-bottom: 5px; }
+.help-qa dd { margin: 0; font-size: 13px; line-height: 1.75; color: var(--text-mid); }
+
+/* 元に戻したことを知らせる札(Ctrl+Z)。**どの画面にいても同じ場所に出す。**
+   ページ一覧の .thumb-toast は .main の中にあるので、表紙・AI・書き出しの
+   全画面では見えない。取り消しはどの画面でも効くので、こちらは .app の直下に
+   fixed で置き、トップバーと工程レール(実測 46px + 47px = 93px)のすぐ下に落とす。
+   読むだけの札なので、下の操作をふさがないよう pointer-events は素通しにする */
+.app-toast {
+  position: fixed;
+  top: 104px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 70;
+  max-width: min(680px, 86vw);
+  margin: 0;
+  padding: 10px 16px;
+  background: var(--bg-box);
+  border: 1px solid var(--accent-line);
+  border-radius: 8px;
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.45);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.6;
+  text-align: center;
+  pointer-events: none;
+  animation: app-toast-in 0.18s ease-out;
+}
+@keyframes app-toast-in {
+  from { opacity: 0; transform: translate(-50%, -8px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   入口のヒーロー(デザイン案H・2026-08-28)
+   「トップが機能要素だけで、何をするものか分からない」への答え。
+   めくれる本(HeroBook)が主役で、まわりは磨りガラスとオーロラ。
+   色はここでだけ使う --hero-* にまとめ、ダークは下の上書きで作る。
+   ═══════════════════════════════════════════════════════════════ */
+:root {
+  --hero-grad: linear-gradient(170deg, #bfe6de 0%, #d7efe8 42%, #e9f4ee 75%, #dff0e8 100%);
+  --hero-blob1: rgba(149, 216, 209, 0.8);
+  --hero-blob2: rgba(246, 244, 221, 0.9);
+  --hero-blob3: rgba(169, 210, 226, 0.5);
+  --hero-ink: #22423c;
+  --hero-strong: #1e352f;
+  --hero-sub: #38544c;
+  --hero-faint: #52706a;
+  --hero-glass: rgba(255, 255, 255, 0.72);
+  --hero-glass-hi: rgba(255, 255, 255, 0.92);
+  --hero-glass-line: rgba(255, 255, 255, 0.85);
+  --hero-topbg: rgba(255, 255, 255, 0.55);
+  --hero-cta-bg: #14342e;
+  --hero-cta-ink: #eaf4ef;
+  --hero-page-shadow: 0 26px 60px rgba(20, 60, 55, 0.25), 0 4px 14px rgba(20, 60, 55, 0.1);
+}
+:root[data-theme='dark'] {
+  --hero-grad: linear-gradient(170deg, #0c1f24 0%, #0e2a2b 46%, #123236 100%);
+  --hero-blob1: rgba(159, 224, 216, 0.14);
+  --hero-blob2: rgba(60, 90, 84, 0.35);
+  --hero-blob3: rgba(90, 130, 160, 0.16);
+  --hero-ink: #dcebe6;
+  --hero-strong: #f0faf6;
+  --hero-sub: #c3d8d2;
+  --hero-faint: #8fa8a2;
+  --hero-glass: rgba(24, 42, 40, 0.6);
+  --hero-glass-hi: rgba(30, 52, 49, 0.85);
+  --hero-glass-line: rgba(159, 224, 216, 0.22);
+  --hero-topbg: rgba(10, 26, 24, 0.55);
+  --hero-cta-bg: #9fe0d8;
+  --hero-cta-ink: #0c1f24;
+  --hero-page-shadow: 0 26px 60px rgba(0, 0, 0, 0.55), 0 0 40px rgba(159, 224, 216, 0.08);
+}
+
+/* .start-screen の中央寄せを解いて、縦に流れるページにする */
+.start-screen.start-heroed {
+  display: block;
+  padding: 0;
+  background: var(--hero-grad);
+  color: var(--hero-ink);
+  overflow-x: hidden;
+}
+
+/* オーロラ。玉3つを漂わせる。**transform だけ動かす**(重くしない) */
+.hero-blobs { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.hero-blobs i { position: absolute; border-radius: 50%; filter: blur(52px); }
+.hero-blobs i:nth-child(1) {
+  top: -180px; left: -120px; width: 640px; height: 520px;
+  background: radial-gradient(closest-side, var(--hero-blob1), transparent);
+  animation: hero-drift1 17s ease-in-out infinite alternate;
+}
+.hero-blobs i:nth-child(2) {
+  top: 340px; right: -160px; width: 680px; height: 560px;
+  background: radial-gradient(closest-side, var(--hero-blob2), transparent);
+  animation: hero-drift2 21s ease-in-out infinite alternate;
+}
+.hero-blobs i:nth-child(3) {
+  bottom: -220px; left: 280px; width: 640px; height: 520px;
+  background: radial-gradient(closest-side, var(--hero-blob3), transparent);
+  animation: hero-drift1 24s ease-in-out infinite alternate-reverse;
+}
+@keyframes hero-drift1 { from { transform: translate(0, 0) scale(1); } to { transform: translate(60px, 30px) scale(1.12); } }
+@keyframes hero-drift2 { from { transform: translate(0, 0) scale(1.08); } to { transform: translate(-50px, 24px) scale(0.96); } }
+
+/* ヘッダー: 版元の署名。×の役は［スタジオで書く］が兼ねる */
+.hero-top {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 26px;
+  background: var(--hero-topbg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--hero-glass-line);
+  flex-wrap: wrap;
+}
+.frog-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 50%; background: #f6f4dd; color: #2c3a33;
+  border: 1px solid #d9d2b8; flex: none;
+}
+/* 本物ロゴ(public/brand/amayadori-logo.png)。**ミント地の角丸タイル+アーチ**の絵柄なので、
+   丸く切り抜くとアーチの角が欠ける。角丸だけにして絵はそのまま見せる(2026-09-02 実物確認) */
+.brand-logo { display: block; width: auto; border-radius: 10px; flex: none; }
+.hero-name { display: flex; flex-direction: column; line-height: 1.3; }
+.hero-name-main { font-family: 'Zen Old Mincho', serif; font-weight: 700; font-size: 17px; letter-spacing: 0.12em; color: var(--hero-strong); }
+.hero-name-by { font-size: 10px; letter-spacing: 0.2em; color: var(--hero-faint); }
+.hero-top-actions { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+.hero-ghost {
+  background: var(--hero-glass); border: 1px solid var(--hero-glass-line);
+  border-radius: 999px; padding: 9px 18px; font-size: 12.5px; color: var(--hero-ink);
+}
+.hero-ghost:hover { background: var(--hero-glass-hi); }
+.hero-cta {
+  background: var(--hero-cta-bg); color: var(--hero-cta-ink); border: 0;
+  border-radius: 999px; padding: 10px 20px; font-size: 12.5px; font-weight: 700; letter-spacing: 0.06em;
+}
+.hero-cta:hover { filter: brightness(1.12); }
+
+/* 本文 */
+.hero-body {
+  position: relative;
+  display: flex; flex-direction: column; align-items: center;
+  width: min(1120px, 100%); margin: 0 auto;
+  padding: 38px 24px 28px;
+}
+.hero-flag {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: var(--hero-glass); border: 1px solid var(--hero-glass-line);
+  border-radius: 999px; padding: 7px 16px; font-size: 12px; color: var(--hero-sub);
+}
+.hero-flag i { width: 7px; height: 7px; border-radius: 50%; background: var(--accent-text); }
+.hero-h1 {
+  margin: 16px 0 0;
+  font-family: 'Zen Old Mincho', serif;
+  font-weight: 700;
+  font-size: clamp(30px, 4.6vw, 56px);
+  letter-spacing: 0.08em;
+  color: var(--hero-strong);
+  text-align: center;
+  text-wrap: balance;
+}
+.hero-en {
+  margin: 6px 0 0;
+  font-family: Georgia, 'Times New Roman', serif; font-style: italic;
+  font-size: clamp(15px, 1.8vw, 22px); color: var(--hero-faint);
+}
+.hero-lede { margin: 14px 0 0; font-size: 14.5px; line-height: 2; text-align: center; color: var(--hero-sub); max-width: 640px; }
+.start-heroed .start-badges { margin: 18px 0 0; }
+.start-heroed .start-badges li {
+  background: var(--hero-glass); border-color: var(--hero-glass-line); color: var(--hero-ink);
+}
+
+/* ── めくれる本 ── */
+.hero-book { margin: 30px auto 0; width: min(840px, 100%); }
+.hero-stage { position: relative; animation: hero-fade 0.35s ease; }
+/* めくる矢印。**本の左右に置く**(2026-09-23 ユーザー要望)。本の外に出せる幅があれば外、
+   狭ければ本の縁の内側に重ねる。見開きの中央(ノド)にはかけない */
+.hero-viewer { position: relative; }
+.hero-side {
+  position: absolute; top: 50%; z-index: 2;
+  transform: translateY(-50%);
+  width: 48px; height: 48px; padding: 0 0 3px;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  background: var(--hero-glass); border: 1px solid var(--hero-glass-line);
+  color: var(--hero-ink); font-size: 28px; line-height: 1;
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+}
+.hero-side:hover:not(:disabled) { background: var(--hero-glass-hi); }
+.hero-side:disabled { opacity: 0.3; cursor: default; }
+.hero-side-l { left: -66px; }
+.hero-side-r { right: -66px; }
+@media (max-width: 1000px) {
+  .hero-side { width: 40px; height: 40px; font-size: 24px; }
+  .hero-side-l { left: 6px; }
+  .hero-side-r { right: 6px; }
+}
+@keyframes hero-fade { from { opacity: 0; transform: translateY(8px); } }
+.frog-peek { position: absolute; right: 18px; top: -32px; color: #2c3a33; }
+.frog-peek .frog-fill { fill: #f6f4dd; }
+:root[data-theme='dark'] .frog-peek { color: #9fe0d8; }
+:root[data-theme='dark'] .frog-peek .frog-fill { fill: #16302d; }
+
+/* **見開きの1ページと同じ幅にする**(2026-09-14 ユーザー指摘「表紙と本文でサイズが
+   切り替わるのが気になる。本文サイズに表紙を合わせて」)。見開きは .hero-page が
+   50% なので、単ページ(表1・表4)もちょうど 50%。めくっても本の大きさが変わらない */
+.hero-single { position: relative; width: 50%; margin: 0 auto; }
+.hero-single img {
+  /* 撮影した実寸比のまま出す(比率を強制すると縁が1%削れる) */
+  display: block; width: 100%; height: auto;
+  border-radius: 4px; box-shadow: var(--hero-page-shadow);
+  background: #fdfbf2;
+}
+.hero-spread {
+  position: relative; display: flex;
+  background: #fdfbf2; border-radius: 6px; box-shadow: var(--hero-page-shadow);
+  overflow: hidden;
+}
+.hero-page { width: 50%; }
+.hero-page img {
+  display: block; width: 100%; height: auto;
+}
+/* 白紙側(表紙の裏)は相手ページと同じ丈になるよう比率だけ合わせる */
+.hero-blank { display: block; width: 100%; aspect-ratio: var(--page-ar); background: #f8f5ea; }
+/* ノドの影。右綴じでも見開きの中央に落ちる */
+.hero-spread::after {
+  content: ''; position: absolute; top: 0; bottom: 0; left: 50%; width: 9px;
+  transform: translateX(-4px);
+  background: linear-gradient(90deg, rgba(60, 50, 20, 0.12), rgba(60, 50, 20, 0));
+  pointer-events: none;
+}
+
+/* 仕様書の面。**紙の書類**なのでダークでも紙色のまま */
+.hero-spec {
+  position: relative;
+  width: min(430px, 100%); margin: 0 auto; box-sizing: border-box;
+  background: #fffdf6; border: 1px solid #e4dfc9; border-radius: 12px;
+  box-shadow: var(--hero-page-shadow);
+  padding: 22px 26px; color: #22423c; text-align: left;
+}
+.hero-spec-head { margin: 0 0 4px; font-size: 11px; letter-spacing: 0.2em; color: #8a8574; }
+.hero-spec dl { margin: 0; }
+.hero-spec dl div {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 11px 0; border-bottom: 1px solid #efeada; font-size: 13.5px;
+}
+.hero-spec dt { color: #5f7a72; }
+.hero-spec dd { margin: 0; font-weight: 700; }
+.hero-spec-chip { background: #bfe6de; border-radius: 6px; padding: 2px 9px; }
+.hero-spec-note { margin: 10px 0 0; font-size: 11.5px; line-height: 1.7; color: #8a8574; }
+.hero-spec .primary-action { width: 100%; margin-top: 12px; }
+
+/* 本文の刷り色(白黒⇄カラー)の切替(2026-09-11)。同じ原稿の2つの実出力を差し替える */
+.hero-inkrow { display: flex; justify-content: center; align-items: center; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
+.hero-inklabel { font-size: 12px; color: var(--hero-sub); }
+.hero-inkbtn {
+  background: var(--hero-glass); border: 1px solid var(--hero-glass-line);
+  border-radius: 999px; padding: 7px 16px; font-size: 12.5px; color: var(--hero-ink);
+}
+.hero-inkbtn:hover { background: var(--hero-glass-hi); }
+.hero-inkbtn.on { background: var(--hero-cta-bg); color: var(--hero-cta-ink); border-color: transparent; }
+.hero-inkhint { font-size: 11.5px; color: var(--hero-sub); }
+
+.hero-pager { display: flex; justify-content: center; align-items: center; gap: 12px; margin-top: 18px; flex-wrap: wrap; }
+.hero-pgbtn {
+  background: var(--hero-glass); border: 1px solid var(--hero-glass-line);
+  border-radius: 999px; padding: 9px 18px; font-size: 12.5px; color: var(--hero-ink);
+}
+.hero-pgbtn:hover:not(:disabled) { background: var(--hero-glass-hi); }
+.hero-pgbtn:disabled { opacity: 0.45; }
+.hero-pgnow {
+  background: var(--hero-cta-bg); color: var(--hero-cta-ink);
+  border-radius: 999px; padding: 8px 18px; font-size: 12px;
+}
+
+/* めくれる本の下に続く、既存の部品の衣装替え */
+.hero-begin { margin-top: 34px; color: var(--hero-sub); }
+.start-heroed .start-card {
+  background: var(--hero-glass); border-color: var(--hero-glass-line);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+}
+.start-heroed .start-card:hover { background: var(--hero-glass-hi); border-color: var(--hero-glass-line); }
+.start-heroed .start-card-title { color: var(--hero-strong); }
+.start-heroed .start-card-desc { color: var(--hero-sub); }
+.start-heroed .start-current {
+  width: min(860px, 100%);
+  background: var(--hero-glass);
+  /* ガラスの札にしたぶん、内側の余白をきちんと取る。素の .start-current は
+     罫線1本の仕切りで padding-top しか無く、文字とボタンが札のふちに
+     ぴったり付いていた(2026-08-28 ユーザー報告「はみ出てしまいそう」) */
+  border: 1px solid var(--hero-glass-line);
+  border-radius: 14px;
+  padding: 16px 24px;
+  box-sizing: border-box;
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+}
+.start-heroed .start-current-book { color: var(--hero-faint); }
+.start-heroed .start-current-book b { color: var(--hero-strong); }
+.start-heroed .start-current-book small { color: var(--hero-sub); }
+.start-heroed .start-foot { color: var(--hero-faint); padding-bottom: 26px; }
+
+@media (max-width: 700px) {
+  .hero-top { padding: 10px 14px; gap: 8px; }
+  .hero-ghost { display: none; } /* 狭い幅では主導線だけ残す(Phase2で本対応) */
+  .hero-body { padding: 26px 14px 22px; }
+  /* 幅 375 以下で［スタジオで本をつくる］が右に切れていた(2026-10-09 全体確認)。入らなければ次の行へ */
+  .hero-top-actions { flex-wrap: wrap; justify-content: flex-end; row-gap: 8px; min-width: 0; }
+  .hero-name .studio-by { white-space: nowrap; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-blobs i { animation: none; }
+  .hero-stage { animation: none; }
+}
+
+/* ═══════════ 入口以外もトップのトーンに(2026-08-28 ユーザー指示) ═══════════
+   色のトークンは 2026-08-21 にコントラストを実測して決めた資産なので動かさない。
+   合わせるのは**形と署名**: 主役ボタンをトップのCTAと同じ丸い形に、アプリ名を
+   同じ明朝に、かくれカエルを1画面1匹。 */
+
+/* 主役の操作は「丸い錠剤」形で通す。トップのCTAと同じ形=同じ意味(ここを押すと進む) */
+.primary-action { border-radius: 999px; padding: 10px 16px; }
+
+/* アプリ名の署名はどの画面でも同じ明朝(トップの hero-name-main と同じ) */
+/* ── 案Aテイスト(2026-09-04 ユーザー「スタジオそのものも、このテイストに合わせて」) ──
+   リンクバナー案Aと同じ道具立てを画面へ通す:
+   明朝の題字(Zen Old Mincho)・丸ゴシックの札(Zen Maru Gothic)・
+   本棚の背表紙(ShelfMark)・金茶のさし色。
+   **押して操作するもの(タブ・ボタン・入力)はゴシックのまま** — 道具の字は読み取り優先 */
+:root {
+  --font-display: 'Zen Old Mincho', 'Yu Mincho', serif;
+  --font-round: 'Zen Maru Gothic', sans-serif;
+  --gold: #c8a13a;
+}
+.topbar h1, .start-title { font-family: var(--font-display); letter-spacing: 0.06em; }
+/* 題字の横の本棚。字より少し下げて「棚に置いてある」姿にする */
+.topbar h1 { display: inline-flex; align-items: center; gap: 8px; }
+.start-title { display: flex; align-items: center; justify-content: center; gap: 12px; }
+.shelf-mark { flex: 0 0 auto; transform: translateY(1px); }
+/* 見出しの明朝化。読み物の見出し(入口カード・帯の名札・AIタブの章題・ダイアログの章題)と、
+   サイドバーの節見出し(書名・著者名・あらすじ…)。押すもの(タブ・ボタン)はゴシックのまま */
+.start-card-title,
+.start-step-title,
+.formatbar-title,
+.ai-flow-title,
+.ai-doors-title,
+.about h2,
+.about h3,
+.epub-block h3,
+.sidebar h2 {
+  font-family: var(--font-display);
+  letter-spacing: 0.04em;
+}
+/* 入口カードの線画(紙とペン・しおりの本・めがねカエル)。hover は金茶の縁で温かく */
+.start-card-art { display: flex; align-items: flex-end; height: 42px; color: var(--accent); }
+.start-card:hover { border-color: var(--gold); }
+/* 丸ゴシックの小物。札・チップ・仮置きの言葉は柔らかい字で */
+.ai-door-badge,
+.hero-spec-chip,
+.hero-pgnow,
+.plate-thumb.blank,
+.plate-thumb.empty {
+  font-family: var(--font-round);
+}
+/* 必読札の金茶は、下の .ai-door-badge 本体(background)に直接入れてある —
+   ここに書くと本体の定義(この行より後ろ)に負ける */
+
+/* トップの帯は左右いっぱいだが、**中身は本文と同じ1120pxの柱に揃える**。
+   帯だけ端まで・中身は中央、のズレが気持ち悪いという指摘(2026-08-28)への答え */
+.hero-top { padding-inline: max(18px, calc((100% - 1120px) / 2)); }
+
+/* 新規作成(手順)の画面もトップと同じオーロラの上に置き、手順はガラスの札にする。
+   ヒーローから来た人が急にのっぺりした画面に落ちない */
+.start-screen { background: var(--hero-grad); }
+.start-new .start-step {
+  background: var(--hero-glass);
+  border: 1px solid var(--hero-glass-line);
+  border-radius: 14px;
+  padding: 16px 18px;
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+}
+/* 保存の札はこの画面の主役なので、ガラスにしても枠の強調だけは残す */
+.start-new .start-step-save { border-color: var(--accent-line); }
+
+/* ---- かくれカエル(隠れミッキー方式)。**1画面に1匹まで、隅に小さく** ----
+   frog-peek は本の上に乗る用の絶対配置なので、置き場ごとに座らせ直す */
+.frog-sit { display: flex; justify-content: center; margin: 26px 0 4px; color: var(--line-bold); }
+.frog-sit .frog-peek { position: static; }
+.frog-sit .frog-fill { fill: var(--bg-box); }
+/* 工程レールの終点。「書き出す」の先のゴールで待っている */
+.rail-frog { align-self: center; margin-left: 4px; display: inline-flex; color: var(--line-bold); }
+.rail-frog .frog-peek { position: static; }
+.rail-frog .frog-fill { fill: var(--bg-rail-on); }
+
+/* ── 2026-09-02 のFB反映 ── */
+/* めくれる本の上の案内。「これが何か」を本の直前で言う */
+.hero-booknav {
+  margin: 26px 0 0; font-size: 13px; line-height: 1.9;
+  text-align: center; color: var(--hero-sub);
+}
+.hero-booknav b { color: var(--hero-strong); }
+/* 投げ銭の1行。案内であって操作ではないので、リンク行より少しだけ手前に置く */
+.start-tip {
+  margin: 26px auto 0; max-width: 560px;
+  font-size: 12px; line-height: 1.9; text-align: center; color: var(--text-sub);
+}
+.start-heroed .start-tip { color: var(--hero-sub); }
+
+/* ---- シェアと、不具合・感想の受け口 ----
+   (2026-09-14 ユーザー要望「本をつくりたい人たちに向けてシェアを強く推奨したい」)。
+   「いま開いている本」と同じガラスの札にして、帯として目に入る幅で置く。
+   トップ(ヒーロー型)にしか出ないので、色はヒーローの変数で書く */
+.start-share {
+  width: min(860px, 100%);
+  margin: 18px 0 0;
+  padding: 16px 24px;
+  box-sizing: border-box;
+  display: grid;
+  gap: 10px;
+  text-align: left;
+  background: var(--hero-glass);
+  border: 1px solid var(--hero-glass-line);
+  border-radius: 14px;
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+}
+.start-share-lede { margin: 0; font-size: 13px; line-height: 1.8; color: var(--hero-sub); }
+.start-share-lede b { color: var(--hero-strong); }
+.start-share-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+/* X の投稿ボタン。黒地の丸ボタンが X の作法なので、テーマによらず黒のまま */
+.share-x {
+  display: inline-block;
+  padding: 8px 18px;
+  background: #0f1419;
+  color: #fff;
+  border: 1px solid var(--hero-glass-line);
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+}
+.share-x:hover { background: #272c30; color: #fff; }
+.share-copy {
+  padding: 8px 14px;
+  background: transparent;
+  border: 1px solid var(--hero-glass-line);
+  border-radius: 999px;
+  color: var(--hero-strong);
+  font-size: 12.5px;
+}
+.share-copy:hover { background: var(--hero-glass-hi); }
+.start-share .linklike { color: var(--hero-strong); }
+.start-share-fb { margin: 0; font-size: 12px; line-height: 1.9; color: var(--hero-faint); }
+.start-share-fb b { color: var(--hero-sub); }
+
+/* ---- AIタブ: やりたいこと4枚(2026-09-23 行動別に作り替え) ----
+   主画面の入口。押すと下にその行動の手順が開く。
+   **扉(ミントの塗り)とは顔を分ける** — こちらは「選ぶもの」なので白地の札、選んだら濃い縁 */
+.ai-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+  max-width: 1080px;
+}
+.ai-action {
+  display: flex; flex-direction: column; gap: 6px; align-items: flex-start;
+  padding: 14px 16px;
+  background: var(--bg-field);
+  border: 1.5px solid var(--line-bold);
+  border-radius: 12px;
+  text-align: left;
+  white-space: normal;
+  color: var(--text-mid);
+}
+.ai-action b { font-size: 15px; color: var(--text-strong); }
+.ai-action span { font-size: 12px; line-height: 1.6; }
+.ai-action.on { border: 2px solid var(--accent-line); background: var(--bg-raised); }
+/* hover は全ボタン共通の濃い塗りが掛かるので、字を白へ返す(扉と同じ理由。2026-09-04) */
+.ai-action:hover b,
+.ai-action:hover span { color: var(--on-accent); }
+/* 選んだカードの上にポインタが在るとき: 背景は選択色のまま(.on が hover の濃い塗りに勝つ)なので、字を白にすると読めない。字は元の色に戻す(2026-10-01) */
+.ai-action.on:hover b { color: var(--text-strong); }
+.ai-action.on:hover span { color: var(--text-mid); }
+/* 選んだ行動の手順。カードの真下に、枠で1つのまとまりとして出す */
+.ai-panel {
+  margin-top: 14px;
+  padding: 16px 18px;
+  max-width: 1080px;
+  box-sizing: border-box;
+  background: var(--bg-box);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  display: grid;
+  gap: 12px;
+}
+/* 手順2に文例の一覧が入ると、その段がいちばん高くなる。格子は同じ行の段を同じ高さに
+   そろえるので、手順1・3の中身まで縦に引き伸ばされ、ボタンが楕円に膨らんだ(2026-09-23 実測)。
+   中身は上に詰める */
+.ai-panel .ai-flow li { align-content: start; }
+.ai-panel .ai-flow li .prompt-list { width: 100%; }
+/* 飾るの手順①(原稿はいまどこ)。**横いっぱいの段にして、②〜④をその下に並べる。**
+   ③④…と同じ列に入れると、4段が3列に収まらず最後の段だけ次の行へ落ちる(2026-09-23) */
+.ai-flow li.ai-flow-fork { grid-column: 1 / -1; }
+.ai-flow:has(> li.ai-flow-fork) { row-gap: 28px; }
+.ai-fork { gap: 8px; max-width: 640px; }
+/* 頼む手順の中の添え書き(文例に無い飾りの頼み方) */
+.ai-flow-more { margin: 0; font-size: 12.5px; line-height: 1.7; color: var(--text-sub); }
+.ai-fork button { display: grid; gap: 2px; padding: 8px 10px; white-space: normal; text-align: left; }
+.ai-fork button b { font-size: 13px; }
+.ai-fork button small { font-size: 11.5px; }
+.ai-image-lede { margin: 0; font-size: 13.5px; line-height: 1.8; }
+.ai-panel > .primary-action { justify-self: start; }
+/* ［画像を入れる・差し替える］の後半(手持ちの画像の細かさを AI に確かめてもらう)。前半の
+   「AI は要りません」と話が切り替わるので、罫で区切って見出しを立てる(2026-10-09) */
+.ai-image-sub {
+  margin: 10px 0 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+  font-size: 14.5px;
+}
+.ai-image-sub + p { margin: 0; font-size: 13.5px; line-height: 1.8; }
+/* 手順の中に割り込ませる必読(扉のほうの札 .ai-door-badge は右肩に浮かせる形なので別に持つ) */
+.ai-must-inline {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px;
+  padding: 10px 14px;
+  border: 2px solid var(--accent-line);
+  border-radius: 10px;
+  background: var(--bg-field);
+  font-size: 12.5px; line-height: 1.7; color: var(--text-sub);
+}
+.ai-must-inline b { color: var(--text-strong); }
+.ai-badge {
+  background: var(--gold); color: #22313a;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.08em;
+  padding: 3px 10px; border-radius: 999px;
+  font-family: var(--font-round);
+}
+/* くわしく読む。扉4枚を細い一列に(主画面の文字を減らす。2026-09-02 の方針の続き) */
+.ai-more { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; max-width: 1080px; }
+.ai-more button { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; white-space: normal; text-align: left; }
+.ai-more .ai-more-must { border: 2px solid var(--accent-line); font-weight: 700; }
+
+/* AIタブの4枚の扉(2026-09-02 再設計、同日v2)。主画面は3ステップとこの扉だけ。
+   **手順の白い札と見分けるため、扉はミントの塗り+［開いて読む］の札**で「読み物」だと示す */
+.ai-doors-title { margin: 34px 0 0; }
+.ai-doors-hint { margin: 6px 0 0; font-size: 12.5px; color: var(--text-sub); }
+.ai-doors {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 14px;
+  margin-top: 14px;
+  width: 100%;
+  max-width: 1080px;
+}
+.ai-door {
+  position: relative;
+  display: flex; flex-direction: column; gap: 7px; align-items: flex-start;
+  padding: 16px 18px 14px;
+  background: var(--accent-fill);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  text-align: left;
+  white-space: normal;
+  color: var(--accent-on-fill-dim);
+  cursor: pointer;
+}
+/* ①は必読。枠を濃くして「必読」の札を右肩に */
+.ai-door-must { border: 2px solid var(--accent-line); }
+.ai-door-badge {
+  position: absolute; top: 12px; right: 14px;
+  /* 金茶 = バナー案Aの背表紙の一冊と同じさし色(2026-09-04 テイスト合わせ)。字は墨 */
+  background: var(--gold); color: #22313a;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.08em;
+  padding: 3px 10px; border-radius: 999px;
+}
+/* hover は全ボタン共通の濃い塗り(374行の button:hover)が掛かる。
+   扉は中の字が黒いままだと読めなくなる(2026-09-04 ユーザー報告)ので、文字ごと白へ返す */
+.ai-door:hover { background: var(--accent-strong); border-color: var(--accent-line); }
+.ai-door:hover b,
+.ai-door:hover > span:not([class]),
+.ai-door:hover > span:not([class]) b,
+.ai-door:hover .ai-door-open { color: var(--on-accent); }
+.ai-door:hover .ai-door-badge { background: var(--gold); color: #22313a; }
+.ai-door b { font-size: 14px; color: var(--accent-on-fill); }
+.ai-door > span:not([class]) { font-size: 12px; line-height: 1.7; }
+.ai-door > span:not([class]) b { font-size: inherit; }
+/* 読む順の番号。手順の丸(塗り)と違い、輪郭だけにして「手順ではない」と分ける */
+.ai-door-no {
+  display: grid; place-items: center;
+  width: 26px; height: 26px; border-radius: 50%;
+  border: 2px solid var(--accent-line);
+  color: var(--accent-on-fill);
+  font-size: 13px; font-weight: 700; line-height: 1;
+  background: var(--bg-field);
+}
+.ai-door-open {
+  align-self: flex-end;
+  margin-top: 2px;
+  font-size: 11.5px; font-weight: 700; color: var(--accent-text);
+}
+/* 扉の新しい並び(2026-09-04): 番号をやめて 必読1枚 / 2枚セット / 最後の確認 の縦積み。
+   上の3手順の①②③と扉の①②③④がぶつかって混乱していた */
+.ai-doors2 {
+  display: flex; flex-direction: column; gap: 14px;
+  margin-top: 14px; width: 100%; max-width: 1080px;
+}
+/* 2枚セットの囲い。破線で「同じ話のかたまり」だと示す(実線だと扉が3枚に見える) */
+.ai-door-set {
+  border: 1.5px dashed var(--accent-line);
+  border-radius: 16px;
+  padding: 12px 14px 14px;
+}
+.ai-door-set-label { margin: 0 0 10px; font-size: 12.5px; color: var(--text-sub); }
+.ai-door-set-label b { color: var(--accent-on-fill); }
+.ai-door-set-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 14px;
+}
+
+/* 3手順を→でつなぐ(2026-09-02「流れがわかるビジュアルに」)。
+   1列に折り返す幅では矢印の意味が消えるので出さない */
+.ai-flow li { position: relative; }
+@media (min-width: 1021px) {
+  /* **手順どうしだけ(> li)。** 子孫の li まで拾うと、手順の中の文例カード(.prompt-list li)の
+     あいだにも→が出た(2026-09-23 実測) */
+  .ai-flow > li + li::before {
+    content: '→';
+    position: absolute;
+    left: -8px; top: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 22px; font-weight: 700;
+    color: var(--accent-text);
+  }
+  /* 横いっぱいの手順①から、下の行の②へは↓でつなぐ(②の左の→は行頭なので出さない) */
+  .ai-flow > li.ai-flow-fork + li::before { content: none; }
+  .ai-flow li.ai-flow-fork::after {
+    content: '↓';
+    position: absolute;
+    left: 50%; bottom: -14px;
+    transform: translate(-50%, 50%);
+    font-size: 22px; font-weight: 700; line-height: 1;
+    color: var(--accent-text);
+  }
+}
+
+/* 最後の防波堤(ErrorBoundary)の画面。地の色は明示(テーマのトークンが壊れていても読める前提で) */
+.crash {
+  position: fixed; inset: 0; display: grid; place-items: center;
+  padding: 24px; background: #faf7e9; color: #1f2320;
+  font-family: "Noto Sans JP", "Yu Gothic", sans-serif;
+}
+:root[data-theme='dark'] .crash { background: #12201d; color: #e8efe9; }
+.crash-box {
+  max-width: 520px; background: #fffdf6; border: 1px solid #e4dfc9;
+  border-radius: 14px; padding: 28px 26px; box-shadow: 0 10px 40px rgba(0,0,0,.12);
+}
+:root[data-theme='dark'] .crash-box { background: #16302d; border-color: #24463f; }
+.crash-box h1 { margin: 0 0 12px; font-size: 20px; }
+.crash-box p { margin: 0 0 12px; font-size: 14px; line-height: 1.9; }
+.crash-actions { display: flex; gap: 12px; flex-wrap: wrap; margin: 18px 0 6px; }
+.crash-detail { font-size: 11px; color: #8a8574; word-break: break-all; }
+
+/* ---- 電子書籍の下見(preview/EbookPreview.tsx) ----
+   紙の下見と同じ場所に重ねる。読む端末くらいの枠を、置き場所に収まる大きさまで拡大・縮小して見せる */
+.ebook-preview {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  /* 上のアキは［← 書き出しに戻る］が出ているときだけ(切り替えは下へ移した。2026-09-25) */
+  padding: 12px 12px 10px;
+  background: var(--stage);
+  overflow: hidden;
+}
+.ebook-bar {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 12px;
+  flex: 0 0 auto;
+}
+.ebook-where select { max-width: 260px; font-size: 12.5px; }
+.ebook-seg { gap: 4px; }
+.ebook-seg button { padding: 4px 10px; font-size: 12px; }
+.ebook-seg-name { font-size: 12px; color: var(--text-sub); align-self: center; margin-right: 2px; }
+.ebook-stage {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+/* 端末の枠。拡大・縮小は transform で(中の組みは画面の実寸のまま) */
+.ebook-device {
+  flex: 0 0 auto;
+  background: #fff;
+  border: 12px solid #202624;
+  border-radius: 18px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  box-sizing: content-box;
+  transform-origin: center center;
+}
+.ebook-device iframe { display: block; border: 0; background: #fff; }
+.ebook-side {
+  position: absolute; top: 50%; z-index: 2;
+  transform: translateY(-50%);
+  width: 44px; height: 44px; padding: 0 0 3px;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  background: var(--bg-panel); border: 1px solid var(--line);
+  color: var(--text-strong); font-size: 26px; line-height: 1;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+.ebook-side:disabled { opacity: 0.35; cursor: default; }
+.ebook-side-l { left: 16px; }
+.ebook-side-r { right: 16px; }
+.ebook-now { margin: 0; font-size: 12.5px; color: var(--text-strong); flex: 0 0 auto; }
+.ebook-note { margin: 0; max-width: 640px; font-size: 11.5px; text-align: center; flex: 0 0 auto; }
+/* 紙と電子の切り替え(両方を作る本だけ)。**下見の下の帯に置く。**(2026-09-25 ユーザー要望)
+   紙はページ一覧・見開きと同じ帯(.page-nav)の左端、電子はページ数の行(.ebook-foot)の左。
+   2つを1組に見せるため、あいだの角を落としてくっつける。選んでいるほうは .page-nav の「選んだまま
+   留まるもの」と同じ塗り(.on) */
+.preview-mode { display: inline-flex; }
+.preview-mode button {
+  background: var(--overlay-panel);
+  border: 1px solid var(--line);
+  color: var(--text);
+  padding: 6px 14px;
+}
+.preview-mode button:first-child { border-radius: 6px 0 0 6px; }
+.preview-mode button:last-child { border-radius: 0 6px 6px 0; border-left: 0; }
+.preview-mode button:not(.on):hover { background: var(--bg-hover); }
+.preview-mode button.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+  font-weight: 700;
+}
+.ebook-foot { display: flex; align-items: center; justify-content: center; gap: 14px; flex: 0 0 auto; }
+/* 書き出しの画面から本文の下見へ飛んだときの戻り道。下見の左上に */
+.preview-return {
+  position: absolute; top: 8px; left: 12px; z-index: 6;
+  width: auto; padding: 6px 14px; font-size: 12.5px;
+}
+/* ［紙の本文］の全画面。電子書籍の本文(.epub-stage)と同じ幅に収める */
+.paper-stage { display: grid; gap: 12px; max-width: 760px; }
+.paper-stage .primary-action { justify-self: start; }
+.paper-pages { margin: 0; font-size: 15px; color: var(--text-strong); }
+/* 変換が要る出し先のリード(2026-10-07)。①の PDF のまま入稿させない。太字の1文目だけで要点が伝わる */
+.press-lead {
+  margin: 0;
+  padding: 12px 16px;
+  border-left: 4px solid var(--accent, #2f6fed);
+  border-radius: 6px;
+  background: var(--accent-fill);
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--text-strong);
+}
+.press-lead b { display: block; font-size: 15px; }
+/* 入稿データ(白黒は K1色・カラーは CMYK)にする。［書き出す］の後ろに、区切り線を1本引いて置く(2段目の処理だと分かるように) */
+.press-convert {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+.press-convert h3 { margin: 0; font-size: 15px; color: var(--text-strong); }
+.press-convert p { margin: 0; }
+.press-convert .go-step { justify-self: start; }
+/* カラーの変換で「何が起きるか」を言う短い箇条書き。5行までに収める */
+.press-points { margin: 0; padding-left: 20px; display: grid; gap: 4px; font-size: 12px; line-height: 1.5; color: var(--text-dim); }
+/* ［紙の本文］の手順3行(2026-10-03)。番号つきで、押す・保存する・渡す、の順が一目で分かるように */
+.press-steps { margin: 0; padding-left: 22px; display: grid; gap: 6px; font-size: 13.5px; line-height: 1.6; color: var(--text-strong); }
+/* ［紙の本文］の2段の箱(2026-10-03)。①RGB の PDF を保存 → ②入稿用に変換。番号・矢印・「済み」の印で、流れを目で追えるように */
+.press-flow { display: grid; gap: 6px; }
+.press-step {
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 1.5px solid var(--line-bold);
+  border-radius: 12px;
+  background: var(--bg-box);
+}
+.press-step.next { border-color: var(--accent, #2f6fed); box-shadow: 0 0 0 2px var(--accent-fill); }
+.press-step.attention { animation: press-step-pulse 1.2s ease-in-out 3; }
+@keyframes press-step-pulse { 50% { background: var(--bg-hover); } }
+@media (prefers-reduced-motion: reduce) { .press-step.attention { animation: none; background: var(--bg-hover); } }
+.press-step p { margin: 0; }
+.press-step .primary-action { justify-self: start; }
+.press-step-head { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 10px; }
+.press-step-head h3 { margin: 0; font-size: 15px; color: var(--text-strong); flex: 1 1 14em; min-width: 0; }
+.press-num {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--accent, #2f6fed);
+  color: #fff;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1;
+}
+.press-step.done .press-num { background: var(--text-dim); }
+.press-badge { flex: none; padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 700; border: 1px solid var(--line-bold); color: var(--text-strong); }
+.press-badge.use { background: var(--accent-fill); border-color: var(--accent-line); }
+.press-badge.done { background: var(--bg-hover); }
+.press-step-note { font-size: 13px; line-height: 1.6; color: var(--text-strong); }
+/* できるファイルの名前。②が終わったら、入稿に使う名前を大きく */
+.press-file { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; font-size: 12.5px; color: var(--text-dim); }
+.press-file code { font-size: 13px; color: var(--text-strong); overflow-wrap: anywhere; }
+.press-file-use { font-size: 12px; }
+.press-file.ready { font-size: 13px; font-weight: 700; color: var(--text-strong); }
+.press-file.ready code { font-size: 17px; }
+.press-arrow { text-align: center; font-size: 26px; line-height: 1; color: var(--accent, #2f6fed); }
+.press-step .press-convert { margin-top: 0; padding-top: 0; border-top: 0; }
+/* 保存した PDF を落とす囲み。②の箱の中に、最初から見えている */
+.press-drop {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+  padding: 14px 16px;
+  border: 2px dashed var(--line);
+  border-radius: 10px;
+}
+.press-drop.over { border-color: var(--accent, #2f6fed); background: var(--bg-hover); }
+.press-drop.busy { opacity: 0.6; }
+/* ファイルが運ばれている間は光らせ、印刷の画面から戻った直後は少し脈打たせる(2026-10-03) */
+.press-drop.glow { border-color: var(--accent, #2f6fed); }
+.press-drop.attention { border-color: var(--accent, #2f6fed); animation: press-drop-pulse 1.2s ease-in-out 3; }
+@keyframes press-drop-pulse { 50% { background: var(--bg-hover); } }
+@media (prefers-reduced-motion: reduce) { .press-drop.attention { animation: none; background: var(--bg-hover); } }
+.press-drop-title { margin: 0; font-size: 14px; font-weight: 600; color: var(--text-strong); }
+/* 畳んで置く細かい話(変換で変わること・うまくいかないとき) */
+.press-more { font-size: 12.5px; color: var(--text-dim); }
+.press-more > summary { cursor: pointer; padding: 2px 0; }
+.press-more[open] > summary { margin-bottom: 6px; }
+/* ［紙の表紙］の欄。印刷所のときは、押すだけで入稿用の PDF まで作る */
+.press-cover { display: grid; gap: 8px; }
+.press-cover p { margin: 0; }
+.press-cover .primary-action { justify-self: start; }
+.press-cover .link-btn { margin-left: 4px; }
+.press-done { display: grid; gap: 6px; }
+.press-done .link-btn { justify-self: start; }
+.press-progress { display: grid; gap: 6px; }
+.press-bar {
+  height: 8px;
+  max-width: 420px;
+  border-radius: 4px;
+  background: var(--bg-box);
+  overflow: hidden;
+}
+.press-bar span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.3s ease;
+}
+/* 分母が分かるまでは幅を決めず、帯が流れる形で「動いている」ことだけを見せる */
+.press-bar.indeterminate span {
+  width: 35%;
+  animation: press-slide 1.2s ease-in-out infinite;
+}
+@keyframes press-slide {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(300%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .press-bar.indeterminate span { animation: none; width: 100%; opacity: 0.4; }
+}
+/* 表紙の工程の見本の上に出す［← 書き出しに戻る］(書き出しの画面から来たとき) */
+.cover-top-slot { flex: 0 0 auto; }
+.cover-top-slot .preview-return { position: static; }
+/* 電子書籍だけの本のコラム: ページごとの見た目(紙だけの指定)を隠す */
+.colpage-list li.ebook-only .colpage-type { display: none; }
+/* **ほかの工程へ移る・戻るボタン。**(2026-09-24 ユーザー指摘「表紙や本文に飛ぶと緑のボタンなのに、
+   書き出しでは同じ色のボタンが書き出すボタン」) 移る・戻るはこの枠だけの形にそろえ、
+   塗りつぶしは［書き出す］のような「その画面の仕事」だけに使う */
+button.go-step {
+  justify-self: start;
+  display: inline-grid; gap: 2px; text-align: start;
+  background: var(--bg-field);
+  border: 1.5px solid var(--accent-line);
+  color: var(--accent-text);
+  font-weight: 700; font-size: 13px;
+  padding: 8px 14px;
+  white-space: normal;
+}
+button.go-step:hover { background: var(--bg-hover); }
+button.go-step small { font-weight: 400; font-size: 11.5px; color: var(--text-sub); }
+.preview-return.go-step { box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18); }
+/* 背景・クッションの面で、右が電子の下見のときの断り */
+.ebook-view-note { display: grid; gap: 6px; font-size: 13px; line-height: 1.7; }
+.ebook-view-note .go-step { padding: 5px 12px; font-size: 12.5px; }
+/* 書き出しの［電子書籍の本文］: いま何色で書き出すか */
+.epub-color-now { margin: 0; }
+.epub-color-now small { display: block; margin-top: 2px; color: var(--text-sub); }
+/* 電子書籍の書体の欄(選べない・固定)。押すと断りの板が出る */
+button.bar-fixed {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 8px; font-size: 12.5px; font-weight: 400;
+  background: var(--bg-field); color: var(--text-mid);
+  border: 1px dashed var(--line); white-space: nowrap;
+}
+button.bar-fixed:hover { background: var(--bg-hover); }
+.bar-fixed-mark {
+  padding: 1px 6px; border-radius: 999px; font-size: 11px; font-weight: 700;
+  background: var(--warn-fill); color: var(--warn-text);
+}
+/* 書体を変えようとしたときの断り。**大きな字で。**(2026-09-24 ユーザー要望) */
+.font-fixed-dialog { width: min(520px, 100%); border-top: 5px solid var(--warn); }
+.font-fixed-dialog p { margin: 0 0 10px; font-size: 14.5px; line-height: 1.8; }
+.font-fixed-dialog .font-fixed-big { font-size: 22px; font-weight: 800; line-height: 1.5; color: var(--warn-text); }
+.font-fixed-dialog .font-fixed-what { font-size: 17px; font-weight: 700; color: var(--text-strong); }
+.font-fixed-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+.font-fixed-actions button { padding: 9px 18px; font-size: 14px; }
+/* 説明の下に小さく添える一言(同じ段落の続きに読めないよう行を分ける) */
+.hint .hint-sub { display: block; margin-top: 2px; }
+.preview:has(> .preview-return) .ebook-preview { padding-top: 54px; }
+/* **紙と電子の切り替えを足したぶん、下の帯を詰める。**(2026-09-25) 帯は下見の幅の真ん中に浮かぶので、
+   幅が足りないとページ一覧の列にかかり、さらに狭いと左右にはみ出す。
+   - ページ一覧を出しているときは、帯を**誌面の側の真ん中**に置く(一覧の列 116px＋余白8px×2＋線1px ぶん左へ)
+   - 下見の幅で段階的に詰める(実測: 1280px の画面で帯 788px・誌面の側 807px)
+   **［仕上がり線］を足したぶん、段を1つ増やして詰め直した**(2026-10-02。足しただけだと、1280px の窓で
+   帯が 903px になり、左右へ 48px ずつはみ出して［紙の本］が欠けた。幅ごとの実測は scripts/rules-probe.mjs の narrow) */
+.preview { container-type: inline-size; }
+.preview-body:not(.no-thumbs) ~ .page-nav { left: calc((100% - 133px) / 2); }
+@container (max-width: 1200px) {
+  .page-nav { gap: 5px; }
+  .page-nav button, .preview-mode button { padding: 6px 10px; }
+  .page-zoom input[type="range"] { width: 72px; }
+}
+@container (max-width: 1040px) {
+  .page-nav { gap: 4px; }
+  .page-nav button, .preview-mode button { padding: 6px 7px; }
+  .page-zoom input[type="range"] { width: 56px; }
+  .page-nav .trim-toggle .trim-swatch { display: none; }
+}
+@container (max-width: 920px) {
+  .page-nav button, .preview-mode button { padding: 5px 6px; font-size: 12px; }
+  .page-zoom input[type="range"] { width: 48px; }
+  /* ここまで狭いと字が入らない。見本の点線だけにする(説明はボタンに触れると出る) */
+  .page-nav .trim-toggle .trim-swatch { display: inline-block; margin-right: 0; }
+  .page-nav .trim-toggle .trim-label { display: none; }
+}
+
+
+/* ---- 「印刷所の決まり」の欄(ShapeStep。2026-10-01 ユーザーと決定) ----
+   欄に触っているあいだ、右の下見でその場所が色づく(preview/rulesGuide.ts)。
+   **欄の名前の横の小さな色の札が、下見の帯と同じ色**で、どの欄がどの場所かを結ぶ */
+.print-rules { display: grid; gap: 6px; }
+.print-rules .print-alias { margin-top: -2px; }
+.print-rules-readout { font-weight: 600; color: var(--text-strong); }
+.print-chip {
+  display: inline-block; width: 10px; height: 10px; margin-left: 6px;
+  border-radius: 3px; vertical-align: baseline;
+}
+.print-chip.bleed { background: var(--bad); }
+.print-chip.gutter { background: var(--step-shape); }
+/* 厚い本のノド: 名前の下に「[200] ページをこえたら [20] mm」を1行で。狭いときは折り返す */
+.print-thick { display: grid; gap: 4px; font-size: 13px; color: var(--text-mid); }
+.print-thick-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; font-size: 13px; }
+.sidebar .print-thick-row input { width: 64px; }
+/* AI の返事を貼る箱 */
+.print-guide { display: grid; gap: 8px; border-color: var(--accent-line); }
+.print-guide[open] > summary { margin-bottom: 0; }
+/* 畳んだ1行を、押せる物だと分かる大きさと色にして、中に何があるかを小さく添える
+   (2026-10-01 ユーザー指摘「このささやかなボタンの下にあったとは」。細い見出し1行で、［欄に入れる］がこの中だと分からなかった) */
+.print-guide > summary { font-size: 13.5px; padding: 4px 2px; color: var(--accent-text); }
+.print-guide > summary small { display: block; margin: 2px 0 0 16px; font-size: 12px; font-weight: 400; color: var(--text-sub); }
+.print-guide .ghost, .print-guide .primary-action { justify-self: start; }
+.print-guide textarea { min-height: 7em; }
+.print-guide-result { display: grid; gap: 6px; }
+.print-guide-result ul { margin: 2px 0 0; padding-left: 18px; }
+.print-guide-result .readout { font-weight: 600; color: var(--text-strong); }
+.print-basis { overflow-wrap: anywhere; }
+
+/* ---- AI タブの動画(押すまで何も読み込まない。2026-10-01) ---- */
+.ai-video { display: grid; gap: 6px; justify-items: start; max-width: 1080px; margin-bottom: 14px; }
+.ai-video-play {
+  display: flex; align-items: center; gap: 12px; width: 100%; max-width: 560px;
+  padding: 10px 16px; text-align: left; white-space: normal;
+  background: var(--bg-field); border: 1.5px solid var(--line-bold); border-radius: 12px;
+  color: var(--text-mid);
+}
+.ai-video-play .ai-video-icon { flex: none; color: var(--accent); }
+.ai-video-play .frog-peek { position: static; flex: none; } /* frog-peek は本の上に乗る用の絶対配置。ここでは枠の中に座らせる */
+.ai-video-text { display: grid; gap: 2px; }
+.ai-video-text b { font-size: 14px; color: var(--text-strong); }
+.ai-video-text small { font-size: 11.5px; line-height: 1.5; color: var(--text-dim); }
+.ai-video-play:hover .ai-video-text b,
+.ai-video-play:hover .ai-video-text small { color: var(--on-accent); }
+/* 押したあとは、パネルと同じ幅いっぱいの16:9 */
+.ai-video-frame { width: 100%; max-width: 1080px; aspect-ratio: 16 / 9; border-radius: 12px; overflow: hidden; background: #000; }
+.ai-video-frame iframe { width: 100%; height: 100%; border: 0; display: block; }
+.ai-video-open { font-size: 12px; color: var(--accent-text); }
+
+/* ═══════════ 大人かわいい(2026-10-06 ユーザー要望) ═══════════
+   「UIが落ち着きすぎてて可愛くない。大人かわいい感じがほしい。やりすぎず、あくまでシンプルテイストで。書体かなー」。
+   配置は動かさず、**字と角**(1〜3)、**カエル**(4)、**暗いテーマの差し色**(5)を変える。
+   色は 2026-08-21 にコントラストを実測して決めた資産なので、5 は同じ数字を保つ値だけを選んだ。
+
+   1. 押すもの(ボタン・工程レール)・見出し・アプリ名を丸ゴシック(Zen Maru Gothic)にする。
+      2026-09-04 の案Aでは「押すものはゴシックのまま(読み取り優先)」としていたが、
+      Zen Maru Gothic は字面の大きさが Noto Sans JP とほぼ同じで、短い札なら読み取りは落ちない。
+      **長い文(説明・ヒント)と入力欄は Noto Sans JP のまま** — 読む字は読みやすさを優先する
+   2. トップのキャッチ(.hero-h1「原稿を、手触りのある一冊に。」)だけは明朝のまま。
+      明朝の大見出しに丸ゴの道具、の組み合わせで子どもっぽさを抑える
+   3. 角を少し丸く(ボタン 6→9px・入力 6→8px)。主役の錠剤形(.primary-action)は前から
+   4・5 は下(カエルの出番・暗いテーマの差し色)
+
+   元に戻すときは、このかたまりを丸ごと消せばよい(上の定義はどれも書き換えていない) */
+button,
+.rail-step,
+.topbar h1,
+.start-title,
+.hero-name-main,
+.start-card-title,
+.start-step-title,
+.formatbar-title,
+.ai-flow-title,
+.ai-doors-title,
+.about h2,
+.about h3,
+.epub-block h3,
+.sidebar h2 {
+  font-family: var(--font-round);
+}
+button { border-radius: 9px; }
+input[type="text"], input:not([type]), input[type="number"], select { border-radius: 8px; }
+
+/* 4. **カエルの出番を「ひと息つく場面」に足す**(同日「まだちょっと地味」)。
+      出ているあいだだけの2か所で、「常に見えているのは1画面1匹」(FrogMark.tsx)には数えない:
+      - 組み直しの札(「ページを作っています…」)の頭で、ゆっくり跳ねて待つ
+      - 入稿用 PDF の「できました」(確かめることが無いときだけ)で喜ぶ */
+.busy-frog { display: inline-flex; align-self: center; }
+.busy-frog .frog-peek { position: static; animation: frog-hop 1.6s ease-in-out infinite; }
+.preview-busy.small .busy-frog { margin-right: -2px; }
+@keyframes frog-hop {
+  0%, 60%, 100% { transform: translateY(0); }
+  30% { transform: translateY(-3px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .busy-frog .frog-peek { animation: none; }
+}
+.done-frog { display: inline-flex; justify-self: start; }
+.done-frog .frog-peek { position: static; }
+.done-frog .frog-fill { fill: none; }
+
+/* 5. **暗いテーマの差し色を、青からカエルの緑(深いミント)へ。**
+      明るいテーマ(#0e7c72)・トップのミントのボタン・ロゴの本棚と同じ色の家族になる。
+      暗いテーマだけ青だったのは、2026-08-21 に測り直したとき青のまま濃さを落としたから。
+      **明るさは青と同じに合わせた**ので、測り直した数字はそのまま保たれる:
+      --accent #157a70 は白で 5.19:1・まわりの面に対して 2.26〜3.52:1(旧 #3765db とまったく同じ値)。
+      ほかも旧値以上: 押したとき 7.21(旧 6.83)・focus の輪 入力欄の地で 6.53(旧 5.33)・
+      リンク 地で 10.95(旧 9.32)・薄い地の札 9.48(旧 9.31)・案内 8.91(旧 7.73)。
+      工程ごとの6色(--step-*)はそれぞれの目印なので触らない */
+:root[data-theme='dark'] {
+  --accent: #157a70;
+  --accent-strong: #0f6259;
+  --accent-line: #4cc4b0;
+  --accent-line-rgb: 76, 196, 176;
+  --accent-text: #8fe3d4;
+  --accent-text-hi: #c2f2e9;
+  --accent-fill: #173f3a;
+  --accent-on-fill: #c6f1e8;
+  --accent-on-fill-dim: #9fdccf;
+  --note-fill: #22332f;
+  --note-text: #b4dcd2;
+}
+
+/* ═══════════ 応援のカードと、書き出しの底の1行(2026-10-06 ユーザー要望) ═══════════
+   「個人開発だから、投げ銭をもう少し大きめに入れてもいい」。参考はぐるりペイントのページの
+   「関連ページ」— 応援を、ほかの入り口と同じ大きさのカードで並べる。
+   カードは入口の3枚(.start-card)と同じ形・同じガラスにして、応援だけが浮かないようにする */
+.start-links { width: min(880px, 100%); }
+/* **カエルのひと言は、カードの上の縁に乗せる。**(2026-10-07 ユーザー「枠の縁に沿わすとか、
+   本文とは違うんだなとわかる遊び心がもうちょいほしい」)。
+   カエルが縁から顔を出し(FrogPeek はもともと「本の上に乗る」用の絵)、
+   金茶の吹き出しが**縁の線にまたがって**座る。本文の字とは色も字も置き場も違うので、別の声だと分かる */
+.start-card-tip { position: relative; }
+.tip-frog {
+  position: absolute;
+  right: 12px;
+  top: -31px;
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  pointer-events: none;
+}
+.tip-frog .frog-peek { position: static; display: block; }
+.tip-bubble {
+  position: relative;
+  /* 吹き出しの真ん中に縁の線が通る高さ(カエルの足もとが縁) */
+  margin-bottom: -11px;
+  padding: 4px 11px;
+  border-radius: 999px;
+  background: var(--gold);
+  color: #22313a;
+  font-family: var(--font-round);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
+}
+/* しっぽはカエルのほうへ */
+.tip-bubble::after {
+  content: '';
+  position: absolute;
+  right: -6px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: 5px solid transparent;
+  border-left: 7px solid var(--gold);
+  border-right: 0;
+}
+/* カエルが縁から顔を出すぶん、カードの列の上をあける */
+.start-links { margin-top: 46px; }
+/* 応援のカードの底に、送り先ごとの丸いボタン(2026-10-07 ユーザー「トップのボタン、note用もほしい」)。
+   カードそのものは押せないので、hover で色を変えない。
+   2つは同じ重さで並べる(どちらかを主役にすると、もう一方が「おまけ」に見える) */
+.start-card-tip:hover,
+.start-heroed .start-card-tip:hover { background: var(--hero-glass); border-color: var(--hero-glass-line); }
+.tip-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; padding-top: 6px; }
+.tip-btn {
+  flex: 1 1 auto;
+  padding: 7px 14px;
+  border: 1px solid var(--gold);
+  border-radius: 999px;
+  color: var(--hero-strong);
+  font-family: var(--font-round);
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.tip-btn:hover { background: var(--gold); color: #22313a; }
+/* 書き出しの底。驚いたカエルのすぐ下に、地の文で1行だけ */
+.export-thanks {
+  max-width: 560px;
+  margin: 4px auto 18px;
+  font-size: 12.5px;
+  line-height: 1.9;
+  text-align: center;
+  color: var(--text-sub);
+}
+/* 「投げ銭（OFUSE）」が行の途中で折れて、下線が2行に割れていた */
+.export-thanks a { white-space: nowrap; }
+
+/* ═══════════ レールの端のカエルのつぶやき(2026-10-07 ユーザー要望) ═══════════
+   工程を切り替えたときにときどき、カエルを押したときは必ず、吹き出しが数秒出る(StepRail.tsx)。
+   吹き出しは表紙の応援カードと同じ金茶の札で、「カエルの声」の印をそろえる。
+   レールは overflow-x: auto で中身を切るので、吹き出しは position: fixed でカエルの真下に出す */
+.rail-frog {
+  background: none;
+  border: none;
+  padding: 2px 4px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.rail-frog:hover { background: var(--bg-rail-on); }
+.rail-frog:hover .frog-peek { transform: translateY(-2px); }
+.rail-frog .frog-peek { transition: transform 0.15s ease; }
+.frog-murmur {
+  position: fixed;
+  z-index: 60;
+  max-width: 260px;
+  padding: 6px 13px;
+  border-radius: 14px;
+  background: var(--gold);
+  color: #22313a;
+  font-family: var(--font-round);
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1.5;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  cursor: default;
+  animation: murmur-in 0.25s ease-out;
+}
+/* しっぽは上のカエルへ */
+.frog-murmur::before {
+  content: '';
+  position: absolute;
+  top: -6px;
+  right: 14px;
+  border: 6px solid transparent;
+  border-bottom: 7px solid var(--gold);
+  border-top: 0;
+}
+@keyframes murmur-in {
+  from { opacity: 0; transform: translateY(-4px) scale(0.96); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .frog-murmur { animation: none; }
+  .rail-frog:hover .frog-peek { transform: none; }
+}
+
+/* ═══════════ ロゴ「本ちゃか」(2026-10-07 ユーザー決定) ═══════════
+   絵(4冊の背表紙と、のぞくカエル)+「本ちゃか」+小さく「ひっちゃか本づくりスタジオ」。
+   字は丸ゴシック(大人かわいいの書体と同じ)。題字・トップの見出し・新規作成の題字の3か所で同じ部品(StudioLogo) */
+.studio-logo { display: inline-flex; align-items: center; gap: 9px; }
+.studio-mark { display: block; width: auto; flex: none; }
+.studio-name { display: flex; flex-direction: column; line-height: 1.15; text-align: left; }
+.studio-name b {
+  font-family: var(--font-round);
+  font-weight: 700;
+  font-size: 1.3em;
+  letter-spacing: 0.06em;
+  color: var(--text-strong);
+}
+.studio-name small {
+  font-family: var(--font-round);
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: var(--accent-text);
+}
+.studio-by { margin-left: 0.8em; font-weight: 400; color: var(--text-faint); }
+/* 暗い地では、紺の本と線が地に沈むので、絵の形に生成りの細い縁を付ける */
+:root[data-theme='dark'] .studio-mark {
+  filter: drop-shadow(0 0 0.6px #f6f4dd) drop-shadow(0 0 0.6px #f6f4dd);
+}
+/* 題字(作業画面の左上)。前の明朝の指定(.topbar h1)を丸ゴシックの部品に任せる */
+.topbar h1 .studio-name b { font-size: 18px; }
+/* トップ(ヒーロー)の見出し。字の色はヒーローの変数で */
+.hero-name .studio-name b { font-size: 26px; color: var(--hero-strong); }
+.hero-name .studio-name small { font-size: 11px; color: var(--hero-sub); }
+.hero-name .studio-by { color: var(--hero-faint); }
+/* 新規作成の題字 */
+.start-title .studio-name b { font-size: 30px; }
+.start-title .studio-name small { font-size: 12px; }
