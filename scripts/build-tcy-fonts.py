@@ -63,7 +63,7 @@ def find_file(pkg, cps):
             return f
     return None
 
-def condense(src, cps, out, family):
+def condense(src, cps, out, family, merge_overlaps=False):
     font = TTFont(src)
     cmap = font.getBestCmap()
     upm = font['head'].unitsPerEm
@@ -95,6 +95,11 @@ def condense(src, cps, out, family):
             rec.string = family
         elif rec.nameID == 6:
             rec.string = family.replace(' ', '') + '-Regular'
+    if merge_overlaps:
+        # Noto(fontsource)は輪郭が重なったままで、KDP の印刷で「4」などの交わりが白く抜ける。
+        # 本文と同じく重なりを取る(理由は scripts/build-noto-fonts.py。pip install skia-pathops が要る)
+        from fontTools.ttLib.removeOverlaps import removeOverlaps
+        removeOverlaps(font)
     font.flavor = 'woff2'
     font.save(out)
     return sx, os.path.getsize(out)
@@ -111,7 +116,7 @@ for fid, (pkg, fam) in FONTS.items():
             print(f'{fid}: {kind} の元が見つからない', file=sys.stderr)
             continue
         out = os.path.join(OUT, f'{fid}-{kind}.woff2')
-        sx, size = condense(src, cps, out, tcy_family)
+        sx, size = condense(src, cps, out, tcy_family, merge_overlaps=pkg.startswith('noto-'))
         print(f'{fid:10s} {kind:6s} sx={sx:.3f} {size/1024:.1f}KB  ← {os.path.basename(src)}')
         css.append(f"@font-face {{\n  font-family: '{tcy_family}';\n  font-style: normal;\n  font-weight: 400;\n  font-display: swap;\n  src: url('./tcy/{fid}-{kind}.woff2') format('woff2');\n  unicode-range: {rng};\n}}")
 open(os.path.join(ROOT, 'src/fonts/tcy.css'), 'w', encoding='utf-8').write('\n'.join(css) + '\n')

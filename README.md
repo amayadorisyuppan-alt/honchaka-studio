@@ -97,7 +97,7 @@ README を実装より先に書いて事故ったので、**未実装のもの�
 | 脚注の体裁 | 記法は落とすが、注番号や傍注としては組まない(本文と同じ段落になる) |
 | ノンブル・柱の設定UI | 出力はされるが位置・内容は固定 |
 | カスタム判型 | プリセット7種のみ |
-| フォント同梱 | UI・プレビューは @fontsource の Noto を npm から読むだけ。EPUB への埋め込みサブセットは未実装 |
+| フォント同梱 | UI・プレビューは @fontsource の書体を npm から読む。**Noto Sans JP / Noto Serif JP だけは、輪郭の重なりを取り除いた写し(`src/fonts/noto/`・`scripts/build-noto-fonts.py`)を読む**(fontsource のままだと KDP の印刷で線の交わりが白く抜けた。2026-10-10 校正紙)。EPUB への埋め込みサブセットは未実装 |
 | KPF 案内 | 未着手 |
 | 画像挿入UI / プロジェクト書き出し | 未着手(Phase 2) |
 | テスト | 自動テストなし。検証は HANDOVER の PDF 実測手順による |
@@ -180,7 +180,7 @@ AGPL は強いコピーレフトなので、**Vivliostyle を組み込んだこ�
 |---|---|
 | `public/covers/` の表紙プリセット45種 | Vivliostyle とは無関係の独立した著作物。AGPL の対象外。**生成AI（Higgsfield）で作成**し、[Terms of Use §4.4](https://higgsfield.ai/terms-of-use-agreement) が出力物の第三者へのサブライセンスを認めているので同梱・再配布できる。利用者に対しては「本に使って販売可・クレジット不要・素材としての再配布は不可」(［このアプリについて］に明記) |
 | `public/sample/` のサンプルの挿絵2枚 | このプロジェクトが `scripts/build-sample-art.py` で描いた絵（Pillow。**生成AIではない**）。看板・地図の字は Noto Serif JP（OFL）で描いて画素にしてある。同梱プリセットの一覧（`public/covers/manifest.json`）には入れない |
-| 書体(@fontsource の14書体) | **全14書体とも SIL Open Font License 1.1**（Apache-2.0 のものは無い。Reserved Font Name も無いので、@fontsource のサブセット化でも改名義務は生じない）。PDF埋め込み・同梱再配布とも可 |
+| 書体(@fontsource の14書体) | **全14書体とも SIL Open Font License 1.1**（Apache-2.0 のものは無い。Reserved Font Name も無いので、@fontsource のサブセット化でも改名義務は生じない）。PDF埋め込み・同梱再配布とも可。Noto Sans JP / Noto Serif JP は輪郭の重なりを取り除いた改変版を同梱(書体名は元のまま。予約フォント名が無いので改名は要らない) |
 | `src/fonts/GenEiKoburiMin6-R.woff2`（源暎こぶり明朝） | おたもん／[御琥祢屋](https://okoneya.jp/font/)。SIL Open Font License 1.1。配布の TTF を woff2 へコンテナ変換しただけで字形もメタデータも未改変（OFL FAQ 2.2.1）。ライセンス全文は `public/fonts/GenEiKoburiMin-OFL.txt` に同梱し、アプリからもリンクしている |
 | その他の依存 | MIT / BSD-2 / ISC(react・pdf-lib・mammoth・zustand・idb ほか)。それらが中で使うライブラリには Apache-2.0(fast-diff。@vivliostyle/core に組み込み)・Zlib(pako)・0BSD(tslib)もある。**配布物に入る全パッケージの著作権表示を `public/licenses/THIRD-PARTY-NOTICES.txt` に載せる**(2026-09-25 見直し S1-1。本番ビルドの sourcemap から入っているパッケージを数えて照合する。Apache-2.0 の全文は `public/licenses/Apache-2.0.txt`) |
 

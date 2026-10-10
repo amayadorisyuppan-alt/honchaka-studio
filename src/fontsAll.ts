@@ -9,11 +9,9 @@
 // 本文・表紙で選べる書体(models/project.ts の BODY_FONTS と models/cover.ts の COVER_FONTS)。
 // いずれも SIL Open Font License 1.1 / Apache-2.0 で、PDF への埋め込みと同梱・再配布ができる。
 // vite.config.ts の woff2Only プラグインが woff(旧形式)を落とすので、出るのは woff2 だけ。
-import '@fontsource/noto-serif-jp/400.css';
-import '@fontsource/noto-serif-jp/700.css';
-import '@fontsource/noto-sans-jp/400.css';
-import '@fontsource/noto-sans-jp/500.css';
-import '@fontsource/noto-sans-jp/700.css';
+// Noto Sans JP / Noto Serif JP だけは、@fontsource のものから輪郭の重なりを取り除いた写しを読む。
+// fontsource のままだと、KDP の印刷で線の交わりが白く抜ける(2026-10-10 校正紙。理由は scripts/build-noto-fonts.py)
+import './fonts/noto.css';
 import '@fontsource/shippori-mincho/400.css';
 import '@fontsource/shippori-mincho/700.css';
 import '@fontsource/zen-old-mincho/400.css';

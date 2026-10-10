@@ -815,9 +815,17 @@ div.plate.spread.sp-b img { left: ${mm(-g.second.offset)}; }`;
     : 'Georgia, "Times New Roman", serif';
   const headFamily = s.runningHeadFont ? (BODY_FONTS[s.runningHeadFont]?.stack ?? BODY_FONTS.serif.stack) : GOTHIC;
   const edgeOf = (slot: MarginSlot) => (slot.startsWith('top') ? 'top' : 'bottom') as 'top' | 'bottom';
+  /**
+   * **数字の高さをそろえる(lining-nums)。**(2026-10-10 KDP の校正紙・ユーザー「背景のあるページだけ十の位が小さい」)
+   * Georgia の数字は不揃い数字で、0・1・2 だけが小さい(3〜9 は下か上へはみ出す)。
+   * 「17」「23」「30」は大小が混ざり、「12」「33」は混ざらないので、書体が替わったように見えた
+   * (背景の有る章の番号が、たまたま混ざる組だった)。Georgia は lnum を持っているので、そろった数字に切り替える。
+   * 和文の書体の数字はもとからそろっているので、選んだ書体では何も変わらない
+   */
   const nombreStyle = (edge: 'top' | 'bottom') => `
       writing-mode: horizontal-tb;${anchorFor(edge, s.fontPt * 0.85 * PT_TO_MM, s.nombreFont ? K_CJK : K_GEORGIA)}${textOutline}
       font-family: ${nombreFamily};
+      font-variant-numeric: lining-nums;
       font-size: ${pt(s.fontPt * 0.85)};
       color: ${ink(s.textColor) ?? '#000'};`;
   const headStyle = (edge: 'top' | 'bottom') => `

@@ -703,6 +703,10 @@ Noto Serif JP
   Google Inc.
   全文: licenses/fonts/noto-serif-jp-OFL.txt
 
+  （Noto Sans JP・Noto Serif JP は、印刷で線の交わりが白く抜けないよう、
+   字の輪郭の重なりを取り除いた改変版を同梱しています。字形・字幅・書体名は元のままで、
+   ライセンスは元と同じ SIL Open Font License 1.1 です。縦中横用の数字の書体も同じです）
+
 Reggae One
   Copyright 2020 The Reggae Project Authors
   (https://github.com/fontworks-fonts/Reggae/), all rights reserved.
