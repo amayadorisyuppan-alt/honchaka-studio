@@ -20,6 +20,7 @@ import {
   TIP_URL,
 } from '../shop';
 import { EDITION } from '../edition';
+import { APP_VERSION } from '../version';
 import { FrogPeek } from './FrogMark';
 
 /** この版のソースの入手先。版が自分の入手先を持てばそちら(AGPL: 使っている版そのもののソースを示す) */
@@ -82,6 +83,12 @@ export function AboutPanel({ onClose, section }: Props) {
           <div>
             <dt>作っている人</dt>
             <dd>{link(SITE_URL, 'あまやどり出版')}</dd>
+          </div>
+          {/* 不具合の報告で、どの版の話かを分かるようにする(修正リストの 5。2026-10-12)。
+              「版」は版面・版下と紛れるので「バージョン」と書く。公開版は GitHub の同じ名前のタグと対応する */}
+          <div>
+            <dt>バージョン</dt>
+            <dd>{APP_VERSION}</dd>
           </div>
           <div>
             <dt>ソースコード</dt>

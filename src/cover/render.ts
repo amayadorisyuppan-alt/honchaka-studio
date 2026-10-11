@@ -18,22 +18,38 @@ import {
   type CoverLayout,
   type CoverSettings,
 } from '../models/cover';
+import { loadFontForText } from './fontLoad';
 
 /**
  * Canvas は「読み込み済みのフォント」しか使えない。未読込のまま fillText すると
  * 黙って別の書体で描かれるので、描く前に必ずこれを待つ
+ *
+ * **表紙に描く字を全部渡して読む。**(2026-10-11 1.0.3。修正リストの 17)
+ * 字を渡さないと、書体の読み込みは空白1字ぶん(ラテンのサブセット)で終わり、書名の漢字は
+ * 読まれないまま描かれる。前は下見の組版(Vivliostyle)がアプリの全部の書体を読ませていたので、
+ * たまたま間に合っていた(src/preview/fontWaitGuard.ts で止めた)。
+ * 断られて読めなかった面は作り直して読み直す(./fontLoad.ts)
  */
-export async function ensureCoverFonts(settings: CoverSettings): Promise<void> {
+export async function ensureCoverFonts(settings: CoverSettings, text: CoverText): Promise<void> {
+  const chars = [
+    text.title,
+    text.author,
+    text.publisher,
+    settings.spineTitle,
+    settings.blurb,
+    // 数字・記号(版元や著者名の表記ゆれ、背の詰め数字)。あっても数面しか増えない
+    '0123456789０１２３４５６７８９・ー―…',
+  ].join('');
+  // 同じ字は1つでよい(あらすじが長くても、渡すのは字の種類だけ)
+  const uniq = [...new Set(chars)].join('');
   const ids = [settings.titleFont, settings.authorFont, settings.blurbFont, settings.spineFont];
-  await Promise.all(
-    ids.map((id) => {
-      const f = COVER_FONTS[id] ?? COVER_FONTS.serif;
-      return Promise.all([
-        document.fonts.load(`${f.bold} 100px ${f.stack}`),
-        document.fonts.load(`400 100px ${f.stack}`),
-      ]);
-    }),
-  );
+  const specs = new Set<string>([`400 100px ${GOTHIC}`]);
+  for (const id of ids) {
+    const f = COVER_FONTS[id] ?? COVER_FONTS.serif;
+    specs.add(`${f.bold} 100px ${f.stack}`);
+    specs.add(`400 100px ${f.stack}`);
+  }
+  await Promise.all([...specs].map((s) => loadFontForText(s, uniq)));
 }
 
 export interface CoverText {

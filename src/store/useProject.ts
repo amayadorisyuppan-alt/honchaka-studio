@@ -130,6 +130,19 @@ interface ProjectState {
    */
   isFirstRun: boolean;
   /**
+   * **はじめての起動で、サンプルの絵をまだ取りに行っていない。**(2026-10-12 1.0.3。修正リストの 6)
+   * 前は入口を出す前に取りに行っていた(絵 10 枚と千鳥 2 枚で約 9MB)。入口だけ見て帰る人や
+   * ［新規作成］へ進む人には丸ごと無駄なので、入口を閉じて作業画面に入るとき(fetchSampleArtIfPending)まで待つ
+   */
+  sampleArtPending: boolean;
+  /**
+   * サンプルの絵を取りに行っているあいだ。**このあいだは下見を組まない**(App の previewHtml)。
+   * 絵の無いサンプルを組んで、絵が届いてからもう一度組み直すのを避ける
+   */
+  sampleArtLoading: boolean;
+  /** 入口を閉じて作業画面に入ったときに呼ぶ。サンプルの絵を待っていたら、ここで取りに行く */
+  fetchSampleArtIfPending: () => Promise<void>;
+  /**
    * **この端末への自動保存(IndexedDB)が失敗しているときのメッセージ。** 空なら正常。
    * 容量超過などで put が失敗し続けると「開き直せば続きから」が黙って崩れるので、
    * 状態に持って画面に赤で出す(2026-09-04)。成功したら空へ戻す
@@ -654,6 +667,8 @@ function replacedBookState() {
     /** 手を入れた印。入れ替えた直後は、まだ誰も何もしていない */
     touched: false,
     sampleEdited: false,
+    /** はじめての起動のサンプルの絵は、もう要らない(入れ替えた本の絵は入れ替えた側が持つ) */
+    sampleArtPending: false,
     ...clearedHistory(),
   };
 }
@@ -732,6 +747,8 @@ export const useProject = create<ProjectState>((set, get) => ({
   sampleEdited: false,
   loaded: false,
   isFirstRun: false,
+  sampleArtPending: false,
+  sampleArtLoading: false,
   autosaveError: '',
   restoreFixes: [],
   past: [],
@@ -1092,9 +1109,28 @@ export const useProject = create<ProjectState>((set, get) => ({
       // 原稿ファイル・手を入れた印・戻る道。**入口3つで共通**
       // (別の本(見本)になったので、前に作っていたものへは戻さない)
       ...replacedBookState(),
+      // 絵が届くまで下見を待たせる(絵の無いサンプルを組んでから組み直さない)。本の入れ替えと同じ1回で立てる
+      sampleArtLoading: true,
     });
     scheduleSave(get());
-    await applySampleArt(set, get, ms.chapters.length);
+    try {
+      await applySampleArt(set, get, ms.chapters.length);
+    } finally {
+      set({ sampleArtLoading: false });
+    }
+  },
+
+  fetchSampleArtIfPending: async () => {
+    if (!get().sampleArtPending) return;
+    set({ sampleArtPending: false });
+    // 入口で［新規作成］や読み込みを選んだ本には要らない(replacedBookState が印を下ろすが、念のため)
+    if (!get().isSample) return;
+    set({ sampleArtLoading: true });
+    try {
+      await applySampleArt(set, get, get().manuscript.chapters.length);
+    } finally {
+      set({ sampleArtLoading: false });
+    }
   },
 
   replaceProject: (p) => {
@@ -1204,8 +1240,9 @@ export const useProject = create<ProjectState>((set, get) => ({
       // 読み込みが例外で落ちた場合(catch)と区別する — サンプルの流し込みと
       // それに伴う自動保存は、保存が本当に無いと確認できたときだけ行う。
       // isFirstRun も同じ条件で立てる(入口画面の自動表示に使う)
-      set({ loaded: true, isFirstRun: true });
-      await applySampleArt(set, get, get().manuscript.chapters.length);
+      // **サンプルの絵はまだ取りに行かない。**(2026-10-12 1.0.3。修正リストの 6)
+      // 入口を閉じて作業画面に入るときに取りに行く(fetchSampleArtIfPending。App が呼ぶ)
+      set({ loaded: true, isFirstRun: true, sampleArtPending: true });
     } catch (e) {
       // **読めなかった。サンプルで上書きしない。**(2026-09-04 レビュー指摘)
       // レコードは無事かもしれないので、自動保存を止めてリロードを促す。

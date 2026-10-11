@@ -17,7 +17,7 @@ export function familyNames(stack: string): string[] {
     .filter((s) => s && !generic.has(s));
 }
 
-function absolutize(cssText: string, base: string): string {
+export function absolutize(cssText: string, base: string): string {
   return cssText.replace(/url\((['"]?)([^)'"]+)\1\)/g, (m, _quote, url: string) => {
     if (/^(data:|https?:|blob:)/.test(url)) return m;
     try {
@@ -30,7 +30,12 @@ function absolutize(cssText: string, base: string): string {
 
 /** @font-face の unicode-range を読み、そのどれかが text に出てくるか判定する */
 function rangeUsed(rule: CSSFontFaceRule, used: Set<number>): boolean {
-  const raw = rule.style.getPropertyValue('unicode-range').trim();
+  return unicodeRangeHits(rule.style.getPropertyValue('unicode-range'), used);
+}
+
+/** unicode-range の値(「U+3000-303F, U+4E00」など)のどれかが used の字に掛かるか。空(範囲指定なし)は常に掛かる */
+export function unicodeRangeHits(rangeText: string, used: Set<number>): boolean {
+  const raw = rangeText.trim();
   if (!raw) return true; // 範囲指定なしは常に要る
   for (const part of raw.split(',')) {
     const t = part.trim().toLowerCase().replace(/^u\+/, '');

@@ -1,6 +1,6 @@
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
-import { existsSync, rmSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { formatHits, loadPatterns, scanTree } from './scripts/build/leak-scan.mjs';
@@ -118,10 +118,20 @@ function leakGuard(edition: EditionId): Plugin {
 }
 
 // base: './' — Xserver のサブディレクトリ(例: /bookmaker/)に置いても動くよう相対パスにする
+/**
+ * **アプリのバージョン(package.json の version)を画面に出す。**(2026-10-12 1.0.3。修正リストの 5)
+ * 不具合の報告で、どの版の話かを分かるようにする(src/version.ts)。
+ * 組み立てた日付は入れない — 入れると同じソースから組み立てても中身が変わり、公開した版とタグの一致を確かめにくくなる
+ */
+const APP_VERSION = (JSON.parse(readFileSync(resolve(ROOT, 'package.json'), 'utf8')) as { version: string }).version;
+
 export default defineConfig(({ mode }) => {
   const edition = editionOf(mode);
   return {
     base: './',
+    define: {
+      __APP_VERSION__: JSON.stringify(APP_VERSION),
+    },
     plugins: [woff2Only(), editionSwap(edition), react(), leakGuard(edition)],
     server: {
       // Vite は既定で PORT 環境変数を見ない(5173 が埋まっていると勝手に隣へずれる)。

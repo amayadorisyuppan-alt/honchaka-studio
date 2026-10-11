@@ -439,7 +439,7 @@ export const CoverEditor = forwardRef<CoverEditorHandle, Props>(function CoverEd
     };
     // 書体が未読込のまま描くと黙って別の書体になる。読み込んでから描き直す
     draw();
-    void ensureCoverFonts(settings).then(draw);
+    void ensureCoverFonts(settings, text).then(draw);
     return () => {
       alive = false;
     };
@@ -485,7 +485,7 @@ export const CoverEditor = forwardRef<CoverEditorHandle, Props>(function CoverEd
     try {
       opts.onProgress?.({ phase: 'draw' });
       // 書体が未読込だと黙って別の書体で書き出される
-      await ensureCoverFonts(settings);
+      await ensureCoverFonts(settings, text);
       // 画面用のキャンバスにはバーコードの目印が入っているので、書き出し用に描き直す
       const c = document.createElement('canvas');
       // 出し先の書き出しの細かさ(coverPpi)が 300 より細かいときは、書き出す画素を増やす(座標は同じ)
@@ -566,7 +566,7 @@ export const CoverEditor = forwardRef<CoverEditorHandle, Props>(function CoverEd
   async function exportEbookJpeg() {
     setError('');
     try {
-      await ensureCoverFonts(settings);
+      await ensureCoverFonts(settings, text);
       const c = document.createElement('canvas');
       renderEbookCover(c, { layout, settings, text, image, backImage, wrapImage });
       await new Promise<void>((resolve) => {
@@ -599,7 +599,7 @@ export const CoverEditor = forwardRef<CoverEditorHandle, Props>(function CoverEd
   }
 
   async function renderPreviews() {
-    await ensureCoverFonts(settings);
+    await ensureCoverFonts(settings, text);
     // **wrapImage を落とさないこと。** 「まるごと1枚」を選んでいると、
     // これが無い見本は表紙の絵が消えた姿になる(書き出されるものと食い違う)
     const input = { layout, settings, text, image, backImage, wrapImage };
@@ -618,7 +618,7 @@ export const CoverEditor = forwardRef<CoverEditorHandle, Props>(function CoverEd
   }
 
   async function ebookCoverDataUri() {
-    await ensureCoverFonts(settings);
+    await ensureCoverFonts(settings, text);
     const c = document.createElement('canvas');
     renderEbookCover(c, { layout, settings, text, image, backImage, wrapImage });
     return c.toDataURL('image/jpeg', 0.9);
@@ -626,7 +626,7 @@ export const CoverEditor = forwardRef<CoverEditorHandle, Props>(function CoverEd
 
   /** 共紙: 書き出し用に描いた表紙から、表1と表4を本文の用紙の大きさで切り出す(CoverEditorHandle.renderFaces) */
   async function renderFaces(page: { w: number; h: number }) {
-    await ensureCoverFonts(settings);
+    await ensureCoverFonts(settings, text);
     const c = document.createElement('canvas');
     renderPaperCover(c, { layout, settings, text, image, backImage, wrapImage, forExport: true, outputScale: coverOutputScale(outputPpi) });
     const pxPerMm = c.width / layout.totalW;

@@ -873,10 +873,18 @@ export function FormatBar({
    * (css.ts: 行送りの指定が無い章は fontPt x 本全体の比)。
    * そこを見せずに本全体の 15.5pt を出すと、刷り上がりと数字が食い違う
    */
-  const feedShown =
-    feedPick.overridden || !fontPtPick.overridden
-      ? feedPick.value
-      : +(fontPtPick.value * (settings.lineFeedPt / settings.fontPt)).toFixed(2);
+  const feedAuto = !feedPick.overridden && fontPtPick.overridden;
+  const feedExact = feedAuto
+    ? +(fontPtPick.value * (settings.lineFeedPt / settings.fontPt)).toFixed(2)
+    : feedPick.value;
+  /**
+   * **欄に入れる数は、欄の刻み(0.5)にそろえる。**(2026-10-12 1.0.3。修正リストの 15)
+   * 比から出した 13.03 のような数をそのまま入れると、Chrome が刻みに合わない値と見なして
+   * 「有効な値を入力してください」の吹き出しを出し、狭い欄では「13.0…」と切れて見えた。
+   * 組版は丸めない(css.ts のまま。作りかけの本のページ割りを動かさない)。差は 0.25pt 以下。
+   * 倍率(×1.53 など)は丸める前の値から出す
+   */
+  const feedShown = feedAuto ? Math.round(feedExact * 2) / 2 : feedExact;
   /** 見出しの［×］。章と奥付で入れものが違うので、ここで振り分ける */
   const mark = (chapterKey: ChapterMapKey, matterField: keyof MatterType & keyof ColumnPage) =>
     isMatter
@@ -1535,7 +1543,7 @@ export function FormatBar({
           label="行送り"
           hint={
             <>
-              ×{(feedShown / fontPtPick.value).toFixed(2)}
+              ×{(feedExact / fontPtPick.value).toFixed(2)}
               {mark('chapterLineFeedPt', 'lineFeedPt')}
             </>
           }

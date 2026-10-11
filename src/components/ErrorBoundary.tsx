@@ -14,6 +14,7 @@ import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { safeFileStem, toProjectFile } from '../project/file';
 import { downloadBlob } from '../exporters/download';
 import { useProject } from '../store/useProject';
+import { APP_VERSION } from '../version';
 
 interface Props {
   children: ReactNode;
@@ -67,7 +68,10 @@ export class ErrorBoundary extends Component<Props, State> {
               ページを再読み込み
             </button>
           </div>
-          <p className="crash-detail">{this.state.error.message}</p>
+          {/* バージョンも添える。報告をもらったとき、どの版の話かが分かる(修正リストの 5。2026-10-12) */}
+          <p className="crash-detail">
+            {this.state.error.message}（バージョン {APP_VERSION}）
+          </p>
         </div>
       </div>
     );

@@ -4,6 +4,7 @@
 // プレビューと同じ組版エンジン・同じCSSを通るので、画面とページ配分が一致する。
 
 import { printHTML } from '@vivliostyle/core';
+import { fontUrlsIn, prefetchFonts } from '../preview/fontPrefetch';
 
 /**
  * 組版HTMLを印刷ダイアログに送る。
@@ -15,7 +16,13 @@ import { printHTML } from '@vivliostyle/core';
  * 表紙は『sakura_表紙』で落ちるので、本文も同じように」) 印刷ダイアログを開いているあいだだけ
  * 画面のタイトルを差し替え、閉じたら戻す(print() はダイアログを閉じるまで戻ってこない)
  */
-export function printToPdf(html: string, fileTitle: string, pageCss = ''): Promise<void> {
+export async function printToPdf(html: string, fileTitle: string, pageCss = ''): Promise<void> {
+  /*
+   * **刷る枠の中でも、Vivliostyle は本の書体を全部いっぺんに読む。**(2026-10-11 1.0.3。修正リストの 17)
+   * 本番の Xserver は一斉の取得の一部を断り、断られた字は PDF に別の書体で入る。先に少しずつ取っておく
+   * (下見で取ってあれば、すぐ戻る。src/preview/fontPrefetch.ts)
+   */
+  await prefetchFonts(fontUrlsIn(html));
   /*
    * **紙の PDF にはリンクを入れない。**(2026-09-26 ユーザーの KDP 入稿テストで発見)
    * KDP の Print Previewer が「印刷できないマークアップ（HTML形式のタグによる書体や修飾）を原稿から

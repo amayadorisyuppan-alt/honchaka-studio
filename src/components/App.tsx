@@ -232,6 +232,8 @@ export function App() {
     cover,
     isSample,
     loaded,
+    sampleArtLoading,
+    fetchSampleArtIfPending,
     setSettings,
     applyPreset,
     setManuscript,
@@ -623,6 +625,22 @@ export function App() {
     if (loaded) setShowStart(true);
   }, [loaded]);
 
+  /**
+   * **入口を閉じて作業画面に入ったら、はじめての起動のサンプルの絵を取りに行く。**(2026-10-12 1.0.3。修正リストの 6)
+   * 入口を開いただけで約 9MB を読んでいた。入口だけ見て帰る人・［新規作成］や読み込みへ進む人には要らない。
+   * 入口の閉じ方は［スタジオで本をつくる］・×・Esc・めくれる本・カードと何通りもあるので、showStart が下りたところで拾う。
+   * **一度入口を出してから下りたときだけ。** 起動した回は、上の「入口を出す」と同じ描画でこちらも走り、
+   * まだ下りたままの showStart を見て取りに行ってしまう(実測: 入口だけで絵 14 枚・9.2MB のままだった)
+   */
+  const startShownRef = useRef(false);
+  useEffect(() => {
+    if (showStart) {
+      startShownRef.current = true;
+      return;
+    }
+    if (loaded && startShownRef.current) void fetchSampleArtIfPending();
+  }, [loaded, showStart, fetchSampleArtIfPending]);
+
   /** 入口画面からバックアップ先フォルダを選ぶ。選んだあと ProjectBar を作り直させる */
   async function handleChooseBackupFolder() {
     const state = await chooseBackupFolder();
@@ -792,8 +810,9 @@ export function App() {
   const previewHtml = useMemo(
     // 書名・著者名は縦用と横用の両方を入れる(titleBothWays)。書名の向きは下見の塗りのパッチが選ぶので、
     // 縦横を切り替えても組み直さない(2026-10-03。紙の書き出しは下の handlePrintPdf で完全な設定から組む)
+    // サンプルの絵を取りに行っているあいだは組まない(絵の無いサンプルを組んでから組み直さない。store の sampleArtLoading)
     () =>
-      loaded && paperOn
+      loaded && paperOn && !sampleArtLoading
         ? manuscriptHtml(heldManuscript, heldNeutral, fontFaceCss, {
             titleBothWays: true,
             // 中綴じ(2026-10-03): 奥付の手前に白いページを足して 4 の倍数にそろえる。共紙は、表1・表4 の仮の枠を先頭と末尾に入れる
@@ -806,7 +825,7 @@ export function App() {
               : {}),
           })
         : '',
-    [heldManuscript, heldNeutral, loaded, fontFaceCss, paperOn, saddlePadCount],
+    [heldManuscript, heldNeutral, loaded, sampleArtLoading, fontFaceCss, paperOn, saddlePadCount],
   );
   /**
    * いまの塗り。組み上がっている紙面へ CSS の差し替えだけで重ねる(組版0回)。

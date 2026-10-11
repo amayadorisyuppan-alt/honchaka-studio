@@ -27,7 +27,12 @@ import {
 } from 'react';
 import { CoreViewer, Navigation, PageViewMode, type Payload } from '@vivliostyle/core';
 import { FrogPeek } from '../components/FrogMark';
+import { fontUrlsIn, prefetchFonts } from './fontPrefetch';
+import { installFontWaitGuard } from './fontWaitGuard';
 import { createThumbs, type AddKind, type InsertKind, type ThumbStrip } from './PageThumbs';
+
+// Vivliostyle の書体の読み込み待ちが、アプリの書体(約 3,700 面)まで全部読ませないように(fontWaitGuard.ts)
+installFontWaitGuard();
 
 export interface LayoutInfo {
   /** 挿絵がいま何ページ目に出ているか。挿絵の id で引く */
@@ -1190,18 +1195,29 @@ export const VivliostylePreview = forwardRef<PreviewHandle, Props>(function Vivl
 
     const blob = new Blob([html], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
-    viewer.loadDocument(
-      { url },
-      {},
-      {
-        // **毎回入れ直す。** 退いていたあいだに落とした設定を戻すため
-        autoResize: true,
-        renderAllPages: true,
-        pageViewMode,
-        fitToScreen,
-        ...(fitToScreen ? {} : { zoom: zoomRef.current }),
-      },
-    );
+    const load = () => {
+      if (!alive) return;
+      viewer.loadDocument(
+        { url },
+        {},
+        {
+          // **毎回入れ直す。** 退いていたあいだに落とした設定を戻すため
+          autoResize: true,
+          renderAllPages: true,
+          pageViewMode,
+          fitToScreen,
+          ...(fitToScreen ? {} : { zoom: zoomRef.current }),
+        },
+      );
+    };
+    /**
+     * **組む前に、本の書体のファイルを少しずつ取っておく。**(2026-10-11 1.0.3。修正リストの 17)
+     * Vivliostyle は @font-face を全部いっぺんに取りに行き、本番の Xserver はその約 4 割を断る(fontPrefetch.ts)。
+     * 取ってあるファイルだけなら null が返るので、組み直しは今までどおり待たずに組む
+     */
+    const fontsReady = prefetchFonts(fontUrlsIn(html));
+    if (fontsReady) void fontsReady.then(load);
+    else load();
 
     return () => {
       // **いちばん先に黙らせる。** 以降この回が投げるものは全部捨てる
