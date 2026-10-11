@@ -8,11 +8,13 @@ import { BODY_FONTS, HEADING_FONT_STACK, defaultSettings, tcyStack } from '../sr
 import { manuscriptHtml } from '../src/typeset/html';
 import { collectFontFaceCss } from '../src/typeset/fontface';
 import { sampleManuscript } from '../src/sample';
-import { loadSampleArt } from '../src/sampleArt';
+import { loadSampleArt, loadSampleFigs, replaceSampleFigs } from '../src/sampleArt';
 
 async function main() {
-  const ms = sampleManuscript();
-  const art = await loadSampleArt(ms.chapters.length);
+  // 千鳥2枚も本物にする(アプリの applySampleArt と同じ。src/sampleFig.ts の頭)
+  const ms0 = sampleManuscript();
+  const [art, figs] = await Promise.all([loadSampleArt(ms0.chapters.length), loadSampleFigs()]);
+  const ms = replaceSampleFigs(ms0, figs) ?? ms0;
   const settings = { ...defaultSettings(), ...(art ?? {}) };
   const fontFaceCss = collectFontFaceCss([
     BODY_FONTS[settings.bodyFont].stack,

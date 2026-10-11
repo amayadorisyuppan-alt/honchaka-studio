@@ -82,6 +82,7 @@ import { ProjectBar, type ProjectBarHandle } from './ProjectBar';
 import { AboutPanel, type AboutSection } from './AboutPanel';
 import { HelpPanel } from './HelpPanel';
 import { StartScreen } from './StartScreen';
+import { NoticeBar } from './NoticeBar';
 import { ThemeToggle } from './ThemeToggle';
 import { choose as chooseBackupFolder } from '../project/backup';
 import { ArtStep } from './steps/ArtStep';
@@ -2619,6 +2620,9 @@ export function App() {
           }}
         />
       </header>
+
+      {/* お知らせ欄(notice.json)。入口のメニューでは StartScreen が自分の頭に出すので、ここはトップバーが見えているときだけ */}
+      {!(showStart && startMode === 'menu') && <NoticeBar />}
 
       {/* 入口画面のあいだは工程レールを出さない。まだ本が無いので順路が意味を持たず、
           「タイトルと3つのボタンだけが見えているべき」(2026-08-18 ユーザー指摘) */}

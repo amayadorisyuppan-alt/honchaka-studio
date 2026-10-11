@@ -11,7 +11,7 @@ import '../src/fontsAll';
 import { defaultSettings } from '../src/models/project';
 import { manuscriptHtml } from '../src/typeset/html';
 import { sampleManuscript } from '../src/sample';
-import { loadSampleArt } from '../src/sampleArt';
+import { loadSampleArt, loadSampleFigs, replaceSampleFigs } from '../src/sampleArt';
 import { reportProbe } from './probe-report';
 
 const host = document.getElementById('probe-viewport') as HTMLElement;
@@ -21,8 +21,10 @@ window.addEventListener('error', (e) => errors.push(`${e.message} @ ${e.filename
 async function main() {
   // **アプリの loadSample と同じ組み立て**(store/useProject.ts)。
   // 素の原稿だけ組むと挿絵も背景も無い別の本になる(31頁 vs 46頁)
-  const ms = sampleManuscript();
-  const art = await loadSampleArt(ms.chapters.length);
+  // 千鳥2枚も本物にする(1.0.2 から sampleManuscript() は同じ画素数の代わりの絵を入れる。src/sampleFig.ts の頭)
+  const ms0 = sampleManuscript();
+  const [art, figs] = await Promise.all([loadSampleArt(ms0.chapters.length), loadSampleFigs()]);
+  const ms = replaceSampleFigs(ms0, figs) ?? ms0;
   const settings = { ...defaultSettings(), ...(art ?? {}) };
   // ?ink=color で「カラーで刷る本」として組む。トップの白黒⇄カラー切替は
   // 画像へのフィルタ加工ではなく、この設定違いの実出力を2セット撮って見せる

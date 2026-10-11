@@ -27,7 +27,7 @@ import {
 import { defaultCoverSettings, migrateCoverSettings, type CoverSettings } from '../models/cover';
 import { carryStudioImages, matchChapters } from '../models/inlineImages';
 import { sampleManuscript } from '../sample';
-import { loadSampleArt, sampleCover } from '../sampleArt';
+import { hasSampleFigStandIns, loadSampleArt, loadSampleFigs, replaceSampleFigs, sampleCover } from '../sampleArt';
 
 /**
  * 元に戻す(Ctrl+Z)ために控える、変更ひとつぶん。
@@ -423,9 +423,27 @@ async function applySampleArt(
   get: () => ProjectState,
   chapterCount: number,
 ) {
-  const art = await loadSampleArt(chapterCount);
+  const [art] = await Promise.all([loadSampleArt(chapterCount), upgradeSampleFigs(set, get)]);
   if (!art || !get().isSample) return;
   set({ settings: { ...get().settings, ...art } });
+  scheduleSave(get());
+}
+
+/**
+ * サンプルの文中の画像(千鳥2枚)を、代わりの絵から本物(public/sample/ のファイル)に差し替える。(1.0.2)
+ * sampleManuscript() が入れるのは同じ画素数の代わりの絵なので(理由は sampleFig.ts の頭)、
+ * **代わりの絵が原稿に残っていたら、どこから開いた本でも取りに行く**:
+ * サンプルを開いたとき・はじめての起動・自動保存から開き直したとき(freshenSample でサンプルの本文に戻すと代わりの絵になる)・
+ * 代わりの絵のまま保存された .json を読んだとき。
+ * 置き換えるのは取ってきた**あと**の原稿(そのあいだに本文が直されていても、直したものは残る)。
+ * 戻す履歴には積まない(利用者の操作ではない。手を入れた印 touched も立てない)
+ */
+async function upgradeSampleFigs(set: (p: Partial<ProjectState>) => void, get: () => ProjectState) {
+  if (!hasSampleFigStandIns(get().manuscript)) return;
+  const real = await loadSampleFigs();
+  const ms = replaceSampleFigs(get().manuscript, real);
+  if (!ms) return;
+  set({ manuscript: ms });
   scheduleSave(get());
 }
 
@@ -1113,6 +1131,7 @@ export const useProject = create<ProjectState>((set, get) => ({
     });
     void askPersist();
     scheduleSave(get());
+    void upgradeSampleFigs(set, get);
   },
 
   hydrate: async () => {
@@ -1178,6 +1197,7 @@ export const useProject = create<ProjectState>((set, get) => ({
           // 前回の続きを開いたところ。**開く前へは戻せない**
           ...clearedHistory(),
         });
+        void upgradeSampleFigs(set, get);
         return;
       }
       // **ここまで来たら「読めたが保存は無かった」=はじめての起動。**
@@ -1198,6 +1218,8 @@ export const useProject = create<ProjectState>((set, get) => ({
           '前回のデータを読み込めませんでした。上書きを避けるため、自動保存を止めています。' +
           '［保存する］で控えを取ってから、ページを再読み込みしてください。',
       });
+      // 画面に出すのは初期状態のサンプルなので、千鳥だけは本物にしておく(自動保存は止まっているので書かない)
+      void upgradeSampleFigs(set, get);
     }
   },
 }));

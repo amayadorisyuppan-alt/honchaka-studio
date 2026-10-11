@@ -5550,3 +5550,60 @@ input[type="text"], input:not([type]), input[type="number"], select { border-rad
 /* 新規作成の題字 */
 .start-title .studio-name b { font-size: 30px; }
 .start-title .studio-name small { font-size: 12px; }
+
+/* ---- お知らせ欄(notice.json。src/notice.ts・components/NoticeBar.tsx。2026-10-11 1.0.2) ----
+   作業画面ではトップバーの下に、画面の幅いっぱいの1行で出す。入口ではヘッダーの下に、本文と同じ幅で出す。
+   中身が無ければ要素ごと出さないので、場所も取らない */
+.notice-bar { display: flex; flex-direction: column; }
+.notice-bar-item {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0;
+  padding: 7px 14px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--text);
+  background: var(--note-fill);
+  border-bottom: 1px solid var(--line);
+}
+.notice-bar-item.warn { color: var(--warn-text); background: var(--warn-fill); }
+.notice-bar-label {
+  flex: none;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+}
+.notice-bar-text { flex: 1; min-width: 0; }
+.notice-bar-text a { color: inherit; font-weight: 700; }
+.notice-bar-close {
+  flex: none;
+  align-self: center;
+  background: transparent;
+  color: inherit;
+  border: none;
+  padding: 0 6px;
+  font-size: 16px;
+  line-height: 1;
+  opacity: 0.7;
+}
+.notice-bar-close:hover { background: transparent; opacity: 1; }
+/* 入口(ヒーロー)では、オーロラの上に本文と同じ幅の札で置く */
+.notice-bar.hero {
+  position: relative;
+  width: min(1120px, calc(100% - 36px));
+  margin: 14px auto 0;
+  gap: 6px;
+}
+.notice-bar.hero .notice-bar-item {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.notice-bar.hero .notice-bar-item.warn { border-color: var(--warn); }
+/* スマホの幅では、札と×を1行目に、文を2行目に幅いっぱいで置く(札の横に文を並べると1行が数字しか入らない) */
+@media (max-width: 599px) {
+  .notice-bar-item { flex-wrap: wrap; justify-content: space-between; }
+  .notice-bar-text { order: 3; flex-basis: 100%; }
+}

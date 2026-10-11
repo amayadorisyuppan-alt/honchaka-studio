@@ -50,12 +50,13 @@
 // 2026-09-14 に「全面」の1枚を追加 — ユーザー要望「Wordで全面に入れる本文中画像の例も」)。
 // 章の途中の絵は原稿の記法では書けない(［挿絵］で段落を選んで入れるもの)ので、
 // parseTxt のあとで image ブロックを差し込む(sampleManuscript の中を見ること)。
-// どの絵をなぜその位置に置いたかは `sampleFig.ts` / `sampleFigFull.ts` の頭のコメントにまとめてある。
+// どの絵をなぜその位置に置いたかは `sampleFig.ts` の頭のコメントにまとめてある。
+// **1.0.2 から、ここで入れるのは本物と同じ画素数の代わりの絵**(1色の SVG)。本物は public/sample/ のファイルで、
+// サンプルを開くときに sampleArt.ts の withSampleFigs が差し替える(理由は sampleFig.ts の頭)。
 
 import type { Manuscript } from './models/project';
 import { parseTxt } from './importers/txt';
-import { SAMPLE_FIG } from './sampleFig';
-import { SAMPLE_FIG_FULL } from './sampleFigFull';
+import { SAMPLE_FIG, SAMPLE_FIG_FULL } from './sampleFig';
 
 const SAMPLE_TEXT = `第一章　空いた書棚
 

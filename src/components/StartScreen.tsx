@@ -24,6 +24,7 @@ import type { ProjectSettings, SourceFile } from '../models/project';
 import { OutputsChooser } from './OutputsChooser';
 import { APP_URL, CONTACT_EMAIL, FEEDBACK_FORM_URL, NOTE_TIP_URL, TIP_URL, YOUTUBE_URL } from '../shop';
 import { HeroBook } from './HeroBook';
+import { NoticeBar } from './NoticeBar';
 import { FrogPeek, StudioLogo } from './FrogMark';
 
 /**
@@ -557,6 +558,9 @@ export function StartScreen({
             </button>
           </div>
         </header>
+
+        {/* お知らせ欄(notice.json)。不具合の回り道など、最初に目に入ってほしいものなのでヘッダーのすぐ下 */}
+        <NoticeBar className="hero" />
 
         <div className="hero-body">
           <span className="hero-flag">

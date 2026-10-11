@@ -17,10 +17,12 @@ import type {
   BgSpec,
   ChapterBackgrounds,
   ColumnPage,
+  Manuscript,
   Plate,
   ProjectSettings,
 } from './models/project';
 import { defaultCoverSettings, type CoverSettings } from './models/cover';
+import { SAMPLE_FIGS } from './sampleFig';
 
 /**
  * どの絵をどこに置くか。
@@ -272,6 +274,50 @@ async function toDataUri(file: string, dir = 'covers'): Promise<string> {
     r.onerror = () => reject(new Error('変換に失敗しました'));
     r.readAsDataURL(blob);
   });
+}
+
+/** 原稿に、サンプルの文中の画像の代わりの絵(sampleFig.ts)が残っているか */
+export function hasSampleFigStandIns(ms: Manuscript): boolean {
+  const stand = new Set(SAMPLE_FIGS.map((f) => f.placeholder));
+  return ms.chapters.some((ch) => ch.blocks.some((b) => b.type === 'image' && stand.has(b.src)));
+}
+
+/**
+ * サンプルの文中の画像(千鳥2枚)の本物を public/sample/ から取ってくる。(1.0.2。理由は sampleFig.ts の頭のコメント)
+ * 返すのは「代わりの絵の src → 本物の data URI」。**取れなかった絵は入れない**(代わりの絵のまま組む。本文は組めるので止めない)
+ */
+export async function loadSampleFigs(): Promise<Map<string, string>> {
+  const real = new Map<string, string>();
+  await Promise.all(
+    SAMPLE_FIGS.map(async (f) => {
+      try {
+        real.set(f.placeholder, await toDataUri(f.file, 'sample'));
+      } catch (e) {
+        console.warn('sample figure failed', f.file, e);
+      }
+    }),
+  );
+  return real;
+}
+
+/**
+ * 代わりの絵と**同じ src** の image ブロックだけを本物に置き換える(利用者が差し替えた絵・書き足した本文には触らない)。
+ * 取ってくるあいだに本文が直されていてもよいように、**置き換える直前の原稿**に掛けること。
+ * 置き換えたものが無ければ null
+ */
+export function replaceSampleFigs(ms: Manuscript, real: Map<string, string>): Manuscript | null {
+  if (!real.size || !hasSampleFigStandIns(ms)) return null;
+  let n = 0;
+  const chapters = ms.chapters.map((ch) => ({
+    ...ch,
+    blocks: ch.blocks.map((b) => {
+      const src = b.type === 'image' ? real.get(b.src) : undefined;
+      if (b.type !== 'image' || !src) return b;
+      n++;
+      return { ...b, src };
+    }),
+  }));
+  return n ? { ...ms, chapters } : null;
 }
 
 /**
