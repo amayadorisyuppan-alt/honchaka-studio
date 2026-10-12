@@ -297,7 +297,60 @@ function makeBuf(host: HTMLElement): Buf {
   viewer.addListener('nav', (payload) => buf.job?.onNav(payload));
   viewer.addListener('hyperlink', (payload) => buf.job?.onHyper(payload));
   viewer.addListener('readystatechange', () => buf.job?.onReady());
+  softenTocLinks(buf);
   return buf;
+}
+
+/**
+ * 下見の目次の章題から href を外し、押すと同じ所へ飛ぶ部品に替える。(2026-10-12 修正リスト 16)
+ *
+ * 組版された目次は `<a href="#ch1">` だが、Vivliostyle が href を「#viv-id-blob:003ahttp:003a002f…」の
+ * 長い形に書き換えるので、マウスを乗せるとブラウザの左下に長いアドレスが出て、画面下のステータス行の
+ * 左半分まで隠れた。ブラウザは href を持つリンクにだけアドレスを出すので、**下見の画面の中でだけ**
+ * href を外す(組版の HTML はそのまま。紙の PDF の目次リンクも EPUB の目次も今までどおり)。
+ *
+ * - 飛び先は data-toc-href に控える。押したら、これまでのリンクと同じ onHyper(navigateToInternalUrl)へ渡す。
+ * - href を外すと指のカーソルも Tab も Enter も失うので、cursor・tabindex・role・Enter 押しを足す。
+ * - Vivliostyle はページを作り直したり(幅を変えた・ページ送り)、組み直しで新しい面に描き直すたびに
+ *   アンカーを新しく作るので、面ごとに MutationObserver で見張って、出てきたものから順に替える。
+ *   外した href を Vivliostyle が読むのは click の瞬間だけ(hrefHandler)で、空なら何も起きない
+ */
+const TOC_LINK = 'section.toc a[href]';
+function softenTocLinks(buf: Buf) {
+  const { inner } = buf;
+  const soften = (a: Element) => {
+    const href = a.getAttribute('href');
+    if (!href || !href.startsWith('#')) return;
+    a.setAttribute('data-toc-href', href);
+    a.removeAttribute('href');
+    a.setAttribute('role', 'link');
+    a.setAttribute('tabindex', '0');
+    (a as HTMLElement).style.cursor = 'pointer';
+  };
+  const scan = (node: Node) => {
+    if (node.nodeType !== 1) return;
+    const el = node as Element;
+    if (el.matches(TOC_LINK)) soften(el);
+    el.querySelectorAll(TOC_LINK).forEach(soften);
+  };
+  new MutationObserver((records) => {
+    for (const r of records) {
+      if (r.type === 'attributes') scan(r.target);
+      else r.addedNodes.forEach(scan);
+    }
+  }).observe(inner, { childList: true, subtree: true, attributes: true, attributeFilter: ['href'] });
+
+  const go = (target: EventTarget | null, e: Event) => {
+    const a = (target as Element | null)?.closest?.('a[data-toc-href]');
+    const href = a?.getAttribute('data-toc-href');
+    if (!a || !href || !inner.contains(a)) return;
+    e.preventDefault();
+    buf.job?.onHyper({ type: 'hyperlink', internal: true, href } as Payload);
+  };
+  inner.addEventListener('click', (e) => go(e.target, e));
+  inner.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') go(e.target, e);
+  });
 }
 
 /**

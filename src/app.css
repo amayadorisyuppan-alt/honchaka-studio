@@ -1949,6 +1949,13 @@ button.projectbar-flash.bad:hover { background: var(--bad-fill-hover); }
   color: var(--text-faint);
 }
 
+/* 報告用の文のコピー(components/ReportCopy.tsx。［このアプリについて］とエラーの画面。2026-10-12 修正リスト 5)
+   エラーの画面は地の色を明示しているので、ここも色はテーマのトークンに頼らず親の色を引き継ぐ */
+.report-copy { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin-top: 6px; }
+.report-copy > button { padding: 4px 10px; font-size: 11.5px; }
+.report-copy-note { margin: 0; font-size: 11.5px; line-height: 1.7; }
+.crash .report-copy { margin-top: 12px; }
+
 /* タブと書名・著者名の入力は役割が違うので、区切り線とアキで離す */
 .topbar .tabs {
   flex: 0 0 auto;
@@ -2358,6 +2365,24 @@ button.projectbar-flash.bad:hover { background: var(--bad-fill-hover); }
   object-fit: cover;
   border-radius: 4px;
   border: 1px solid var(--line);
+}
+/* 「白黒で刷る」にした絵(2026-10-12 1.1.0。修正リストの 4-6)。一覧の絵も灰色で見せる(画面だけ) */
+.plate-thumb.mono,
+.bg-thumb.mono {
+  filter: grayscale(1);
+}
+/* 「白黒で刷る」のチェックと、白黒に見える絵の知らせ(PrintMonoToggle)。行の下に1段。
+   挿絵の一覧の行(.plate-list li)は格子なので、行の幅いっぱいに置く(置かないと絵の枠の幅に押し込まれて字が縦に並ぶ) */
+.print-mono {
+  margin-top: 6px;
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+.print-mono .check {
+  margin: 0;
+}
+.print-mono p {
+  margin: 4px 0 0;
 }
 /* クッションページ。絵も文字も置かない1ページ(背景は出る)。紙が1枚あることだけ示す */
 .plate-thumb.blank {
@@ -3523,6 +3548,8 @@ button.export-back:hover { background: var(--bg-hover); border-color: var(--line
 /* 控えなので、主役より一段おとなしく */
 .export-hub-side { font-size: 12.5px; color: var(--text-sub); }
 .export-hub-side h2 { color: var(--text-mid); }
+/* 控えの中の小見出し(発注書に書く欄の無い値など。2026-10-12)。h2 より一段小さく、上の表から少し離す */
+.export-hub-side h3.spec-section { margin: 6px 0 0; font-size: 12px; font-weight: 700; color: var(--text-mid); }
 
 /* 全画面のときは大きく見せる。**ただし正方形にはしない。**
    357角まで大きくしたら「ボタンに見えない」と言われた(2026-08-19)。

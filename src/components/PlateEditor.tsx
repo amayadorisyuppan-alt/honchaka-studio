@@ -45,6 +45,7 @@ import {
 import type { LayoutInfo } from '../preview/VivliostylePreview';
 import { BackgroundPicker } from './BackgroundPicker';
 import { ParagraphPicker } from './ParagraphPicker';
+import { PrintMonoToggle, type ColorLook } from './PrintMonoToggle';
 
 interface Props {
   plates: Plate[];
@@ -125,6 +126,13 @@ interface Props {
    * 渡さなければ章の途中の絵は一覧に出さない
    */
   onChaptersChange?: (chapters: Chapter[], undoKey?: string) => void;
+  /**
+   * 行に「白黒で刷る」のチェックを出すか(2026-10-12 1.1.0。修正リストの 4-6)。**カラーの紙の本だけ**
+   * (白黒の本は絵がすべて白黒・電子書籍は元の絵のまま)。渡さなければ出さない
+   */
+  printColor?: boolean;
+  /** 白黒に見える絵・ごく淡い色の絵の行(鍵は resRows と同じ plate:id / img:鍵。models/printColor.ts の colorLookRows) */
+  colorRows?: ReadonlyMap<string, ColorLook>;
 }
 
 /** 章の呼び名。一覧と場所の言い方で使う */
@@ -141,6 +149,8 @@ type Row =
 
 /** 一覧と flash の目印。章の途中の絵は組み上がりの鍵(imageKey)をそのまま使う */
 const imgRowId = (chapter: number, block: number) => `img:${imageKey(chapter, block)}`;
+/** 一覧の絵の枠。白黒で刷る絵は灰色で見せる(画面だけ。app.css の .plate-thumb.mono) */
+const monoThumb = (mono: boolean | undefined) => (mono ? 'plate-thumb mono' : 'plate-thumb');
 
 /**
  * 挿絵を挟む場所の言い方。
@@ -183,6 +193,8 @@ export function PlateEditor({
   binding = 'perfect',
   only = 'plates',
   onChaptersChange,
+  printColor = false,
+  colorRows,
 }: Props) {
   /**
    * 絵の中の文字の検査の知らせ(その絵の行に出す)。
@@ -610,7 +622,8 @@ export function PlateEditor({
         {p.blank ? (
           <span className="plate-thumb blank">クッション</span>
         ) : p.src ? (
-          <img className="plate-thumb" src={p.src} alt={`挿絵${i + 1}`} />
+          // 白黒で刷る絵は、一覧の絵も灰色で見せる(画面だけ。4-6)
+          <img className={monoThumb(p.printMono)} src={p.src} alt={`挿絵${i + 1}`} />
         ) : (
           <span className="plate-thumb empty">画像はまだ</span>
         )}
@@ -702,6 +715,13 @@ export function PlateEditor({
           )}
         {!open && textKeptNote(p.textOk, !p.blank && !!p.src && p.size !== 'print', () => patch(p.id, { textOk: undefined }))}
         {!open && !p.blank && !!p.src && resNote(`plate:${p.id}`)}
+        {!open && !p.blank && !!p.src && printColor && !ebookView && (
+          <PrintMonoToggle
+            checked={!!p.printMono}
+            onChange={(v) => patch(p.id, { printMono: v || undefined })}
+            look={colorRows?.get(`plate:${p.id}`)}
+          />
+        )}
         {/* 見開きに切り替えただけの絵は 4200px のまま(見開きは 6200px まで取り込める)。細かさが足りないときだけ、選び直しを1行で */}
         {!open && !p.blank && !!p.src && !ebookView && spreadNotes?.get(p.id)?.includes(SPREAD_REPICK_NOTE) && (
           <p className="hint">{SPREAD_REPICK_NOTE}</p>
@@ -755,7 +775,7 @@ export function PlateEditor({
           )
         )}
         {img.src ? (
-          <img className="plate-thumb" src={img.src} alt={`挿絵${i + 1}`} />
+          <img className={monoThumb(img.printMono)} src={img.src} alt={`挿絵${i + 1}`} />
         ) : (
           <span className="plate-thumb empty">画像はまだ</span>
         )}
@@ -856,6 +876,20 @@ export function PlateEditor({
           </p>
         )}
         {!!img.src && resNote(`img:${imageKey(chapter, block)}`)}
+        {!!img.src && isRenderableImage(img.src) && printColor && !ebookView && (
+          <PrintMonoToggle
+            checked={!!img.printMono}
+            onChange={(v) =>
+              write((b) => {
+                const next = { ...b };
+                if (v) next.printMono = true;
+                else delete next.printMono;
+                return next;
+              })
+            }
+            look={colorRows?.get(`img:${imageKey(chapter, block)}`)}
+          />
+        )}
         {textCheckNote(
           textRows?.get(`img:${imageKey(chapter, block)}`),
           now !== null,

@@ -10,7 +10,7 @@
 // **入稿前チェックは新しい検査を書かない。** 判定はどれも各ステップが既に持っているもので、
 // ここは**散らばっている警告を1か所に集めるだけ**。
 
-import { type ReactNode } from 'react';
+import { Fragment, type ReactNode } from 'react';
 import {
   EPUB_TARGETS,
   PRINT_TARGETS,
@@ -64,6 +64,11 @@ export interface Spec {
    * (紙の出し先が訊かない AI 生成コンテンツの申告を、紙の発注書の控えに混ぜないため。2026-10-07)
    */
   ebook?: boolean;
+  /**
+   * 見出しを分けて出す行のまとまり(2026-10-12)。ふつうの行のあとに、見出しごとにまとめて出す。
+   * 発注書の項目どおりに組む控え(PrintTargetProfile.orderSheet)が、発注書に書く欄の無い値を分けるのに使う
+   */
+  section?: string;
 }
 
 interface Props {
@@ -168,6 +173,8 @@ interface Props {
   paperMm: { w: number; h: number };
   /** 本文の箱(仕上がり・塗り足し・1ページ目のノド)。入稿用の PDF/X の TrimBox に使う */
   boxes: BodyBoxes;
+  /** 入稿用の変換で数えたカラーのページの数(終わっていなければ null)。App が控え(specs)の⑩に使う(2026-10-12) */
+  onColorPages?: (r: { count: number; total: number } | null) => void;
 }
 
 /**
@@ -312,6 +319,7 @@ export function ExportStep({
   bookTitle,
   paperMm,
   boxes,
+  onColorPages,
 }: Props) {
   const epubTarget = outputs.epubTarget;
   const out = outputsOf(outputs);
@@ -334,7 +342,7 @@ export function ExportStep({
   /** 紙も作る本では、電子書籍の出し先で答える行を、紙の控えの下に見出しを分けて出す */
   const mainSpecs = out.paper ? specs.filter((s) => !s.ebook) : specs;
   const ebookSpecs = out.paper ? specs.filter((s) => s.ebook) : [];
-  const specList = (rows: Spec[]) => (
+  const specDl = (rows: Spec[]) => (
     <dl className="spec-list">
       {rows.map((s, i) => (
         <div key={i}>
@@ -348,6 +356,25 @@ export function ExportStep({
       ))}
     </dl>
   );
+  /**
+   * 見出しを分けた行(section)は、ふつうの行のあとに、見出しごとにまとめて出す(2026-10-12)。
+   * section を持たない控え(KDP・その他の印刷所)は、いままでどおり dl が1つだけ
+   */
+  const specList = (rows: Spec[]) => {
+    const sections = [...new Set(rows.flatMap((s) => (s.section ? [s.section] : [])))];
+    if (sections.length === 0) return specDl(rows);
+    return (
+      <>
+        {specDl(rows.filter((s) => !s.section))}
+        {sections.map((h) => (
+          <Fragment key={h}>
+            <h3 className="spec-section">{h}</h3>
+            {specDl(rows.filter((s) => s.section === h))}
+          </Fragment>
+        ))}
+      </>
+    );
+  };
 
   return (
     <>
@@ -481,6 +508,7 @@ export function ExportStep({
           boxes={boxes}
           blockReason={blockReason}
           saddle={bindingOf(outputs) === 'saddle' ? { self: saddleCoverOf(outputs) === 'self' } : undefined}
+          onColorPages={onColorPages}
         />
       )}
 

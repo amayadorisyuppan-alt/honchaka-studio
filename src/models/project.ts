@@ -361,10 +361,21 @@ export interface PrintTargetProfile {
    */
   saddle?: SaddleSpec;
   /**
+   * 無線綴じの本文も、ページ数を**偶数にそろえる**か。(2026-10-12)
+   * そろえる会社では、中綴じの 4 の倍数と同じしくみで、奥付の手前に白いページを1枚入れる(typeset/saddle.ts の pageUnitOf)。
+   * 控えのページ数・背幅・書き出す本文 PDF は、みな白いページを含めた同じ数になる。省くと、組んだままの数(奇数もある)
+   */
+  perfectEvenPages?: boolean;
+  /**
    * 絵の細かさの目安(ppi。実寸で何画素あるか)。画面の表示と、足りない絵を知らせる基準に使う
    * (models/imageResolution.ts。知らせるだけで止めない)。表紙の書き出しの細かさもこれに合わせる
    */
   imagePpi: number;
+  /**
+   * 絵の細かさの知らせで、**用紙いっぱいに敷く背景**(大扉・目次・奥付・章・コラムの地と、本文の地)も数えるか。(2026-10-12)
+   * 背景も絵として細かさを測る会社だけ持つ。省くと、挿絵・本文中の画像・表紙だけを数える(models/imageResolution.ts)
+   */
+  checksBackgroundPpi?: boolean;
   /** 判型の欄のとなりなどに添える、受け付ける判型の説明。決まりのある会社だけ */
   trimNote?: string;
   /**
@@ -372,6 +383,12 @@ export interface PrintTargetProfile {
    * `binding` を持つ会社は、控えに「綴じ方」の行を足す(無線綴じか中綴じか。ProjectSettings.binding)
    */
   specLabels?: { trim?: string; pages?: string; binding?: string; direction?: string };
+  /**
+   * 控えの紙の行を、**会社の発注書の項目の順・番号・選択肢の言葉どおりに**組む。(2026-10-12)
+   * 利用者が発注書へそのまま写せるよう、言葉は会社の側が持つ。共通の画面は本の事実(OrderSheetFacts)をそろえて渡すだけ。
+   * 持つ会社では specLabels・inkPaperLabel・saddle.coverPaperNote は控えに使わない。省くと、いままでの控え
+   */
+  orderSheet?: (f: OrderSheetFacts) => OrderSheetRow[];
   /**
    * 表紙を書き出す細かさ(ppi)。**表紙は文字ごと1枚の画像**なので、文字の輪郭のためにこれで書き出す。
    * 省くと imagePpi。表紙に置く写真が足りているかの知らせは、これではなく imagePpi で見る
@@ -425,6 +442,64 @@ export interface PrinterPaper {
   note?: string;
   /** 1枚の厚さ(mm) */
   mm: number;
+}
+
+/**
+ * 控えの1行(発注書の項目どおりに組む会社が返す。画面の Spec と同じ形)。(2026-10-12)
+ * section を持つ行は、ふつうの行のあとに、その見出しを立ててまとめて出す(「発注書に無い値」などを分けるため)
+ */
+export interface OrderSheetRow {
+  label: string;
+  value: string;
+  note?: string;
+  section?: string;
+}
+
+/**
+ * 発注書の控えを組むのに要る、本の事実。(2026-10-12)
+ * 出し先の部品は project.ts から型しか読めない(値を読むと循環する)ので、判型の寸法などの値もここで渡す
+ */
+export interface OrderSheetFacts {
+  /** 書名(空のことがある) */
+  title: string;
+  /**
+   * この本の id(ProjectSettings.bookId)。発注書に本ごとの番号の欄がある会社が使う(2026-10-12)。
+   * 書き出し直しても・開き直しても同じで、原稿を取り込み直すと変わる。無いことがある
+   */
+  bookId?: string;
+  trim: TrimId;
+  /** 判型の呼び名(「A5」「文庫（A6）」。寸法は付けない) */
+  trimName: string;
+  /** 仕上がり寸法(mm) */
+  trimMm: { w: number; h: number };
+  writingMode: WritingMode;
+  /** いま効いている綴じ方(bindingOf) */
+  binding: Binding;
+  /** 中綴じの共紙(表紙も本文と同じ紙。表1〜表4 の4ページが本文 PDF に入る) */
+  selfCover: boolean;
+  ink: InkColor;
+  /**
+   * 入稿用に変換したときに数えた、カラーのページの数と、そのときの全ページ数(カラーの本だけ。2026-10-12 修正リスト 4-4)。
+   * まだ変換していない・いまの本のページ数と合わない(古い結果)ときは null か省く。控えの「本文の刷り色」を分けるのに使う
+   */
+  colorPages?: { count: number; total: number } | null;
+  /** 会社の本文用紙・表紙用紙(用紙の一覧を持つ会社だけ。ほかは null) */
+  papers: { body: PrinterPaper; cover: PrinterPaper } | null;
+  /**
+   * ページ数。数え終わっていなければ null(そのときは pagesPending を出す)。
+   * body は表紙を除いた数(共紙の表紙の4ページは引いてある)、pdf は本文 PDF の総ページ数。どちらも白いページを含む
+   */
+  pages: { body: number; pdf: number; estimated: boolean } | null;
+  /** 数え終わっていないときに、ページ数の行へ出す値と注(共通の言い方) */
+  pagesPending: { value: string; note: string };
+  /** ページ数をそろえるために足した白いページの数(中綴じの 4 の倍数・無線綴じの偶数) */
+  padPages: number;
+  /** 奥付(著者紹介)のページがあるか。白いページは、あれば奥付の手前、無ければ最後に入る */
+  hasColophon: boolean;
+  /** 塗り足しの行(共通の言い方) */
+  bleed: { label: string; value: string; note: string };
+  /** 背幅(無線綴じで、ページ数が出ているときだけ。中綴じは null) */
+  spine: { mm: number; fromPrinter: boolean } | null;
 }
 
 export const PRINT_TARGETS: Record<PrintTarget, PrintTargetProfile> = {
@@ -624,6 +699,13 @@ export interface Plate {
    * 文字ではない模様を文字と見たとき・分かったうえでそのまま出すときのための逃げ道。絵を差し替えたら消す
    */
   textOk?: boolean;
+  /**
+   * **カラーの本で、この絵を白黒(K だけ)で刷る。**(2026-10-12 1.1.0。修正リストの 4-6)
+   * 紙の組版では灰色の写しに差し替える(models/printColor.ts)。EPUB は元の絵のまま。白黒の本では見ない(絵はすべて白黒)
+   */
+  printMono?: boolean;
+  /** 組む直前に灰色の写しへ差し替えた印(models/printColor.ts が付ける。**保存しない**)。組版の CSS が filter を掛けないため */
+  grayCopy?: boolean;
   /**
    * 絵を置かない、**わざと空けた1ページ**。src は空になる。
    *
@@ -939,6 +1021,8 @@ export interface BgSpec {
    * 申告を求めているので、「04 書き出し」に申告の行を出すための判定に使う
    */
   fromPreset?: boolean;
+  /** カラーの本で、この面の絵を白黒で刷る(Plate.printMono と同じ。2026-10-12 1.1.0)。絵を継いでいる面は本文の地の印に従う */
+  printMono?: boolean;
 }
 
 /** BgSpec を本文の設定で埋めた、組版がそのまま使える値 */
@@ -1389,6 +1473,8 @@ export interface ProjectSettings {
    * 目印を隣に置くしかない(用途は BgSpec.fromPreset と同じ)
    */
   bodyBgFromPreset?: boolean;
+  /** カラーの本で、本文の地の絵を白黒で刷る(Plate.printMono と同じ。2026-10-12 1.1.0)。地を継いでいる大扉・目次・奥付・章・コラムにも効く */
+  bodyBgPrintMono?: boolean;
   /**
    * 本文の背景の濃さ 0〜1。上から白をかぶせて薄くする。
    * 表紙用の画像パックはそのまま敷くと本文が読めないので、既定は薄め。
@@ -1680,6 +1766,10 @@ export interface ImageBlock {
    * 文字ではない模様を文字と見たとき・分かったうえでそのまま出すときのための逃げ道。絵を差し替えたら消す
    */
   textOk?: boolean;
+  /** カラーの本で、この絵を白黒で刷る(Plate.printMono と同じ。2026-10-12 1.1.0) */
+  printMono?: boolean;
+  /** 組む直前に灰色の写しへ差し替えた印(Plate.grayCopy と同じ。**保存しない**) */
+  grayCopy?: boolean;
 }
 
 /**

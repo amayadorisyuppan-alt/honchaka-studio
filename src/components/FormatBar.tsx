@@ -894,6 +894,16 @@ export function FormatBar({
         : resetMark(chapterKey);
   const colPick = scoped<'columns', number>('columns', 'chapterColumns', settings.columns);
   const dropPick = scoped<'dropCap', number>('dropCap', 'chapterDropCap', 0);
+  /**
+   * 「段のあいだ」「段のあいだの線」の欄を出すか(2026-10-12 修正リスト 1)。
+   * 本全体が1段でも章だけ2段の本では、本全体の帯でも章の帯でも欄が出ず、どこからも
+   * 変えられなかった。組版は1段の本の中の段組みの章にも線を引く(typeset/css.ts)ので、
+   * 本全体・どれかの章のどちらかが2段以上なら、書き込み先は本全体のまま欄を出す
+   */
+  const anyChapterCols = Object.values(settings.chapterColumns ?? {}).some(
+    (n) => typeof n === 'number' && n > 1,
+  );
+  const showGapFields = byChapter ? colPick.value > 1 : settings.columns > 1 || anyChapterCols;
 
   /**
    * 章ごとの設定を1つ書き換える。**undefined を渡すと章ごと落として全体に戻る。**
@@ -1906,7 +1916,7 @@ export function FormatBar({
                   ))}
                 </select>
               </label>
-              {colPick.value > 1 && !byChapter && (
+              {showGapFields && (
                 <>
                   <label>
                     段のあいだ
@@ -1936,13 +1946,16 @@ export function FormatBar({
                       <option value="on">引く</option>
                     </select>
                   </label>
+                  {byChapter && colPick.value > 1 && (
+                    <p className="hint">
+                      段のあいだの幅と線は<b>本全体でひとつ</b>です
+                      （幅はこの章の行送りで引き直されます）
+                    </p>
+                  )}
+                  {!byChapter && settings.columns <= 1 && (
+                    <p className="hint">段組みにした章にだけ使われます</p>
+                  )}
                 </>
-              )}
-              {colPick.value > 1 && byChapter && (
-                <p className="hint">
-                  段のあいだの幅と線は<b>本全体でひとつ</b>です
-                  （幅はこの章の行送りで引き直されます）
-                </p>
               )}
             </>
           ) : (

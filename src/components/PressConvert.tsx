@@ -50,6 +50,11 @@ interface Props extends PressConvertOptions {
    * 2段の箱(PaperBodyExport)が、②の状態を箱の頭に出すため(2026-10-03)
    */
   onConverted?: (name: string | null) => void;
+  /**
+   * 変換で数えたカラーのページの数と全ページ数を、親に知らせる(終わっていなければ null)。
+   * 出し先の控え(orderSheet)の「本文の刷り色」を分けるのに使う(2026-10-12 修正リスト 4-4)
+   */
+  onColorPages?: (r: { count: number; total: number } | null) => void;
   /** カラーのページの一覧の下に添える一言(出し先で違う。PRINT_TARGETS の colorPagesNote)。省くと見積りの話 */
   colorPagesNote?: string;
 }
@@ -59,7 +64,7 @@ function looksLikePdf(f: File): boolean {
   return f.type === 'application/pdf' || /\.pdf$/i.test(f.name);
 }
 
-export function PressConvert({ optional = false, glow = false, attention = false, onConverted, colorPagesNote, ...opts }: Props) {
+export function PressConvert({ optional = false, glow = false, attention = false, onConverted, onColorPages, colorPagesNote, ...opts }: Props) {
   const { state, running, kind, fileName, color, run } = usePressConvert(opts);
   const fileRef = useRef<HTMLInputElement>(null);
   const [over, setOver] = useState(false);
@@ -69,6 +74,12 @@ export function PressConvert({ optional = false, glow = false, attention = false
   useEffect(() => {
     onConverted?.(doneName);
   }, [doneName]); // eslint-disable-line react-hooks/exhaustive-deps
+  // 数えたカラーのページ(終わっていなければ -1)。数で見て、同じ結果で何度も親を揺らさない
+  const doneColor = state.kind === 'done' ? state.result.colorPages.length : -1;
+  const doneTotal = state.kind === 'done' ? state.result.pages : 0;
+  useEffect(() => {
+    onColorPages?.(doneColor >= 0 ? { count: doneColor, total: doneTotal } : null);
+  }, [doneColor, doneTotal]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function take(f: File | undefined) {
     if (!f || running) return;

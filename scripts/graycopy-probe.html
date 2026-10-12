@@ -1,0 +1,31 @@
+<!doctype html>
+<!--
+  紙PDFの検査台(scripts/graycopy-probe.ts)。**アプリの「紙に出す」と同じ道を、iframe なしで再現する。**
+  exporters/print.ts が呼ぶ Vivliostyle の printHTML は、この構造の iframe を作って
+  中で組版し、iframe.print() を呼ぶ(node_modules/@vivliostyle/core の printHTML を写した)。
+  headless では print() が動かないので、同じ構造をトップレベルに置き、
+  Playwright の page.pdf() で「PDFに保存」の代わりをする。
+  開き方: http://localhost:5173/scripts/print-probe.html → title が PROBE-DONE になったら page.pdf()
+-->
+<html lang="ja" data-vivliostyle-paginated="true">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <base href="/" />
+    <title>PROBE-RUNNING</title>
+    <style>
+      html[data-vivliostyle-paginated] { width: 100%; height: 100%; }
+      html[data-vivliostyle-paginated] body,
+      html[data-vivliostyle-paginated] [data-vivliostyle-viewer-viewport] {
+        width: 100% !important;
+        height: 100% !important;
+      }
+      html[data-vivliostyle-paginated], html[data-vivliostyle-paginated] body { margin: 0; padding: 0; }
+    </style>
+    <style id="vivliostyle-page-rules"></style>
+  </head>
+  <body>
+    <div id="vivliostyle-viewer-viewport"></div>
+    <script type="module" src="/scripts/graycopy-probe.ts"></script>
+  </body>
+</html>

@@ -15,6 +15,9 @@ import { safeFileStem, toProjectFile } from '../project/file';
 import { downloadBlob } from '../exporters/download';
 import { useProject } from '../store/useProject';
 import { APP_VERSION } from '../version';
+import { EDITION } from '../edition';
+import { ReportCopy } from './ReportCopy';
+import { reportText } from './reportText';
 
 interface Props {
   children: ReactNode;
@@ -70,8 +73,20 @@ export class ErrorBoundary extends Component<Props, State> {
           </div>
           {/* バージョンも添える。報告をもらったとき、どの版の話かが分かる(修正リストの 5。2026-10-12) */}
           <p className="crash-detail">
-            {this.state.error.message}（バージョン {APP_VERSION}）
+            {/* 外側が括弧なので、版の印は「・」でつなぐ(「（バージョン 1.1.0（○○版））」と二重にしない) */}
+            {this.state.error.message}（バージョン {APP_VERSION}{EDITION.versionMark ? `・${EDITION.versionMark}` : ''}）
           </p>
+          {/* 報告フォームに貼る文をコピーする(2026-10-12 修正リスト 5)。バージョン・ブラウザ・OS・エラーの文だけで、原稿や書名は入らない */}
+          <ReportCopy
+            getText={() =>
+              reportText({
+                version: APP_VERSION,
+                mark: EDITION.versionMark,
+                userAgent: navigator.userAgent,
+                errorMessage: this.state.error?.message ?? '',
+              })
+            }
+          />
         </div>
       </div>
     );

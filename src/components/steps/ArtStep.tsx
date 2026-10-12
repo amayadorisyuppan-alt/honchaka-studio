@@ -27,6 +27,7 @@ import type { LayoutInfo } from '../../preview/VivliostylePreview';
 import { BackgroundPicker, bgSurfaceProps } from '../BackgroundPicker';
 import { ColumnPageEditor } from '../ColumnPageEditor';
 import { PlateEditor } from '../PlateEditor';
+import { bgMonoProps, PrintMonoToggle, type ColorLook } from '../PrintMonoToggle';
 import { Fold } from '../Fold';
 import { ShopFoot } from '../ShopFoot';
 import { FrogPeek } from '../FrogMark';
@@ -129,6 +130,10 @@ interface Props {
   setSettings: (patch: Partial<ProjectSettings>) => void;
   /** 章の途中の絵を書き換える(原稿の章ごと差し替える。元に戻せる。undoKey は PlateEditor 参照) */
   setChapters: (chapters: Chapter[], undoKey?: string) => void;
+  /** 絵ごとの「白黒で刷る」を出すか(カラーの紙の本だけ。2026-10-12 1.1.0。修正リストの 4-6) */
+  printColor?: boolean;
+  /** 白黒に見える絵・ごく淡い色の絵(鍵は plate:id / img:鍵 / bg:面。models/printColor.ts の colorLookRows) */
+  colorRows?: ReadonlyMap<string, ColorLook>;
 }
 
 export function ArtStep({
@@ -151,6 +156,8 @@ export function ArtStep({
   onShowPaper,
   setSettings,
   setChapters,
+  printColor = false,
+  colorRows,
 }: Props) {
   const [pane, setPaneRaw] = useState<Pane>(() =>
     outputsOf(settings).paper ? 'background' : 'plates',
@@ -242,6 +249,13 @@ export function ArtStep({
     const props = bgSurfaceProps(spec, write);
     return {
       ...props,
+      // 白黒で刷る(カラーの紙の本だけ。4-6)。鍵は colorLookRows の bg:面
+      ...bgMonoProps(spec, write, {
+        printColor,
+        look: colorRows?.get(`bg:${key}`),
+        bodyHasImage: Boolean(settings.bodyBg),
+        bodyMono: Boolean(settings.bodyBgPrintMono),
+      }),
       onChange: (next: BgSpec | undefined) => {
         props.onChange(next);
         jump(page);
@@ -368,6 +382,8 @@ export function ArtStep({
             spreadNotes={spreadNotes}
             printTargetLabel={printTargetLabel}
             binding={bindingOf(settings)}
+            printColor={printColor}
+            colorRows={colorRows}
             only="plates"
             spotlight={
               focusPane?.pane === 'plates' && focusPane.spot?.length
@@ -433,6 +449,8 @@ export function ArtStep({
             onFollow={(id) => onFollow?.('colpage', id)}
             highlightId={justAddedId}
             ebookView={ebookView}
+            printColor={printColor}
+            colorRows={colorRows}
           />
         </>
       )}
@@ -491,12 +509,27 @@ export function ArtStep({
                   : undefined
               }
               onChange={(spec) => {
-                setSettings({ bodyBg: spec?.src, bodyBgFromPreset: spec?.fromPreset });
+                // 絵を外したら、白黒で刷る印も外す(印は本文全体の絵についての指定)
+                setSettings({
+                  bodyBg: spec?.src,
+                  bodyBgFromPreset: spec?.fromPreset,
+                  ...(spec?.src ? {} : { bodyBgPrintMono: undefined }),
+                });
                 jump(bodyShownAt);
                 onBarScope?.('book');
               }}
               open={openBg === 'body'}
               onOpenChange={openFor('body', bodyShownAt)}
+              mono={printColor && !!settings.bodyBgPrintMono}
+              extra={
+                printColor && settings.bodyBg ? (
+                  <PrintMonoToggle
+                    checked={!!settings.bodyBgPrintMono}
+                    onChange={(v) => setSettings({ bodyBgPrintMono: v || undefined })}
+                    look={colorRows?.get('bg:body')}
+                  />
+                ) : undefined
+              }
             />
           )}
 

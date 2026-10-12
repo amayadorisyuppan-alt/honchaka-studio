@@ -21,6 +21,7 @@ import { computeLayout, fitColumnPage } from '../typeset/grid';
 import type { LayoutInfo } from '../preview/VivliostylePreview';
 import { positionLabel } from './PlateEditor';
 import { BackgroundPicker } from './BackgroundPicker';
+import { bgMonoProps, type ColorLook } from './PrintMonoToggle';
 import { TYPING_COMMITTED, TYPING_FLUSH, TYPING_REVERTED } from './typingEvents';
 
 interface Props {
@@ -42,6 +43,10 @@ interface Props {
   onFollow?: (id: string) => void;
   /** 右の下見が電子書籍か。「◯ページ目（見る）」を「電子の下見で見る」に替える */
   ebookView?: boolean;
+  /** 地の絵の「白黒で刷る」を出すか(カラーの紙の本だけ。2026-10-12 1.1.0。修正リストの 4-6) */
+  printColor?: boolean;
+  /** 白黒に見える絵・ごく淡い色の絵(鍵は bg:col-コラムの id) */
+  colorRows?: ReadonlyMap<string, ColorLook>;
 }
 
 /**
@@ -164,8 +169,18 @@ export function ColumnPageEditor({
   highlightId,
   onFollow,
   ebookView = false,
+  printColor = false,
+  colorRows,
 }: Props) {
   const pages = settings.columnPages ?? [];
+  /** 地の絵の「白黒で刷る」(4-6)。本文全体の絵を継いでいるコラムは、本文全体の欄で選ぶことを言う */
+  const monoFor = (c: ColumnPage) =>
+    bgMonoProps(c.bg, (spec) => patch(c.id, { bg: spec }), {
+      printColor: printColor && !ebookView,
+      look: colorRows?.get(`bg:col-${c.id}`),
+      bodyHasImage: Boolean(settings.bodyBg),
+      bodyMono: Boolean(settings.bodyBgPrintMono),
+    });
   /**
    * 作るもの。**組み方向の切り替えと「1ページに収まるか」は紙の本だけの話。**(2026-09-23 ユーザー指摘
    * 「電子書籍は縦読みと横読み、どちらか一つしか対応しないんじゃない？」)。EPUB ではコラムも本文と
@@ -246,6 +261,7 @@ export function ColumnPageEditor({
           value={bgCol.bg}
           onChange={(spec) => patch(bgCol.id, { bg: spec })}
           allowPlain
+          {...monoFor(bgCol)}
           open
           onOpenChange={(o) => setBgFor(o ? bgCol.id : null)}
         />
@@ -486,6 +502,7 @@ export function ColumnPageEditor({
                     value={c.bg}
                     onChange={(spec) => patch(c.id, { bg: spec })}
                     allowPlain
+                    {...monoFor(c)}
                     open={bgFor === c.id}
                     onOpenChange={(o) => setBgFor(o ? c.id : null)}
                   />

@@ -180,7 +180,14 @@ export function bgImageValue(src: string | undefined, opacity: number): string {
   const veil = (1 - Math.min(1, Math.max(0, opacity ?? 0.25))).toFixed(3);
   return src
     ? [
-        `linear-gradient(rgba(255,255,255,${veil}), rgba(255,255,255,${veil}))`,
+        /*
+         * **かぶせる白が要らない(濃さ 1)ときは、層を none にする。**(2026-10-12 1.1.0)
+         * 透明度 0 の白のグラデーションを、Chrome は「透明度 0 の黒」の計算式の影として PDF に書き、
+         * Ghostscript は CMYK にするとき、それを見えない4色の黒の部品(192×274 の画像)に変える。
+         * 刷りには出ないが C・M・Y を持つので、そのページがカラーと数えられた(絵を全部白黒にしても章の地のページが残った)。
+         * 層は消さずに none で残す(白黒の本の合成 bgBlendValue は3層を前提に並べている)
+         */
+        veil === '0.000' ? 'none' : `linear-gradient(rgba(255,255,255,${veil}), rgba(255,255,255,${veil}))`,
         `url("${assetUrl(src)}")`,
         PAPER,
       ].join(', ')
@@ -696,6 +703,15 @@ div.plate.spread.sp-b img { left: ${mm(-g.second.offset)}; }`;
    * 文庫は安全線(KDP 6.4mm)に阻まれて +1.56mm まで(紙の端から 6.48mm に字の下端が来る)。
    * 安全域の規定が KDP より狭い会社は、その出し先だけ安全線を PrintTargetProfile.safeAreaMm にする(SAFE_MM)。
    * 安全線の判定は行の箱ではなく**字の下端**(地は字下がり 0.2字、天は字の背 0.8字ぶん)で見る(markBaseMM)。
+   *
+   * ### ★★★★ ベースラインではなく字の下端でそろえる(2026-10-12 修正リスト 11)
+   *
+   * > 柱がノンブルと天ぞろえになっているが、地ぞろえに変える(2026-10-11 ユーザー。文庫・縦組み)
+   *
+   * ベースラインがそろっても、和文の字はベースラインより少し下へ出るので、柱の字の下端がノンブルより
+   * 0.14〜0.19mm 地の側に出て、上端のほうがそろって見えた。ノンブルの位置(markBaseMM)はそのままに、
+   * 柱だけを HEAD_INK_DROP ぶん持ち上げる。天に置いた本も同じ(字の下端 = 墨の、地の側の端)。
+   * 本文の行・ページ数は動かない(余白の枠の中の padding だけ)。
    */
   /**
    * 仕上がり端から、置いた字の下端(上端)まで確保する距離。
@@ -717,6 +733,16 @@ div.plate.spread.sp-b img { left: ${mm(-g.second.offset)}; }`;
   /** 行の箱の中心とベースラインの距離を字の大きさで割った値((ascent − descent) / 2)。和文の書体 / 既定のノンブル(Georgia) */
   const K_CJK = 0.43;
   const K_GEORGIA = 0.35;
+  /**
+   * 和文の字(かな・漢字)の墨が、ベースラインより下へ出る量(字の大きさに対する比)。
+   * ★ 2026-10-12 修正リスト 11。ユーザー(10/11 文庫・縦組み)「柱がノンブルと天ぞろえになっているが、地ぞろえに変える」。
+   * ノンブルの数字(Georgia の lining-nums も、和文の書体の数字も)はベースラインの上に立つが、和文の字は
+   * 少し下へ出る。ベースラインをそろえると、柱の字の下端がノンブルより 0.14〜0.19mm 地の側に出て、
+   * 上端がほぼそろう = 天ぞろえに見えた(scripts/check-footer.py の (a) で実測。文庫・A5、縦・横、地・天)。
+   * 柱だけをこのぶん持ち上げて、**字の下端(墨の、地の側の端)** をノンブルとそろえる。
+   * 実測の 0.062〜0.072字(章題の字で 0.08字まで)の真ん中を取った
+   */
+  const HEAD_INK_DROP = 0.07;
   /** ノンブルの字の大きさ(mm)。柱はその 0.75/0.85。位置は**ノンブルのベースライン**で決める */
   const markFsMM = s.fontPt * 0.85 * PT_TO_MM;
   /** 版面から最低これだけは離す。和書の定番「版面から1行ぶん前後」に合わせる */
@@ -735,7 +761,13 @@ div.plate.spread.sp-b img { left: ${mm(-g.second.offset)}; }`;
     const gap = Math.max(0, edgeMM * 0.4 - (markFsMM * 1.25) / 2 + MARK_EXTRA_MM, markMinGapMM);
     const want = edge === 'bottom' ? gap + markFsMM * 0.97 : gap + markFsMM * 0.28;
     // 天の字の背は 0.8字より少し高いことがある(長い柱に括弧や高い字が入ると実測 6.40mm ちょうどに届いた)ので 0.86字で見る
-    const room = edge === 'bottom' ? edgeMM - SAFE_MM - markFsMM * 0.2 : edgeMM - SAFE_MM - markFsMM * 0.86;
+    // 天では、持ち上げた柱(HEAD_INK_DROP)の字の背も見る。柱の字は 0.75/0.85 の大きさなので、いまの値では
+    // ノンブルの 0.86字のほうが高く、結果は変わらない(書体や値を変えたときの守り。2026-10-12 修正リスト 11)
+    const headTopMM = (markFsMM * 0.75) / 0.85 * (HEAD_INK_DROP + 0.9);
+    const room =
+      edge === 'bottom'
+        ? edgeMM - SAFE_MM - markFsMM * 0.2
+        : edgeMM - SAFE_MM - Math.max(markFsMM * 0.86, headTopMM);
     return Math.max(0, Math.min(room, want));
   };
   /**
@@ -760,18 +792,18 @@ div.plate.spread.sp-b img { left: ${mm(-g.second.offset)}; }`;
    * (実測: Vivliostyle の余白の枠では A5・横組み・地だけ、柱が丸ごと消える)ので、
    * 柱の字数を数えて「…」で省いてから渡す(runningHeadMaxChars / clipRunningHead)
    */
-  const anchorFor = (edge: 'top' | 'bottom', fsMM: number, k: number) =>
+  const anchorFor = (edge: 'top' | 'bottom', fsMM: number, k: number, liftMM = 0) =>
     edge === 'bottom'
       ? `
       vertical-align: bottom;
       line-height: 0;
       white-space: nowrap;
-      padding-bottom: ${mm(Math.max(0, bottomM - markBaseMM('bottom') + k * fsMM))};`
+      padding-bottom: ${mm(Math.max(0, bottomM - markBaseMM('bottom') + k * fsMM + liftMM))};`
       : `
       vertical-align: bottom;
       line-height: 0;
       white-space: nowrap;
-      padding-bottom: ${mm(markBaseMM('top') + k * fsMM)};`;
+      padding-bottom: ${mm(markBaseMM('top') + k * fsMM + liftMM)};`;
   /** 白黒で刷る本。絵も背景も文字もグレーになるので、画面とPDFもそのとおりに見せる */
   const mono = s.ink === 'mono';
   /** 利用者が選んだ色を、刷り色の設定に合わせて通す。白黒ならグレーへ落とす */
@@ -828,10 +860,21 @@ div.plate.spread.sp-b img { left: ${mm(-g.second.offset)}; }`;
       font-variant-numeric: lining-nums;
       font-size: ${pt(s.fontPt * 0.85)};
       color: ${ink(s.textColor) ?? '#000'};`;
+  /**
+   * 柱。ノンブルと**字の下端**をそろえる(HEAD_INK_DROP ぶん持ち上げる)。
+   *
+   * **Chrome の約物の詰め(text-spacing-trim)と和欧間の空き(text-autospace)を切る。**(2026-10-12 修正リスト 11)
+   * 柱に「、」「。」や英字が入るだけで、柱のベースラインが 0.20mm 天の側へ跳ねた(文庫・縦組みで実測。
+   * 「祖母と青い本」は跳ねず、「祖母と青い本、あの家」「祖母とABC」「、祖母と青い」は跳ねる。半角の空白では跳ねない)。
+   * 行の箱を点にした line-height: 0 の置き方が、この処理の入った行で崩れるとみられる。2つとも切ると、
+   * 3つとも跳ねなかった(どちらか片方だけで足りるかは試していない)。柱は1行の短い文なので、詰めない組みで困らない
+   */
   const headStyle = (edge: 'top' | 'bottom') => `
-    writing-mode: horizontal-tb;${anchorFor(edge, s.fontPt * 0.75 * PT_TO_MM, K_CJK)}${textOutline}
+    writing-mode: horizontal-tb;${anchorFor(edge, s.fontPt * 0.75 * PT_TO_MM, K_CJK, HEAD_INK_DROP * s.fontPt * 0.75 * PT_TO_MM)}${textOutline}
     font-family: ${headFamily};
     font-size: ${pt(s.fontPt * 0.75)};
+    text-spacing-trim: space-all;
+    text-autospace: no-autospace;
     color: #444;`;
 
   /**
@@ -1184,8 +1227,11 @@ p {
   orphans: 1;
   widows: 1;
 }
-${mono ? `/* 白黒で刷る本。挿絵も図版もグレーで出るので、画面とPDFもそのとおりにする */
-img { filter: grayscale(1); }
+${mono ? `/* 白黒で刷る本。挿絵も図版もグレーで出るので、画面とPDFもそのとおりにする。
+   **ブラウザで組むときは、絵を灰色の写しに差し替えてある**(gray-copy。models/printColor.ts)。filter を掛けると
+   Chrome が PDF で 300dpi に描き直すので、写しには掛けない(2026-10-12 1.1.0。修正リストの 4-1)。
+   写しが無いとき(node の検査・写しを作れなかった絵)だけ、前と同じ filter でグレーにする */
+img:not(.gray-copy) { filter: grayscale(1); }
 ` : ''}p.no-indent { text-indent: 0; }
 /* 挿絵を段落の途中に挟むと段落が2つに割れる。
    前半の最後の行に text-align-last: justify を掛けてはいけない。

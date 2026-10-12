@@ -13,12 +13,26 @@
 //   **拡大はしない**: 箱に入りきらない絵は縮め(細かさは画素 ÷ 箱の寸法)、箱より小さい絵はそのままの大きさ
 //   (CSS では 1px = 1/96 インチなので 96ppi。ここでは「ひどく粗い」として知らせる)
 //
-// 背景(章の地・紙の地)は対象にしない: 敷き方が cover・並べ・透かしと多様で、ぼやけても
-// 本文の裏で目立ちにくい。いつか要るなら、ここに「敷き方」を足す。
+// 背景(大扉・目次・奥付・章・コラムの地と、本文の地)は、**出し先が背景も測るときだけ**数える
+// (PrintTargetProfile.checksBackgroundPpi。2026-10-12 修正リスト 4-2)。ぼやけても本文の裏で目立ちにくいので、
+// ほかの出し先では今までどおり数えない。地はみな @page の背景として、塗り足し込みの用紙いっぱいに cover で敷く
+// (typeset/css.ts の bgLayer)ので、全面の挿絵と同じ式で測る。
+// 数えない地: 無地の面・濃さ 0 の面(白で覆いきって刷られない)・SVG の地(画素を持たない。pxSizeOfDataUri が null)。
+// 並べて敷く(タイル)・透かしの敷き方は、いまの組版には無い。足すときは、1枚の画素が1マスぶんに刷られるので
+// cover の式では測れない。そのときはここで数えないこと(測るなら、1マスの寸法で測る)。
 // 本文の中の絵の箱は、版面(段組みなら1段ぶん)で見る。キャプションや章ごとの段数の違いは見ないので、
 // 本文の中の ppi は「約」。
 
-import { PRINT_TARGETS, type Chapter, type Plate, type PlateSize, type PrintTarget } from './project';
+import {
+  PRINT_TARGETS,
+  resolveBg,
+  type BgSpec,
+  type Chapter,
+  type Plate,
+  type PlateSize,
+  type PrintTarget,
+  type ProjectSettings,
+} from './project';
 import { imageKey, imageSizeOf } from './inlineImages';
 import type { CoverSettings } from './cover';
 import { plateAreaMm, printAreaMm, type PageLayout } from '../typeset/grid';
@@ -116,11 +130,43 @@ export function fitWithin(px: PxSize, maxSide: number): PxSize {
 // ---- 本1冊ぶんを集める ----
 
 export interface ResolutionEntry {
-  /** 行の鍵。'plate:挿絵の id' / 'img:章:並び'(imageKey)/ 'cover:front|back|wrap' */
+  /** 行の鍵。'plate:挿絵の id' / 'img:章:並び'(imageKey)/ 'cover:front|back|wrap' / 'bg:…'(pageBackgrounds) */
   key: string;
   /** 「入稿前チェック」で数えるときの分け方 */
-  group: 'plate' | 'img' | 'cover';
+  group: 'plate' | 'img' | 'cover' | 'bg';
   verdict: ResolutionVerdict;
+}
+
+/** 用紙いっぱいに敷く背景の1枚。鍵は 'bg:body' / 'bg:title' / 'bg:toc' / 'bg:colophon' / 'bg:chapter:章' / 'bg:col:コラムの id' */
+export interface PageBackground {
+  key: string;
+  src: string;
+}
+
+/**
+ * 本の中で、用紙いっぱいに敷かれる背景の絵を集める。**同じ絵は1度だけ**(枚数は絵の数で言う)。(2026-10-12)
+ * 面ごとの絵を持たない面は本文の地を継ぐ(resolveBg)ので、その鍵は 'bg:body' にそろえる。
+ * 無地の面と、濃さ 0 の面(白で覆いきる。css.ts の bgLayer)は刷られないので入れない
+ * @param book その面がこの本にあるか(大扉は書名があるとき・目次は目次を入れて章題があるとき・奥付は奥付か著者紹介があるとき)
+ */
+export function pageBackgrounds(
+  s: ProjectSettings,
+  book: { hasTitle: boolean; hasToc: boolean; hasColophon: boolean; chapters: number },
+): PageBackground[] {
+  const out: PageBackground[] = [];
+  const seen = new Set<string>();
+  const add = (key: string, spec: BgSpec | undefined) => {
+    const r = resolveBg(spec, s);
+    if (!r.src || !(r.opacity > 0) || seen.has(r.src)) return;
+    seen.add(r.src);
+    out.push({ key: spec?.src ? key : 'bg:body', src: r.src });
+  };
+  if (book.hasTitle) add('bg:title', s.titleBg);
+  if (book.hasToc) add('bg:toc', s.tocBg);
+  for (let i = 0; i < book.chapters; i++) add(`bg:chapter:${i}`, s.chapterBg?.[i]);
+  for (const c of s.columnPages ?? []) add(`bg:col:${c.id}`, c.bg);
+  if (book.hasColophon) add('bg:colophon', s.colophonBg);
+  return out;
 }
 
 export interface CollectInput {
@@ -129,6 +175,11 @@ export interface CollectInput {
   layout: PageLayout;
   /** 紙の表紙。紙の本を作らないときは渡さない */
   cover?: { settings: Pick<CoverSettings, 'background' | 'backCover' | 'wrap'>; layout: CoverLike } | null;
+  /**
+   * 用紙いっぱいに敷く背景(pageBackgrounds)。**出し先が背景も測るとき(checksBackgroundPpi)だけ渡す**。
+   * 全面の挿絵と同じく、塗り足し込みの用紙に cover で敷いた細かさで測る
+   */
+  backgrounds?: readonly PageBackground[];
   /** 絵(src)→ 画素数。測れていない・測れなかった絵は入っていない(言わない) */
   sizes: ReadonlyMap<string, PxSize | null>;
   base: number;
@@ -140,7 +191,7 @@ export interface CollectInput {
  * 白ページ・絵の無い枠・SVG・まだ測れていない絵は飛ばす
  */
 export function collectResolution(input: CollectInput): ResolutionEntry[] {
-  const { plates, chapters, layout, cover, sizes, base } = input;
+  const { plates, chapters, layout, cover, sizes, base, backgrounds = [] } = input;
   const out: ResolutionEntry[] = [];
   const add = (key: string, group: ResolutionEntry['group'], ppi: number) => {
     const verdict = judgePpi(ppi, base);
@@ -171,6 +222,10 @@ export function collectResolution(input: CollectInput): ResolutionEntry[] {
       const px = src ? sizes.get(src) : null;
       if (px) add(`cover:${part}`, 'cover', coverPpi(px, cover.layout, part));
     }
+  }
+  for (const b of backgrounds) {
+    const px = sizes.get(b.src);
+    if (px) add(b.key, 'bg', placedPpi(px, layout, 'full'));
   }
   return out;
 }

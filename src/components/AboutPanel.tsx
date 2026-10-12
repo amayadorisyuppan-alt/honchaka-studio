@@ -22,6 +22,8 @@ import {
 import { EDITION } from '../edition';
 import { APP_VERSION } from '../version';
 import { FrogPeek } from './FrogMark';
+import { ReportCopy } from './ReportCopy';
+import { reportText, versionLabel } from './reportText';
 
 /** この版のソースの入手先。版が自分の入手先を持てばそちら(AGPL: 使っている版そのもののソースを示す) */
 const sourceUrl = EDITION.sourceUrl ?? SOURCE_URL;
@@ -88,7 +90,20 @@ export function AboutPanel({ onClose, section }: Props) {
               「版」は版面・版下と紛れるので「バージョン」と書く。公開版は GitHub の同じ名前のタグと対応する */}
           <div>
             <dt>バージョン</dt>
-            <dd>{APP_VERSION}</dd>
+            {/* 番号のあとに版の印(印を持つ版だけ)。報告に貼る文のコピーも置く(2026-10-12 修正リスト 5)。
+                文にはバージョン・ブラウザ・OS だけが入り、原稿や書名は入らない */}
+            <dd>
+              {versionLabel(APP_VERSION, EDITION.versionMark)}
+              <ReportCopy
+                getText={() =>
+                  reportText({
+                    version: APP_VERSION,
+                    mark: EDITION.versionMark,
+                    userAgent: navigator.userAgent,
+                  })
+                }
+              />
+            </dd>
           </div>
           <div>
             <dt>ソースコード</dt>

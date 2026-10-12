@@ -34,10 +34,14 @@ import {
   printAreaMm,
 } from '../typeset/grid';
 import { manuscriptHtml, padOfHtml, pageBoxesOfHtml } from '../typeset/html';
-import { saddleFindings, saddleOffNote, saddlePad as saddlePadOf } from '../typeset/saddle';
-import { saddleBlockReason } from './bodyOutput';
+import { SELF_COVER_PAGES, padToUnit, pageUnitOf, saddleFindings, saddleOffNote } from '../typeset/saddle';
+import { evenBlockReason, saddleBlockReason } from './bodyOutput';
 import { SPREAD_FOLD_SAFE_MM, spreadGeometry, spreadImageNotes } from '../typeset/spread';
 import { PRINT_MAX_SIDE, WRAP_MAX_SIDE } from '../images/optimize';
+import { grayCopyOf, prepareGrayCopies } from '../images/grayCopy';
+import { chromaOf, prepareChroma } from '../images/chroma';
+import { chromaSources, colorLookRows, grayCopySources, withGrayCopies } from '../models/printColor';
+import { PRINT_MONO_TEXT, type ColorLook } from './PrintMonoToggle';
 import { findTextOutside, overText, textMarksCss, textRowKey, textTargets, type TextFinding, type TextRowState } from '../textcheck/geometry';
 import { useDetectedText } from '../textcheck/useDetectedText';
 import { imageKey } from '../models/inlineImages';
@@ -58,6 +62,7 @@ import {
   coverPartAreaMm,
   fitWithin,
   imageCheckPrompt,
+  pageBackgrounds,
   resolutionIssueText,
 } from '../models/imageResolution';
 import { useImageSizes } from '../images/useImageSizes';
@@ -140,6 +145,18 @@ function isTyping(el: Element | null): boolean {
  * hold が下りた(欄を離れた・タブを離れた)瞬間に effect が張り直すので、
  * そこから ms 待って1回だけ流れる — 打っているあいだの編集は取りこぼさない
  */
+/**
+ * **中身が同じ一覧なら、前と同じ参照を返す。**(2026-10-12 1.1.0)
+ * 白黒で刷る絵の一覧(grayCopySources)は、原稿の1文字を直すたびに作り直されるが、中身はたいてい同じ。
+ * 参照が変わると写しの用意(effect)が毎回走るので、ここで止める。要素は絵の文字列(同じ絵は同じ文字列を指すので、比べるのは速い)
+ */
+function useSameArray<T>(next: T[]): T[] {
+  const ref = useRef(next);
+  const prev = ref.current;
+  if (prev !== next && (prev.length !== next.length || prev.some((v, i) => v !== next[i]))) ref.current = next;
+  return ref.current;
+}
+
 function useDebounced<T>(value: T, ms: number, hold = false): T {
   const [v, setV] = useState(value);
   useEffect(() => {
@@ -254,10 +271,15 @@ export function App() {
   /** 中綴じの共紙(表紙も本文と同じ紙。表1・表4 は本文 PDF の先頭と末尾のページに入る) */
   const selfCover = saddleOn && saddleCoverOf(settings) === 'self';
   /**
-   * 中綴じで、奥付の手前に入れている白いページの枚数。**保存しない画面の状態**(組み上がったページ数から決まる)。
-   * 4 の倍数にそろえる足し算は、下の「ノドの書き戻し」と同じ effect の中で、順番を決めて走らせる
+   * 本文のページ数をそろえる単位。中綴じは 4、無線綴じを偶数にそろえる出し先は 2、そろえない本は null(typeset/saddle.ts の pageUnitOf)
    */
-  const [saddlePadCount, setSaddlePadCount] = useState(0);
+  const padUnit = pageUnitOf(settings);
+  /**
+   * 中綴じ(と、無線綴じを偶数にそろえる出し先。2026-10-12)で、奥付の手前に入れている白いページの枚数。
+   * **保存しない画面の状態**(組み上がったページ数から決まる)。
+   * padUnit の倍数にそろえる足し算は、下の「ノドの書き戻し」と同じ effect の中で、順番を決めて走らせる
+   */
+  const [padCount, setPadCount] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
   // 入口画面の［続けて作る］から、トップバーと同じファイル選択を開く
   const projectBarRef = useRef<ProjectBarHandle>(null);
@@ -807,32 +829,76 @@ export function App() {
    * 作るものは塗り(paintNeutral)で固定してあるので、ここは生の設定から読む
    */
   const paperOn = outputsOf(settings).paper;
+  /**
+   * **カラーの本で「白黒で刷る」にした絵は、灰色の写しで組む。**(2026-10-12 1.1.0。修正リストの 4-6)
+   * 写し(src/images/grayCopy.ts)を作り終えるまでは下見を組まない(色のまま組んでから組み直さない)。
+   * 白黒の本の下見は、前と同じく塗りのパッチの filter で灰色にする(画面だけなので細かさは落ちない)。
+   * 紙の書き出し(handlePrintPdf)は、白黒の本の絵もすべて写しにしてから組む(4-1)
+   */
+  const previewGraySrcs = useSameArray(
+    useMemo(() => (settings.ink === 'mono' ? [] : grayCopySources(settings, manuscript)), [settings, manuscript]),
+  );
+  const [grayVersion, setGrayVersion] = useState(0);
+  const [grayPending, setGrayPending] = useState(false);
+  useEffect(() => {
+    const wait = prepareGrayCopies(previewGraySrcs);
+    if (!wait) {
+      setGrayPending(false);
+      return;
+    }
+    let alive = true;
+    setGrayPending(true);
+    void wait.then(() => {
+      if (!alive) return;
+      setGrayPending(false);
+      setGrayVersion((v) => v + 1);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [previewGraySrcs]);
+  const paperHeld = useMemo(
+    () => withGrayCopies(heldNeutral, heldManuscript, grayCopyOf),
+    // grayVersion: 写しができたら差し替え直す
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [heldNeutral, heldManuscript, grayVersion],
+  );
   const previewHtml = useMemo(
     // 書名・著者名は縦用と横用の両方を入れる(titleBothWays)。書名の向きは下見の塗りのパッチが選ぶので、
     // 縦横を切り替えても組み直さない(2026-10-03。紙の書き出しは下の handlePrintPdf で完全な設定から組む)
     // サンプルの絵を取りに行っているあいだは組まない(絵の無いサンプルを組んでから組み直さない。store の sampleArtLoading)
+    // 白黒で刷る絵の写しを作っているあいだも組まない(上の grayPending)
     () =>
-      loaded && paperOn && !sampleArtLoading
-        ? manuscriptHtml(heldManuscript, heldNeutral, fontFaceCss, {
+      loaded && paperOn && !sampleArtLoading && !grayPending
+        ? manuscriptHtml(paperHeld.manuscript, paperHeld.settings, fontFaceCss, {
             titleBothWays: true,
             // 中綴じ(2026-10-03): 奥付の手前に白いページを足して 4 の倍数にそろえる。共紙は、表1・表4 の仮の枠を先頭と末尾に入れる
-            // (絵は入れない。表紙を直すたびに本文を組み直さないため)。無線綴じは何も渡さず、組版HTMLは変わらない
-            ...(bindingOf(heldNeutral) === 'saddle'
+            // (絵は入れない。表紙を直すたびに本文を組み直さないため)。
+            // 無線綴じを偶数にそろえる出し先(2026-10-12)も、同じ白いページで偶数にそろえる。
+            // そろえない無線綴じは何も渡さず、組版HTMLは変わらない
+            ...(pageUnitOf(heldNeutral) !== null
               ? {
-                  padPages: saddlePadCount,
-                  ...(saddleCoverOf(heldNeutral) === 'self' ? { coverFaces: 'placeholder' as const } : {}),
+                  padPages: padCount,
+                  ...(bindingOf(heldNeutral) === 'saddle' && saddleCoverOf(heldNeutral) === 'self'
+                    ? { coverFaces: 'placeholder' as const }
+                    : {}),
                 }
               : {}),
           })
         : '',
-    [heldManuscript, heldNeutral, loaded, sampleArtLoading, fontFaceCss, paperOn, saddlePadCount],
+    [paperHeld, heldNeutral, loaded, sampleArtLoading, grayPending, fontFaceCss, paperOn, padCount],
   );
   /**
    * いまの塗り。組み上がっている紙面へ CSS の差し替えだけで重ねる(組版0回)。
    * 書き出しは常に完全な settings を通る(下の handlePrintPdf と各 exporter)ので、
-   * 画面だけ変わって出力に乗らない、という向きの事故は経路の形からして起きない
+   * 画面だけ変わって出力に乗らない、という向きの事故は経路の形からして起きない。
+   * 背景を「白黒で刷る」にした面は、灰色の写しで塗る(4-6。写しができたら塗り直す)
    */
-  const paintCss = useMemo(() => previewPaintCss(settings), [settings]);
+  const paintCss = useMemo(
+    () => previewPaintCss(withGrayCopies(settings, manuscript, grayCopyOf).settings),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [settings, manuscript, grayVersion],
+  );
   /**
    * 組版のもとになる HTML は、**手が止まるのを待ってから**渡す。(2026-08-22)
    *
@@ -1002,7 +1068,9 @@ export function App() {
    * 白いページは、**組み上がった紙面(paperPagesNow が出ているとき)から数え直す**:
    * 本文 n0 = 総ページ数 − 紙面に入っていた白いページ − 共紙の表紙(組んだ HTML の覚え書きから読む)、
    * 足す枚数 = (4 − n0 mod 4) mod 4。n0 は白いページに依らない(白いページは本文のあと)ので、書き戻しは1回で収まる。
-   * 本を直すたびの組み直しは、本文の1回と白いページの1回、多くて2回(薄い本が前提)
+   * 本を直すたびの組み直しは、本文の1回と白いページの1回、多くて2回(薄い本が前提)。
+   * 無線綴じを偶数にそろえる出し先(2026-10-12)も同じ足し算で、単位が 2(足すのは 0 か 1 枚)。
+   * 白いページはページ数を増やす向きにしか動かさないので、ノドの下限(ページ数が増えると上がる)と行き来しない
    */
   useEffect(() => {
     if (!pageCount) return;
@@ -1011,23 +1079,24 @@ export function App() {
       setSettings({ estimatedPages: pageCount });
       return;
     }
-    if (!saddleOn) {
-      if (saddlePadCount !== 0) setSaddlePadCount(0);
+    if (padUnit === null) {
+      if (padCount !== 0) setPadCount(0);
       return;
     }
     if (paperPagesNow === null) return;
     const marks = padOfHtml(layoutHtml);
-    // 覚え書きの無い紙面は、無線のときに組んだもの(まだ中綴じで組み直されていない)
+    // 覚え書きの無い紙面は、そろえないときに組んだもの(まだ白いページの覚え書きつきで組み直されていない)
     if (!marks) return;
-    const need = saddlePadOf(paperPagesNow - marks.pad - marks.cover, 'separate').pad;
-    if (need !== saddlePadCount) setSaddlePadCount(need);
+    const need = padToUnit(paperPagesNow - marks.pad - marks.cover, padUnit);
+    if (need !== padCount) setPadCount(need);
   }, [
     pageCount, estimatedPages, printTarget, printRules, settings.binding, setSettings,
-    saddleOn, saddlePadCount, paperPagesNow, layoutHtml,
+    padUnit, padCount, paperPagesNow, layoutHtml,
   ]);
   /**
    * 紙の本文を書き出せない理由(あれば。主ボタンを押せなくして、この文を出す)。**1か所**(PaperBodyExport → printBlockedReason)。
-   * 中綴じは、ページ数が決まり、4 の倍数にそろってからでないと書き出さない(そろわない PDF を印刷所へ渡さない)
+   * 中綴じは、ページ数が決まり、4 の倍数にそろってからでないと書き出さない(そろわない PDF を印刷所へ渡さない)。
+   * 無線綴じを偶数にそろえる出し先も、偶数にそろってから(控えのページ数・背幅と PDF を食い違わせない。2026-10-12)
    */
   /** 中綴じの本文のページ数(白いページ・共紙の表紙を含まない)。組み上がっているときだけ。ShapeStep の読み上げに使う */
   const saddleBodyPages = (() => {
@@ -1038,7 +1107,8 @@ export function App() {
   /** 奥付(著者紹介つき)のページがあるか。中綴じの白いページは、あれば奥付の手前、無ければ最後に入る */
   const hasColophon =
     (manuscript.title ? colophonRows(manuscript).length : 0) > 0 || authorProfileParagraphs(manuscript).length > 0;
-  const printBlockReason: string | null = !paperOn || !saddleOn ? null : saddleBlockReason(paperPagesNow);
+  const printBlockReason: string | null =
+    !paperOn || padUnit === null ? null : saddleOn ? saddleBlockReason(paperPagesNow) : evenBlockReason(paperPagesNow);
   /**
    * 下見に重ねる CSS。塗りのパッチ(paintCss)に、**「印刷所の決まり」の欄に触っているあいだだけ**
    * 塗り足し・ノドの帯の色づけを足す(2026-10-01)。組版は走らない(同じ <style> の書き換えだけ)。
@@ -1257,12 +1327,18 @@ export function App() {
         faces = await coverRef.current?.renderFaces({ w: layout.paperW, h: layout.paperH });
         if (!faces) throw new Error('共紙の表紙の画像を作れませんでした。［表紙をつくる］で表紙を確かめてから、もう一度押してください');
       }
+      // **白黒で刷る絵は、灰色の写しにしてから組む。**(2026-10-12 1.1.0。修正リストの 4-1・4-6)
+      // 白黒の本は絵をすべて、カラーの本は「白黒で刷る」にした絵だけ。CSS の filter を使わないので、絵は元の細かさのまま PDF に入る
+      const graying = prepareGrayCopies(grayCopySources(settings, manuscript));
+      if (graying) await graying;
+      const paper = withGrayCopies(settings, manuscript, grayCopyOf);
       await printToPdf(
         manuscriptHtml(
-          manuscript,
-          settings,
+          paper.manuscript,
+          paper.settings,
           fontFaceCss,
-          saddleOn ? { padPages: saddlePadCount, ...(faces ? { coverFaces: faces } : {}) } : {},
+          // 白いページは下見と同じ枚数(中綴じの 4 の倍数・無線綴じを偶数にそろえる出し先の 2 の倍数)
+          padUnit !== null ? { padPages: padCount, ...(faces ? { coverFaces: faces } : {}) } : {},
         ),
         `${safeFileStem(manuscript.title, '本')}_本文`,
         // 章・コラムだけの帯(ページの箱ごと差し替える。下見の paint.ts と同じ規則)
@@ -1336,7 +1412,9 @@ export function App() {
     totalChars > 0 && manuscript.chapters.length === 1 && !manuscript.chapters[0].title;
 
   const pageCapacity = layout.charsPerLine * layout.linesPerPage;
-  const estPages = Math.max(8, Math.ceil((totalChars / Math.max(1, pageCapacity)) * 1.15) + 4);
+  const estPagesRaw = Math.max(8, Math.ceil((totalChars / Math.max(1, pageCapacity)) * 1.15) + 4);
+  // 無線綴じを偶数にそろえる出し先は、概算も偶数に上げる(控えの「（概算）」と背幅の目安を、組み上がりと同じ数え方にする。2026-10-12)
+  const estPages = !saddleOn && padUnit !== null ? estPagesRaw + padToUnit(estPagesRaw, padUnit) : estPagesRaw;
 
   /**
    * **絵の細かさ(ppi)が、出し先の目安に届いているか。知らせるだけで、止めない。**(2026-10-03 ユーザー判断
@@ -1344,14 +1422,36 @@ export function App() {
    * 紙の本のときだけ。挿絵・章の途中の絵・表紙の絵を、組版が実際に置く実寸で数える(models/imageResolution.ts)。
    * 画素数は絵の頭から読む(描かない)。測れない形式の絵だけ、<img> に読ませて測る
    */
+  /**
+   * 用紙いっぱいに敷く背景(大扉・目次・奥付・章・コラムの地と、本文の地)。**出し先が背景も測るとき(checksBackgroundPpi)だけ**
+   * 数える(2026-10-12 修正リスト 4-2)。同じ絵は1度だけ(models/imageResolution.ts の pageBackgrounds)
+   */
+  const resBgs = useMemo(
+    () =>
+      paperOn && PRINT_TARGETS[settings.printTarget]?.checksBackgroundPpi
+        ? pageBackgrounds(settings, {
+            hasTitle: !!manuscript.title,
+            hasToc: !!settings.toc && manuscript.chapters.some((ch) => ch.no || ch.title),
+            hasColophon,
+            chapters: manuscript.chapters.length,
+          })
+        : [],
+    // 背景にかかわる欄だけで作り直す(設定のほかの欄を変えるたびに作り直さない)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      paperOn, settings.printTarget, settings.bodyBg, settings.bgOpacity, settings.titleBg, settings.tocBg,
+      settings.colophonBg, settings.chapterBg, settings.columnPages, settings.toc, manuscript.title, manuscript.chapters, hasColophon,
+    ],
+  );
   const resSrcs = useMemo(() => {
     if (!paperOn) return [] as string[];
     const out: string[] = [];
     for (const p of settings.plates ?? []) if (!p.blank && p.src) out.push(p.src);
     for (const ch of manuscript.chapters) for (const b of ch.blocks) if (typeof b === 'object' && b !== null && b.type === 'image' && b.src) out.push(b.src);
     for (const v of [cover.wrap, cover.background, cover.backCover]) if (v?.kind === 'image' && v.src) out.push(v.src);
+    for (const b of resBgs) out.push(b.src);
     return out;
-  }, [paperOn, settings.plates, manuscript.chapters, cover.wrap, cover.background, cover.backCover]);
+  }, [paperOn, settings.plates, manuscript.chapters, cover.wrap, cover.background, cover.backCover, resBgs]);
   const resSizes = useImageSizes(resSrcs);
   /**
    * **絵の色の一覧(色の欄の ▾ から開く。2026-10-03)。** スポイトは表紙のマスクで色が取れないので、絵から数えた色を並べる。
@@ -1394,12 +1494,40 @@ export function App() {
             cover: { settings: cover, layout: resCoverLayout },
             sizes: resSizes,
             base: basePpiOf(settings.printTarget),
+            backgrounds: resBgs,
           })
         : [],
-    [paperOn, settings.plates, manuscript.chapters, layout, cover, resCoverLayout, resSizes, settings.printTarget],
+    [paperOn, settings.plates, manuscript.chapters, layout, cover, resCoverLayout, resSizes, settings.printTarget, resBgs],
   );
   /** 左の欄の、絵の行ごとに出す細かさ(鍵は textRows と同じ plate:id / img:鍵) */
   const resRows = useMemo(() => new Map(resEntries.map((e) => [e.key, e.verdict])), [resEntries]);
+  /**
+   * **カラーの紙の本で、絵ごとに「白黒で刷る」を選べる。**(2026-10-12 1.1.0。修正リストの 4-6)
+   * 白黒に見えるのに色の情報を持つ絵・ごく淡い色の絵を、色のずれ(images/chroma.ts。縮めて測る)で見分けて、
+   * 絵の行と「直すところ」で知らせる(鍵は plate:id / img:鍵 / bg:面)。測り終えたら知らせを作り直す
+   */
+  const printColorOn = paperOn && settings.ink !== 'mono';
+  const chromaSrcs = useSameArray(
+    useMemo(() => (printColorOn ? chromaSources(settings, manuscript) : []), [printColorOn, settings, manuscript]),
+  );
+  const [chromaVersion, setChromaVersion] = useState(0);
+  useEffect(() => {
+    const wait = prepareChroma(chromaSrcs);
+    if (!wait) return;
+    let alive = true;
+    void wait.then(() => {
+      if (alive) setChromaVersion((v) => v + 1);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [chromaSrcs]);
+  const colorRows = useMemo(
+    () => (printColorOn ? colorLookRows(settings, manuscript, chromaOf) : new Map<string, ColorLook>()),
+    // chromaVersion: 測り終えたら作り直す
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [printColorOn, settings, manuscript, chromaVersion],
+  );
   /**
    * 手持ちの絵の細かさを、チャットの AI に確かめてもらう頼み方(［AI に手直ししてもらう］の［画像を入れる・差し替える］)。
    * **要る画素数はスタジオが出す**(画面下の読み値の「画像 全面・本文内」と同じ計算。表紙はいまのページ数の背幅で)。
@@ -2092,8 +2220,10 @@ export function App() {
     if (makesPaper && resEntries.length > 0) {
       const label = PRINT_TARGETS[settings.printTarget].label;
       const worstOf = (es: typeof resEntries) => es.reduce((a, b) => (b.verdict.ppi < a.verdict.ppi ? b : a)).verdict;
-      const body = resEntries.filter((e) => e.group !== 'cover');
+      const body = resEntries.filter((e) => e.group === 'plate' || e.group === 'img');
       const cov = resEntries.filter((e) => e.group === 'cover');
+      // 用紙いっぱいに敷く背景(出し先が背景も測るときだけ入っている。2026-10-12)
+      const bgs = resEntries.filter((e) => e.group === 'bg');
       if (body.length > 0) {
         // **どの画像の話かを、飛んだ先で示す。**(2026-10-09 ユーザー指摘「どの挿絵の話なのかがわからない」)
         // 鍵を渡すと、挿絵の一覧がその行を枠で囲み、上に一覧の札を出す(PlateEditor の spotlight)
@@ -2115,6 +2245,41 @@ export function App() {
           goto: { label: '→ 表紙をつくる', run: () => setStep('cover') },
         });
       }
+      if (bgs.length > 0) {
+        list.push({
+          text: resolutionIssueText(bgs.length, worstOf(bgs), label, '背景の画像'),
+          // 画像の工程は、紙の本なら背景の面から開く(ArtStep の既定)。前に挿絵の面へ飛んだ覚えが残っていると
+          // そちらが開くので、消してから移る
+          goto: {
+            label: '→ 背景を開く',
+            run: () => {
+              setPreviewMode('paper');
+              setArtFocus(null);
+              setStep('art');
+            },
+          },
+        });
+      }
+    }
+    // 白黒に見える絵・ごく淡い色の絵(カラーの紙の本だけ。2026-10-12 1.1.0。修正リストの 4-6)。
+    // **知らせるだけ。** 白黒で刷るかは絵ごとに利用者が選ぶ(黙って変えない・勧めない。10/10 ユーザー決定)。
+    // 挿絵と章の途中の絵があれば、その行を枠で囲む(解像度の知らせと同じ spotlight)。背景だけなら背景の面へ
+    if (makesPaper && colorRows.size > 0) {
+      const spot = [...colorRows.keys()].filter((k) => k.startsWith('plate:') || k.startsWith('img:'));
+      list.push({
+        text: PRINT_MONO_TEXT.issue(colorRows.size),
+        goto:
+          spot.length > 0
+            ? {
+                label: toPlates.label,
+                run: () => {
+                  setPreviewMode('paper');
+                  setStep('art');
+                  setArtFocus({ pane: 'plates', seq: Date.now(), spot });
+                },
+              }
+            : { label: '→ 本文に画像とコラムを入れる', run: () => setStep('art') },
+      });
     }
     // Word は Excel・PowerPoint から貼った絵や図表を EMF / WMF で持つことがある。
     // <img> は出来るのにブラウザが描けないので、**黙って絵が消える**という壊れ方をする。
@@ -2205,9 +2370,17 @@ export function App() {
     settings.makeEbook, settings.printTarget, settings.printRules, settings.fontPt, settings.trim,
     settings.binding, settings.saddleCover, saddleOn, paperPagesNow,
     cover.spineMmFromPrinter, cover.spineMmPages,
-    textFindings, textUnchecked, textChecking, resEntries,
+    textFindings, textUnchecked, textChecking, resEntries, colorRows,
   ]);
 
+  /**
+   * 入稿用の変換(PressConvert)で数えた、カラーのページの数と全ページ数。まだ変換していなければ null。
+   * 出し先の控え(orderSheet)の「本文の刷り色」を分けるのに使う(2026-10-12 修正リスト 4-4)。
+   * 古い結果は、控えを組むところで「いまの本のページ数と合うか」で見分ける。
+   * 書き出しの工程を開いたまま別の本を開いたときは、ページ数が同じでも前の本の数なので捨てる(見直しの指摘)
+   */
+  const [pressColorPages, setPressColorPages] = useState<{ count: number; total: number } | null>(null);
+  useEffect(() => setPressColorPages(null), [settings.bookId]);
   /**
    * KDP の入稿画面で選ぶ値。**ここに塗り足し込みの寸法を出してはいけない。**
    * トリムサイズ欄は仕上がり寸法を入れるところなので、塗り足し込みの数字を見せると
@@ -2273,101 +2446,145 @@ export function App() {
     const kdpAsks = paperAsksAi || (out.ebook && settings.epubTarget === 'kdp');
     // 共紙の中綴じは、表紙の4ページも本文 PDF に入る。「表紙を除く」と言う会社の項目名のままだと、数字と食い違う
     const pagesLabel = selfCover ? 'ページ数（表紙の4ページを含む）' : (profile.specLabels?.pages ?? 'ページ数');
-    const paperRows: Spec[] = [
-      {
-        label: profile.specLabels?.trim ?? '判型（トリムサイズ）',
-        value: `${trim.w} × ${trim.h} mm`,
-        note: `${trim.label.replace(/\s+\d+×\d+$/, '')}・${
-          settings.writingMode === 'vertical' ? '縦書き（右綴じ）' : '横書き（左綴じ）'
-        }`,
-      },
-      // 用紙の一覧を持つ会社は、刷り色と、注文のときに書く本文用紙・表紙用紙を分けて出す
-      ...(ownPapers
-        ? [
-            { label: profile.inkPaperLabel, value: settings.ink === 'mono' ? '白黒' : 'カラー' },
-            { label: '本文用紙', value: ownPapers.body.label },
-            ...(saddleOn ? [] : [{ label: '表紙用紙', value: ownPapers.cover.label }]),
-          ]
-        : [
-            {
-              label: profile.inkPaperLabel,
-              value:
-                settings.ink === 'mono' ? `白黒・${PAPER_TYPES[paper].label}` : PAPER_TYPES[paper].label,
-            },
-          ]),
-      // 注文の項目に「綴じ方」がある会社(specLabels.binding)だけ。いま作れる綴じ方は無線綴じ
-      // 無線綴じか中綴じか。発注書に「綴じ方」がある会社のほか、中綴じのときは、どの印刷所でも出す(2026-10-03)
-      ...(profile.specLabels?.binding || saddleOn
-        ? [
-            {
-              label: profile.specLabels?.binding ?? '綴じ方',
-              value: saddleOn ? (selfCover ? '中綴じ（表紙も本文と同じ紙＝共紙）' : '中綴じ（表紙は別の紙）') : '無線綴じ',
-              note: saddleOn ? '真ん中をホチキスで留めます' : undefined,
-            },
-          ]
-        : []),
-      // 注文の項目に「綴じ方向」がある会社(specLabels.direction。ノドの検査に使う)
-      ...(profile.specLabels?.direction
-        ? [
-            {
-              label: profile.specLabels.direction,
-              value: settings.writingMode === 'vertical' ? '右綴じ' : '左綴じ',
-              note: settings.writingMode === 'vertical' ? '縦書きの本' : '横書きの本',
-            },
-          ]
-        : []),
-      // 中綴じの表紙用紙(出し先に決まりがあるときだけ。共紙には表紙の紙が別に無い)
-      ...(saddleOn && !selfCover && saddleSpec?.coverPaperNote
-        ? [{ label: '表紙用紙（中綴じ）', value: saddleSpec.coverPaperNote, note: `${profile.label}の入稿ガイドの決まりです` }]
-        : []),
-      // 印刷所の決まりが入っている本は、入っている塗り足しの幅とノド側の有無まで言う
-      // (KDP と、決まりをまだ入れていない本は従来の文。2026-10-01)。
-      // **呼び名は［本のかたちを決める］の欄と同じ「塗り足し」**に、印刷所の入稿画面で見かける「裁ち落とし」を添える。
-      // 括弧が二重(あり（3mm（四辺）))にならないよう、「あり：」でつなぐ。KDP のほうは KDP の入稿画面の呼び名のまま
-      rules
-        ? {
-            label: '塗り足し（裁ち落とし）',
-            value: rules.bleedMm > 0 ? `あり：${bleedSummary(bleed)}` : 'なし',
-            note:
-              rules.bleedMm > 0
-                ? `本文PDFは塗り足し込みの寸法です。ノド側（綴じる側）${
-                    rules.bleedGutter ? 'にも付けています' : 'には付けていません'
-                  }`
-                : '本文PDFは仕上がりと同じ寸法です（塗り足しを付けない決まり）',
-          }
-        : { label: '裁ち落とし', value: 'あり', note: '本文PDFは塗り足し込みの寸法です' },
-      /**
-       * **数え終わるまで数を出さない。**(2026-08-22)
-       *
-       * ここは「KDP の画面に何と入れるか」の控えで、背幅もこの数から作る。
-       * 長い本は組み上がるまで何十秒もかかり、そのあいだ既定値の
-       * 「120ページ（概算）」が出ていた(297ページの実原稿の正解は 361ページ)。
-       * 全部組まずに数だけ先に出す道は無い(VivliostylePreview の onCounting に実測)
-       */
-      /*
-       * **いまの本の姿で組み上がった数だけを出す**(paperPagesNow)。(2026-09-24 レビューで発見)
-       * 電子の下見を見ているあいだは紙の組版が止まるので、pageCount は前の本の姿の数のことがある
-       */
+    // 印刷所の決まりが入っている本は、入っている塗り足しの幅とノド側の有無まで言う
+    // (KDP と、決まりをまだ入れていない本は従来の文。2026-10-01)。
+    // **呼び名は［本のかたちを決める］の欄と同じ「塗り足し」**に、印刷所の入稿画面で見かける「裁ち落とし」を添える。
+    // 括弧が二重(あり（3mm（四辺）))にならないよう、「あり：」でつなぐ。KDP のほうは KDP の入稿画面の呼び名のまま
+    const bleedRow: { label: string; value: string; note: string } = rules
+      ? {
+          label: '塗り足し（裁ち落とし）',
+          value: rules.bleedMm > 0 ? `あり：${bleedSummary(bleed)}` : 'なし',
+          note:
+            rules.bleedMm > 0
+              ? `本文PDFは塗り足し込みの寸法です。ノド側（綴じる側）${
+                  rules.bleedGutter ? 'にも付けています' : 'には付けていません'
+                }`
+              : '本文PDFは仕上がりと同じ寸法です（塗り足しを付けない決まり）',
+        }
+      : { label: '裁ち落とし', value: 'あり', note: '本文PDFは塗り足し込みの寸法です' };
+    /**
+     * **数え終わるまで数を出さない。**(2026-08-22)
+     *
+     * ここは「KDP の画面に何と入れるか」の控えで、背幅もこの数から作る。
+     * 長い本は組み上がるまで何十秒もかかり、そのあいだ既定値の
+     * 「120ページ（概算）」が出ていた(297ページの実原稿の正解は 361ページ)。
+     * 全部組まずに数だけ先に出す道は無い(VivliostylePreview の onCounting に実測)
+     */
+    /*
+     * **いまの本の姿で組み上がった数だけを出す**(paperPagesNow)。(2026-09-24 レビューで発見)
+     * 電子の下見を見ているあいだは紙の組版が止まるので、pageCount は前の本の姿の数のことがある
+     */
+    const pagesNow =
       paperPagesNow !== null
-        ? {
-            label: pagesLabel,
-            value: `${paperPagesNow} ページ`,
-            note: spineNote(paperPagesNow),
-          }
+        ? { n: paperPagesNow, estimated: false }
         : !pageCount && !counting
+          ? { n: estPages, estimated: true }
+          : null;
+    const pagesPending = {
+      value: counting ? '数えています…' : '紙の下見が組み上がると出ます',
+      note: counting
+        ? '数え終わると背幅も出ます。ページ数は組み上がってからでないと確かめられません'
+        : '下見の下の［紙の本］で紙の下見を開くと数えます（背幅もそこで決まります）',
+    };
+    /**
+     * **発注書の項目どおりに控えを組む会社(orderSheet)は、本の事実だけを渡して、行は会社の側に組ませる。**(2026-10-12)
+     * 項目の順・番号・選択肢の言葉は会社ごとに違うので、共通の画面には書かない。ページ数・背幅・塗り足しの数は、
+     * ほかの会社の控えと同じところ(paperPagesNow・coverSpineMm・bleedOf)から出す
+     */
+    const paperRows: Spec[] = profile.orderSheet
+      ? profile.orderSheet({
+          title: manuscript.title,
+          bookId: settings.bookId,
+          trim: settings.trim,
+          trimName: trim.label.replace(/\s+\d+×\d+$/, ''),
+          trimMm: { w: trim.w, h: trim.h },
+          writingMode: settings.writingMode,
+          binding: saddleOn ? 'saddle' : 'perfect',
+          selfCover,
+          ink: settings.ink,
+          // 数えた結果は、いまの本の(組み上がった)ページ数と合うときだけ使う。ページ数が変わっていたら古い結果
+          colorPages:
+            settings.ink === 'color' && pressColorPages && pagesNow && !pagesNow.estimated && pressColorPages.total === pagesNow.n
+              ? pressColorPages
+              : null,
+          papers: ownPapers,
+          // 表紙を除いた数。共紙は本文 PDF に表紙の4ページも入っているので引く(概算は表紙を数えていない)
+          pages: pagesNow
+            ? {
+                body: pagesNow.n - (selfCover && !pagesNow.estimated ? SELF_COVER_PAGES : 0),
+                pdf: pagesNow.n,
+                estimated: pagesNow.estimated,
+              }
+            : null,
+          pagesPending,
+          // 白いページの数は、数えた紙面の覚え書きから読む(ページ数と同じ紙面の数にそろえる)
+          padPages: paperPagesNow !== null ? (padOfHtml(layoutHtml)?.pad ?? 0) : 0,
+          hasColophon,
+          bleed: bleedRow,
+          spine:
+            !saddleOn && pagesNow
+              ? {
+                  mm: coverSpineMm(pagesNow.n, paper, settings.printTarget, cover.spineMmFromPrinter, 'perfect', paperChoice),
+                  fromPrinter: usesPrinterSpine(settings.printTarget, cover.spineMmFromPrinter),
+                }
+              : null,
+        })
+      : [
+        {
+          label: profile.specLabels?.trim ?? '判型（トリムサイズ）',
+          value: `${trim.w} × ${trim.h} mm`,
+          note: `${trim.label.replace(/\s+\d+×\d+$/, '')}・${
+            settings.writingMode === 'vertical' ? '縦書き（右綴じ）' : '横書き（左綴じ）'
+          }`,
+        },
+        // 用紙の一覧を持つ会社は、刷り色と、注文のときに書く本文用紙・表紙用紙を分けて出す
+        ...(ownPapers
+          ? [
+              { label: profile.inkPaperLabel, value: settings.ink === 'mono' ? '白黒' : 'カラー' },
+              { label: '本文用紙', value: ownPapers.body.label },
+              ...(saddleOn ? [] : [{ label: '表紙用紙', value: ownPapers.cover.label }]),
+            ]
+          : [
+              {
+                label: profile.inkPaperLabel,
+                value:
+                  settings.ink === 'mono' ? `白黒・${PAPER_TYPES[paper].label}` : PAPER_TYPES[paper].label,
+              },
+            ]),
+        // 注文の項目に「綴じ方」がある会社(specLabels.binding)だけ。いま作れる綴じ方は無線綴じ
+        // 無線綴じか中綴じか。発注書に「綴じ方」がある会社のほか、中綴じのときは、どの印刷所でも出す(2026-10-03)
+        ...(profile.specLabels?.binding || saddleOn
+          ? [
+              {
+                label: profile.specLabels?.binding ?? '綴じ方',
+                value: saddleOn ? (selfCover ? '中綴じ（表紙も本文と同じ紙＝共紙）' : '中綴じ（表紙は別の紙）') : '無線綴じ',
+                note: saddleOn ? '真ん中をホチキスで留めます' : undefined,
+              },
+            ]
+          : []),
+        // 注文の項目に「綴じ方向」がある会社(specLabels.direction。ノドの検査に使う)
+        ...(profile.specLabels?.direction
+          ? [
+              {
+                label: profile.specLabels.direction,
+                value: settings.writingMode === 'vertical' ? '右綴じ' : '左綴じ',
+                note: settings.writingMode === 'vertical' ? '縦書きの本' : '横書きの本',
+              },
+            ]
+          : []),
+        // 中綴じの表紙用紙(出し先に決まりがあるときだけ。共紙には表紙の紙が別に無い)
+        ...(saddleOn && !selfCover && saddleSpec?.coverPaperNote
+          ? [{ label: '表紙用紙（中綴じ）', value: saddleSpec.coverPaperNote, note: `${profile.label}の入稿ガイドの決まりです` }]
+          : []),
+        bleedRow,
+        pagesNow
           ? {
               label: pagesLabel,
-              value: `${estPages} ページ（概算）`,
-              note: spineNote(estPages),
+              value: `${pagesNow.n} ページ${pagesNow.estimated ? '（概算）' : ''}`,
+              note: spineNote(pagesNow.n),
             }
-          : {
-              label: pagesLabel,
-              value: counting ? '数えています…' : '紙の下見が組み上がると出ます',
-              note: counting
-                ? '数え終わると背幅も出ます。ページ数は組み上がってからでないと確かめられません'
-                : '下見の下の［紙の本］で紙の下見を開くと数えます（背幅もそこで決まります）',
-            },
-    ];
+          : { label: pagesLabel, ...pagesPending },
+      ];
     if (!paperAsksAi && !out.ebook) return paperRows;
     return [
       ...(out.paper ? paperRows : []),
@@ -2438,6 +2655,12 @@ export function App() {
     estPages,
     counting,
     paperPagesNow,
+    // 発注書の項目どおりに組む控え(orderSheet)が読む: 書名・本の id・白いページの覚え書き・奥付の有無
+    manuscript.title,
+    settings.bookId,
+    layoutHtml,
+    hasColophon,
+    pressColorPages,
   ]);
 
   const stepPanel = () => {
@@ -2483,6 +2706,8 @@ export function App() {
             resRows={resRows}
             spreadNotes={spreadNotes}
             printTargetLabel={PRINT_TARGETS[settings.printTarget].label}
+            printColor={printColorOn}
+            colorRows={colorRows}
             ebookView={showEbook}
             onShowPaper={() => setPreviewMode('paper')}
             setSettings={setSettings}
@@ -2529,6 +2754,7 @@ export function App() {
             bookTitle={manuscript.title}
             paperMm={{ w: layout.paperW, h: layout.paperH }}
             boxes={bodyBoxes(layout)}
+            onColorPages={setPressColorPages}
           />
         );
       default:
@@ -2729,6 +2955,7 @@ export function App() {
               bookTitle={manuscript.title}
               paperMm={{ w: layout.paperW, h: layout.paperH }}
             boxes={bodyBoxes(layout)}
+            onColorPages={setPressColorPages}
             />
             )}
           </div>

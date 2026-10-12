@@ -3,6 +3,7 @@
 // 中綴じは紙を重ねて真ん中をホチキスで留めるので、ページ数は 4 の倍数でなければならない(紙1枚が4ページ)。
 // ここは**純関数**だけを置く(ブラウザなしで検査できる。scripts/saddle.test.ts)。
 // 画面(ShapeStep の読み上げ)・入稿前チェック・書き出しの止め方は、みなここの数字と文を使う。
+// 無線綴じを偶数にそろえる出し先(PrintTargetProfile.perfectEvenPages。2026-10-12)も、同じ足し算(padToUnit・pageUnitOf)を使う。
 //
 // ## 数え方(D1 設計 §2)
 //
@@ -47,9 +48,26 @@ export interface SaddlePages {
 /** 本文 n0 ページに足す白いページと、PDF の総ページ数 */
 export function saddlePad(n0: number, cover: SaddleCover): SaddlePages {
   const n = Math.max(0, Math.floor(n0));
-  const pad = n === 0 ? 0 : (4 - (n % 4)) % 4;
+  const pad = padToUnit(n, 4);
   const coverPages = cover === 'self' ? SELF_COVER_PAGES : 0;
   return { pad, coverPages, total: n + pad + coverPages };
+}
+
+/** 本文 n0 ページを unit の倍数にそろえるために足す白いページの数(0 ページの本には足さない) */
+export function padToUnit(n0: number, unit: number): number {
+  const n = Math.max(0, Math.floor(n0));
+  return n === 0 || unit < 2 ? 0 : (unit - (n % unit)) % unit;
+}
+
+/**
+ * 本文のページ数を、何の倍数にそろえるか。(2026-10-12)
+ * - 中綴じ … 4(紙1枚が4ページ)
+ * - 無線綴じで、出し先が偶数にそろえる決まりを持つとき(perfectEvenPages) … 2。白いページは中綴じと同じく奥付の手前に入る
+ * - それ以外(KDP・その他の印刷所の無線綴じ) … null。何も足さず、組版HTMLは1バイトも変わらない
+ */
+export function pageUnitOf(s: Pick<ProjectSettings, 'printTarget' | 'binding'>): 4 | 2 | null {
+  if (bindingOf(s) === 'saddle') return 4;
+  return PRINT_TARGETS[s.printTarget]?.perfectEvenPages ? 2 : null;
 }
 
 /** 綴じる辺の長さ(mm)。判型は縦長なので、綴じる辺は高さ(縦書き・横書きとも) */
@@ -120,7 +138,7 @@ export function saddleReadout(s: ProjectSettings, n0: number | null, hasColophon
   const head =
     pad === 0
       ? `いま本文は ${n0} ページで、中綴じの 4 の倍数にそろっています${limit}。`
-      : `いま本文は ${n0} ページ。中綴じは 4 の倍数なので、${where}白いページを ${pad} 枚入れて ${n0 + pad} ページにします${limit}。`;
+      : `いま本文は ${n0} ページです。中綴じはページ数を 4 の倍数にするので、${where}白いページを ${pad} ページ入れて ${n0 + pad} ページにします${limit}。`;
   const tail = coverPages > 0 ? `表紙の ${coverPages} ページもこの PDF に入るので、全部で ${total} ページです。` : '';
   return head + tail;
 }

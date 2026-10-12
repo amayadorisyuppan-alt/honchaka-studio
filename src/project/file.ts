@@ -42,6 +42,8 @@ import {
 } from '../models/project';
 import type { BodyFontId, Manuscript, ProjectSettings, SourceFile } from '../models/project';
 import { COVER_FONTS, PAPER_TYPES, sanitizeCoverModeLook } from '../models/cover';
+import { EDITION } from '../edition';
+import { APP_VERSION } from '../version';
 import { plainText } from '../models/inlineImages';
 import type { CoverBackground, CoverSettings, CoverWrap } from '../models/cover';
 
@@ -72,6 +74,13 @@ interface ProjectFile extends ProjectSnapshot {
    */
   _このファイルについて: string[];
   savedAt: string;
+  /**
+   * このファイルを書いたアプリの版(2026-10-12 修正リストの 5)。不具合の報告で、どの版が書いたファイルかを見分ける。
+   * 上の `format` / `version` は**ファイルの形の番号**で、アプリの版ではない。
+   * 読み込みでは使わない(無い古いファイルも、あるファイルも今までどおり開く)。
+   * edition は版の id(標準の版は 'public')
+   */
+  savedBy?: { app: string; edition: string };
   /** 画像が入っているか。false なら読み込み時に手元の絵で埋め直す */
   withImages: boolean;
   /**
@@ -267,6 +276,7 @@ export function toProjectFile(p: ProjectSnapshot, withImages: boolean): string {
     version: VERSION,
     _このファイルについて: withImages ? GUIDE_FOR_BACKUP : GUIDE_FOR_AI,
     savedAt: new Date().toISOString(),
+    savedBy: { app: APP_VERSION, edition: EDITION.id },
     withImages,
     ...body,
     ...(withImages ? { images } : {}),

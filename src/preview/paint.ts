@@ -158,6 +158,8 @@ export function paintNeutral(s: ProjectSettings): ProjectSettings {
     ink: 'color',
     bodyBg: undefined,
     bodyBgFromPreset: false,
+    // 背景を白黒で刷る印(1.1.0)。背景は塗りのパッチが写しで塗る(App が printColor の写しを渡す)ので、組みには関わらない
+    bodyBgPrintMono: undefined,
     bgOpacity: 0.25,
     // 罫線の出ている本だけ、色を組みに残す(冒頭の分類を参照)
     textColor: keepInk ? s.textColor : '#000000',

@@ -246,7 +246,8 @@ ${ms.author ? `<p class="author">${titleText(ms.author)}</p>` : ''}
     // 足してから絵を選ぶ形にしたので、その途中の状態が必ずある。
     // 出さないとページ数が合わず、左の欄の「いま N ページ目」も出せない
     if (p.blank || !p.src) return `<div class="plate blank" data-plate="${escapeHtml(p.id)}"></div>`;
-    const img = `<img src="${escapeHtml(assetUrl(p.src))}" alt="">`;
+    // 灰色の写しに差し替えた絵(models/printColor.ts)は印を付ける。白黒の本の filter を掛けないため(css.ts の img:not(.gray-copy))
+    const img = `<img${p.grayCopy ? ' class="gray-copy"' : ''} src="${escapeHtml(assetUrl(p.src))}" alt="">`;
     // **見開き(2ページ)は、同じ絵を2つの箱に入れる**(2026-10-03)。1つめ(sp-a)が偶数ページ、2つめ(sp-b)が奇数ページ。
     // 切り出しは css.ts の div.plate.spread。data-plate は1つめだけに付ける(2つめは data-plate-b。
     // ページ一覧の「動かせる差し込みページ」は1つめで、2つめは1つめといっしょに動く・消える)
@@ -361,7 +362,7 @@ ${body}
           if (!isRenderableImage(b.src)) return '';
           // src は data URI。paragraphHtml を通すと base64 の数字が縦中横に化けるので
           // エスケープのみにとどめる
-          const img = `<img src="${escapeHtml(assetUrl(b.src))}" alt="${escapeHtml(b.alt ?? '')}">`;
+          const img = `<img${b.grayCopy ? ' class="gray-copy"' : ''} src="${escapeHtml(assetUrl(b.src))}" alt="${escapeHtml(b.alt ?? '')}">`;
           // 組み上がりから「何ページ目に出たか」を読むための目印(［挿絵］の「◯ページ目（見る）」)
           const key = ` data-img="${imageKey(i, bi)}"`;
           // 全面画像は単独ページを占める。キャプションは置けない(余白がないため)

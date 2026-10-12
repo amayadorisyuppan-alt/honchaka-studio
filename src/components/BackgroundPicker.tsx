@@ -6,7 +6,7 @@
 // 相対URLのままだと、印刷ダイアログ経由(printHTML の iframe)や書き出し後のHTMLで
 // 解決先が変わって絵が消えることがあるため。
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { type BgSpec } from '../models/project';
 import { optimizeImageDataUri } from '../images/optimize';
 import { loadCoverPresets } from '../covers/manifest';
@@ -94,6 +94,12 @@ interface Props {
   onOpenChange?: (open: boolean) => void;
   /** 取り込む絵の長い辺の上限(画素)。省略は本文の全面ぶん(optimize.ts の PRINT_MAX_SIDE)。見開きの挿絵は広いので大きくする */
   maxSide?: number;
+  /**
+   * 一覧を開いていないときに、説明の下へ足すもの(2026-10-12 1.1.0)。
+   * 背景の面の「白黒で刷る」(PrintMonoToggle)に使う。白黒で刷る面は、枠の絵も灰色で見せる(mono)
+   */
+  extra?: ReactNode;
+  mono?: boolean;
 }
 
 export function BackgroundPicker({
@@ -111,6 +117,8 @@ export function BackgroundPicker({
   open: openProp,
   onOpenChange,
   maxSide,
+  extra,
+  mono = false,
 }: Props) {
   const [presets, setPresets] = useState<PresetItem[]>([]);
   const [openState, setOpenState] = useState(false);
@@ -167,6 +175,8 @@ export function BackgroundPicker({
     const rest: BgSpec = { ...value };
     delete rest.src;
     delete rest.fromPreset;
+    // 白黒で刷る印は、その面の絵についての指定。絵を外したら一緒に外す(継いだ絵は本文全体の印に従う)
+    delete rest.printMono;
     // 絵も調整も無くなったら、面ごとの設定そのものを外して継承に戻す
     onChange(Object.keys(rest).length ? rest : undefined);
   }
@@ -217,7 +227,7 @@ export function BackgroundPicker({
       <div className="bg-row">
         {showThumb &&
           (src ? (
-            <img className="bg-thumb" src={src} alt={`${label}の背景`} />
+            <img className={mono ? 'bg-thumb mono' : 'bg-thumb'} src={src} alt={`${label}の背景`} />
           ) : (
             <span className="bg-thumb empty">{plain ? '無地' : 'なし'}</span>
           ))}
@@ -261,6 +271,7 @@ export function BackgroundPicker({
       )}
 
       {hint && <p className="hint">{hint}</p>}
+      {extra}
       {error && <p className="error">{error}</p>}
 
       <input

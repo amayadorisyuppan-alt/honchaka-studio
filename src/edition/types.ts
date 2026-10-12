@@ -34,4 +34,10 @@ export interface Edition {
   helpInserts: readonly HelpInsert[];
   /** ソースコードの入手先。省けば src/shop.ts の SOURCE_URL */
   sourceUrl?: string;
+  /**
+   * バージョンの番号のあとに付ける印(「1.1.0（○○版）」の「○○版」)。省けば付けない(標準の版)。
+   * 不具合の報告で、どの版の話かを見分けるため(修正リストの 5。2026-10-12)。
+   * 印の文字は標準の版に入れてはいけない語なので、各版の部品の側に置く
+   */
+  versionMark?: string;
 }

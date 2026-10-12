@@ -45,6 +45,8 @@ interface Props {
    * 「表紙もこの PDF に入る」「文字も画像になる」(白黒の本は白黒で刷られる)を短く添える
    */
   saddle?: { self: boolean };
+  /** 変換で数えたカラーのページの数(終わっていなければ null)を App に知らせる。出し先の控え(orderSheet)の刷り色に使う(2026-10-12) */
+  onColorPages?: (r: { count: number; total: number } | null) => void;
 }
 
 export function PaperBodyExport({
@@ -60,6 +62,7 @@ export function PaperBodyExport({
   boxes,
   blockReason,
   saddle,
+  onColorPages,
 }: Props) {
   const out = bodyOutputOf(printProfile, ink);
   const required = out.convert === 'required';
@@ -210,7 +213,7 @@ export function PaperBodyExport({
               <span className="press-badge use">入稿用</span>
               {convertedName && <span className="press-badge done">済み</span>}
             </div>
-            <PressConvert key={convertRound} {...convertProps} onConverted={setConvertedName} />
+            <PressConvert key={convertRound} {...convertProps} onConverted={setConvertedName} onColorPages={onColorPages} />
             <p className={`press-file${convertedName ? ' ready' : ''}`}>
               {convertedName ? '入稿に使うファイル' : 'できる PDF'}
               <code>{convertedName ?? `${stem}_本文_${out.suffix}.pdf`}</code>
