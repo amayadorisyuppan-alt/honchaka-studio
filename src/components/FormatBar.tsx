@@ -66,6 +66,7 @@ import {
 } from '../models/project';
 import {
   COVER_FONTS,
+  coverFrontTextOn,
   defaultCoverSettings,
   type BandKind,
   type BlurbDecor,
@@ -1030,6 +1031,12 @@ export function FormatBar({
           {target === 'title' && (
           <>
 
+          {/* **表1に書名・著者名を入れないあいだは、帯・色・書体を出さない。**(2026-10-13 ユーザー要望
+              「表紙にタイトルと著者名を入れた画像を自分で用意したい」。左の欄の［表紙に書名と著者名を入れる］)
+              刷らないものの見た目を並べると、触っても何も変わらない。値は消さないので、入れ直すと元どおりに出る。
+              書名・著者名の向きは大扉・電子書籍の扉にも効くので、下で出したまま */}
+          {coverFrontTextOn(c) && (
+          <>
           {/* 絵の上に文字を読ませる方法。「下に敷く(帯)」か「字を縁取る(フチ)」の2通り。
               帯は確実に読めるが絵を隠し、フチは絵をほとんど隠さない。
               **もとはサイドバーにあった。** 絵を見ながらいちばん往復する操作なので帯へ移した */}
@@ -1111,6 +1118,8 @@ export function FormatBar({
           <BarField label="著者名の書体">
             {fontSelect(c.authorFont, (v) => setC({ authorFont: v }), '著者名の書体')}
           </BarField>
+          </>
+          )}
 
           {/* **書名の向きを表紙の帯にも置く。**(2026-10-09 ユーザー要望「表紙デザイン組みながら
               絶対探す機能」) 値は［本のかたちを決める］の［書名と著者名を横書きにする］と同じ
@@ -1251,7 +1260,16 @@ export function FormatBar({
           {/* **本文の帯とちがって読み値の行は出さない。** 版面の字数も総字数も
               表紙には関わりがなく、出すと表紙の値だと読み違える */}
           <p className="barnote">
-            {target === 'title' ? (
+            {target === 'title' && !coverFrontTextOn(c) ? (
+              // 入れていないことと、戻し方だけを言う(2026-10-13)。
+              // 欄のあるタブを名指しする — 背に字を刷らない本で［背］を開くと、帯はここ(書名・著者名)に落ちるが、
+              // 左の欄は［背］のままでチェックが見えない(2026-10-13 レビュー指摘)。まるごと1枚では［まるごと1枚］の中
+              coverPane === 'wrap' ? (
+                '表紙（表1）に書名と著者名を入れていません。入れるときは、左の欄の［まるごと1枚］にある［表紙に書名と著者名を入れる］にチェックを入れてください'
+              ) : (
+                '表紙（表1）に書名と著者名を入れていません。入れるときは、左の欄の［表1（おもて）］にある［表紙に書名と著者名を入れる］にチェックを入れてください'
+              )
+            ) : target === 'title' ? (
               <>
                 書名・著者名の位置・大きさ・改行位置は左の欄で。<b>画像の主役に文字がかぶるときは位置を動かします</b>
               </>
@@ -1635,6 +1653,8 @@ export function FormatBar({
           const coverName = (f: string) => shortName(isBodyFontId(f) ? f : bodyId);
           const now = titlepageFontsOf(settings, cover);
           const linked = settings.titlepageTitleFont === 'cover' && settings.titlepageAuthorFont === 'cover';
+          /** 表紙(表1)に書名・著者名を入れているか(2026-10-13)。入れていない本では、そろえる相手が表紙に無い */
+          const coverHasText = coverFrontTextOn(cover);
           const fontSelect = (
             value: TitlepageFont | undefined,
             shown: BodyFontId,
@@ -1648,7 +1668,11 @@ export function FormatBar({
               onChange={(e) => set((e.target.value || undefined) as TitlepageFont | undefined)}
             >
               <option value="">本文と同じ（{shortName(bodyId)}）</option>
-              <option value="cover">表紙と同じ（{coverName(coverFont)}）</option>
+              {/* 表紙に書名・著者名を入れていない本では、新しくはつなげない(［表紙とそろえる］と同じ。2026-10-13 レビュー指摘
+                  「ボタンは押せないのに欄では選べる」)。もうつながっている項目は、選んである値として出したまま(値を残す約束) */}
+              <option value="cover" disabled={!coverHasText && value !== 'cover'}>
+                表紙と同じ（{coverName(coverFont)}）
+              </option>
               {['明朝', 'ゴシック', '装飾'].map((group) => (
                 <optgroup key={group} label={group}>
                   {(Object.entries(BODY_FONTS) as [BodyFontId, (typeof BODY_FONTS)[BodyFontId]][])
@@ -1674,11 +1698,18 @@ export function FormatBar({
                   setSettings({ titlepageAuthorFont: v }),
                 )}
               </BarField>
+              {/* 表紙に書名・著者名を入れていない本(2026-10-13。表紙の［表紙に書名と著者名を入れる］)では、そろえる相手が表紙に無い。
+                  押せないようにして、わけを言う。上の欄の「表紙と同じ」も同じく新しくは選べない。
+                  もうつながっている本は、覚えている表紙の書体のまま(値を残す約束) */}
               <button
                 type="button"
                 className="barbtn"
-                disabled={linked}
-                title="大扉の書名と著者名を、表紙の書名・著者名と同じ書体にします。あとで表紙の書体を変えると、大扉も同じ書体に変わります"
+                disabled={linked || !coverHasText}
+                title={
+                  !linked && !coverHasText
+                    ? '表紙に書名と著者名が入っていないため、そろえられません'
+                    : '大扉の書名と著者名を、表紙の書名・著者名と同じ書体にします。あとで表紙の書体を変えると、大扉も同じ書体に変わります'
+                }
                 onClick={() => setSettings({ titlepageTitleFont: 'cover', titlepageAuthorFont: 'cover' })}
               >
                 {linked ? '表紙とそろっています' : '表紙とそろえる'}

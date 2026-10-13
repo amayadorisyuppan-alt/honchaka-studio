@@ -167,7 +167,11 @@ export function continuesAfterBlank(list: OpenList, item: ListLine | null, blank
   return !!item && item.ordered === list.ordered && blankRun === 1;
 }
 
-export function parseTxt(source: string, fallbackTitle = ''): Manuscript {
+/**
+ * @param _notes 取り込みで言っておくことを足す先(省略できる)。load.ts の parseSource が画面へ出す
+ *   (Word のルビの断りと同じ道。2026-10-13 に道だけ通した。使うときは名前の _ を外す)
+ */
+export function parseTxt(source: string, fallbackTitle = '', _notes: string[] = []): Manuscript {
   const lines = source.replace(/\r\n?/g, '\n').split('\n');
   const chapters: Chapter[] = [];
   let current: Chapter | null = null;

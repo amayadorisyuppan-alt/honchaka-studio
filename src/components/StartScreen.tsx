@@ -47,6 +47,18 @@ const FROG_LINES = [
   '新しい機能の葉っぱ、探してくるね',
 ] as const;
 
+/**
+ * .docx を取り込んで章に分かれなかったときの直し方。**Word と Google ドキュメントの両方に向けて言う。**
+ * Google ドキュメントの人には .docx でダウンロードしてもらうようになったので(2026-10-13 ユーザー決定)、
+ * 「Word で」だけでは、Word を持っていない人が迷う。Google の .docx も「見出し 1」の行が章になる
+ * (2026-10-13 に本物の Google の .docx で確かめた。「タイトル」の行は章にならない)
+ * Pages から「Word」に書き出した .docx は、見出しを付けても章に分かれない(日本語の Pages の段落スタイルを読み取らない。
+ * 2026-10-13 ユーザーの実機の試し)ので、Pages の人にはテキストで書き出し直してもらう(ヘルプの「Word 以外で書いた原稿」と同じ)
+ */
+const NO_CHAPTERS_DOCX_HINT =
+  'Word か Google ドキュメントで、章にしたい行を「見出し 1」にしてから、もう一度 .docx で保存して取り込み直してください。' +
+  'Pages から書き出した .docx は章に分かれないため、「ファイル」→「書き出す」→「標準テキスト」で書き出し直してください';
+
 interface Props {
   /** サンプルを見ているだけか。「サンプルを見る」を押したときの確認要否に使う */
   isSample: boolean;
@@ -702,11 +714,13 @@ export function StartScreen({
           <div className="start-step">
             <p className="start-step-title">③ 原稿を取り込む</p>
             {/* 見出し・ルビの読み取りは Word(.docx)だけの特別対応。ほかの道具に取り込みを広げない(2026-10-13 夜 ユーザー決定)。
-                Pages・Google ドキュメントの人は Markdown かテキストにして持ってくる(AI に頼めば Markdown にしてくれる。頼み方は AI の工程とヘルプ)
-                (2026-10-13 夜 ユーザー「Markdown かテキストで」。テキストは「第一章」などの行で章に分かれ、ルビは記号で書ける。見出しの印と画像は落ちる) */}
+                **Google ドキュメントの人は Word(.docx)でダウンロードしてもらう**(それだけをすすめる。動画の案内と同じ。2026-10-13 ユーザー決定。
+                Google の .docx は見出しと画像がそのまま入る。Markdown の書き出しは画像が画面用の写しに縮み、10/13 には本が止まった)。
+                **Pages の人はテキスト(.txt)に書き出してもらう**(2026-10-13 ユーザーの実機の試し。Pages には Markdown の書き出しが無く、
+                Word の書き出しは章に分かれない)。テキストは「第一章」などの行で章に分かれ、ルビは記号で書ける。見出しの印と画像は落ちる。
+                ここは短く言い、道具ごとのくわしい持ってき方は［ヘルプ］の「Word 以外で書いた原稿」(help/content.ts の HELP_SOURCES)に任せる */}
             <p className="start-step-desc">
-              .txt / .md / .docx が読めます。Pages や Google ドキュメントで書いた原稿は、
-              Markdown（.md）かテキスト（.txt）にしてから取り込んでください（テキストなら「第一章」のような行で章に分かれます。くわしくは［ヘルプ］をご覧ください）
+              .txt / .md / .docx が読めます。Google ドキュメントの原稿は Word（.docx）でダウンロードし、Pages の原稿は「標準テキスト」で書き出してから取り込んでください（くわしくは［ヘルプ］の「Word 以外で書いた原稿」をご覧ください）
             </p>
             <button className="primary-action" onClick={handleImport}>
               原稿を取り込む
@@ -724,7 +738,7 @@ export function StartScreen({
                 <b>章に分かれていません。</b>
                 {/* .md も「第一章」だけの行は章にならない(# の行だけを読む。importers/md.ts) */}
                 {source?.kind === 'docx' ? (
-                  <>Word で、章にしたい行を「見出し 1」にしてから、取り込み直してください</>
+                  <>{NO_CHAPTERS_DOCX_HINT}</>
                 ) : source?.kind === 'md' ? (
                   <>
                     章にしたい行の頭に <b>#&nbsp;</b> を付けてください（「# 第一章」のように）

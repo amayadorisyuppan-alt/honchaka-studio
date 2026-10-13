@@ -8,6 +8,8 @@ import {
   spineTextMinPages,
   papersFor,
   swapCoverModeLook,
+  coverFrontTextOn,
+  COVER_SAFE_MM,
   SPINE_MIN_PT,
   type CoverAnchor,
   type CoverBackground,
@@ -936,8 +938,42 @@ export const CoverEditor = forwardRef<CoverEditorHandle, Props>(function CoverEd
    * コンポーネントにはせず JSX を1回作って両方に差す — render のたびに
    * 関数コンポーネントを作り直すと、Fold や textarea が remount されて入力が途切れる
    */
+  /** 表1に書名・著者名を入れるか(2026-10-13)。外しているあいだは、書名・著者名の欄を出さない(値は残す) */
+  const frontText = coverFrontTextOn(settings);
   const textPlacementSections = (
     <>
+      {/* **入れる・入れないを先に置く。**(2026-10-13 ユーザー要望「表紙にタイトルと著者名を入れた画像を自分で用意したい」)
+          外しているあいだは、下の書名・著者名の欄(位置・大きさ・微調整・改行位置)を出さない。値は消さないので、
+          入れ直すと元どおりに出る。帯の読ませ方・色・書体(画面下の帯)も同じ。
+          どちらの作り方でも同じ1つの欄(作り方ごとの控えには入れない。models/cover.ts の frontTextOn)。
+          Ctrl+Z は他の欄と同じ setCover を通るので1手で戻る */}
+      <section>
+        <h2>書名と著者名</h2>
+        <label className="check">
+          <input
+            type="checkbox"
+            checked={frontText}
+            onChange={(e) => patch({ frontTextOn: e.target.checked })}
+          />
+          表紙に書名と著者名を入れる
+        </label>
+        <p className="hint">書名と著者名を描きこんだ画像を使うときは外してください</p>
+        {!frontText && (
+          <p className="hint">
+            いまは表1に書名・著者名を入れていません。位置や大きさの設定は残してあるので、チェックを入れ直すと元に戻ります
+          </p>
+        )}
+        {/* 本ちゃかの書名は安全領域の内側にしか置かない(cover/render.ts)。絵に描いた文字は本ちゃかが動かせないので、
+            同じ線を言葉で渡す。電子書籍の表紙には断裁が無いので、紙を作る本だけ */}
+        {!frontText && makes.paper && (
+          <p className="hint">
+            画像に描いた文字は、断裁や綴じのずれで切れないよう、仕上がりの端と折り目から <b>{COVER_SAFE_MM}mm</b> 以上内側に入れてください
+          </p>
+        )}
+      </section>
+
+      {frontText && (
+      <>
       {/* まず出すのは「位置」と「大きさ」だけ。
           絵の主役に文字がかぶったときに動かすのがこの画面の主用途で、
           色・書体・改行位置はそれが済んでから触るもの */}
@@ -1072,6 +1108,8 @@ export const CoverEditor = forwardRef<CoverEditorHandle, Props>(function CoverEd
           <b>画像の主役に文字がかぶるときは位置を動かしてください</b>
         </p>
       </section>
+      </>
+      )}
 
       {/* 書名・著者名の帯(文字を読ませる)は画面下の帯だけに置く。(2026-10-09 ユーザー判断「デザインに関連する話は下のバーで」)
           2026-09-04 に「あらすじの帯が左にあるのに書名の帯だけ下にあると探す」と言われて左にも写したが、

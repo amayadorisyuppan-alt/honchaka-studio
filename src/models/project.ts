@@ -1918,6 +1918,33 @@ export function hasSceneBreak(chapters: Chapter[]): boolean {
 }
 
 /**
+ * 本の字数。入口の画面・下の帯の「◯字」と、ページ数の見積もりに使う。
+ *
+ * 取り込みの見張り(importers/guard.ts)も、原稿の大きさをこの数え方で見る。
+ * 断るときに言う字数と、画面に出る字数をそろえるため(2026-10-13 App.tsx の totalChars から移した)
+ * - 段落・小見出し・引用・箇条書きの字(章の題は数えない)
+ * - コラムページの見出しと本文。刷られる文字なので数える(1枚で1ページを起こす)
+ */
+export function countBodyChars(
+  chapters: readonly Chapter[],
+  columnPages: readonly Pick<ColumnPage, 'title' | 'text'>[] = [],
+): number {
+  return (
+    chapters.reduce(
+      (sum, ch) =>
+        sum +
+        ch.blocks.reduce((s, b) => {
+          // 引用と箇条書きも本文の字数のうち(ページ数の見積もりに効く)
+          if (b.type === 'p' || b.type === 'h3' || b.type === 'quote') return s + b.text.length;
+          if (b.type === 'list') return s + b.items.reduce((n, x) => n + x.length, 0);
+          return s;
+        }, 0),
+      0,
+    ) + columnPages.reduce((n, c) => n + c.title.length + c.text.length, 0)
+  );
+}
+
+/**
  * 章ごとの背景。章の index で引く。
  * 原稿ではなく設定側に持つ。原稿を組み直しても消えないようにするため
  * (reparse は manuscript を作り直す)。

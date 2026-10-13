@@ -1,26 +1,15 @@
 // Word(.docx)取込。mammoth で HTML 化し、見出し1で章分割する。
 
 import mammoth from 'mammoth';
-import { COLPAGE_MARK, type Block, type Chapter, type Manuscript } from '../models/project';
-import { optimizeImageDataUri } from '../images/optimize';
+import { COLPAGE_MARK, type Block, type Chapter } from '../models/project';
+import { optimizeBodyImages } from './bodyImages';
 import { droppedTextKinds, prepareDocx } from './docxPrep';
 import { detectChapterLine, detectListLine, detectQuoteLine, isHrLine, listBlock, openList } from './txt';
 import type { OpenList } from './txt';
+import type { ImportResult } from './result';
 
-/** 取り込みの結果。原稿と、**本文に入れなかったもの**の断り */
-export interface ImportResult {
-  manuscript: Manuscript;
-  /**
-   * 本文に取り込まなかった［コラム］見出しの、その見出しの字。
-   * 画面で「何を入れなかったか」を言うために持つ(黙って捨てない)
-   */
-  skippedColumnPages: string[];
-  /**
-   * 取り込みで言っておくこと(Word だけ)。ルビを記号に置き換えた数、読めずに飛ばした部分。
-   * **黙って字を落とさない**(2026-09-25 見直し S1-7)
-   */
-  notes?: string[];
-}
+// 取り込みの結果の形は result.ts へ移した(md・txt も同じ形で返すため。2026-10-13)。前からの読み先のために、ここからも出す
+export type { ImportResult };
 
 /**
  * 引用を `<blockquote>` にする対応表。
@@ -237,16 +226,9 @@ export async function parseDocx(buffer: ArrayBuffer, fallbackTitle = ''): Promis
   }
   flushList(); // 原稿が箇条書きで終わっているとき
 
-  // Word は写真や図を PNG で持っていることが多い。そのまま抱えると
-  // 保存も組版も紙PDFも重くなるので、透過を使っていないものは JPEG に置き換える
-  // (実測: 利用者の入稿データで画像 10.16MB → 2.77MB)
-  for (const ch of chapters) {
-    for (const b of ch.blocks) {
-      // 読めない絵(Word の EMF など)は取り込みを止めずに、そのまま残す。
-      // 刷れない形式は入稿前チェックで知らせる(App の imgStats)
-      if (b.type === 'image') b.src = await optimizeImageDataUri(b.src).catch(() => b.src);
-    }
-  }
+  // Word は写真や図を PNG で持っていることが多い。透過を使っていないものは JPEG に置き換える。
+  // 読めない絵(Word の EMF など)は、そのまま残す(Markdown の絵と同じ道。bodyImages.ts)
+  await optimizeBodyImages(chapters);
 
   return {
     manuscript: {

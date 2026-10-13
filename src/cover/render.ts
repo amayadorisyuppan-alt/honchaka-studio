@@ -5,6 +5,7 @@
 import {
   COVER_FONTS,
   COVER_SAFE_MM,
+  coverFrontTextOn,
   EBOOK_COVER_PX,
   fitSpine,
   mmToPx,
@@ -42,7 +43,11 @@ export async function ensureCoverFonts(settings: CoverSettings, text: CoverText)
   ].join('');
   // 同じ字は1つでよい(あらすじが長くても、渡すのは字の種類だけ)
   const uniq = [...new Set(chars)].join('');
-  const ids = [settings.titleFont, settings.authorFont, settings.blurbFont, settings.spineFont];
+  // 表1に書名・著者名を入れないとき(2026-10-13)は、その2つの書体は使わないので読まない
+  // (読めなかったときに、使っていない書体のことで知らせを出さないため)。書名・著者名の字は背で使うので、字の並びはそのまま
+  const ids = coverFrontTextOn(settings)
+    ? [settings.titleFont, settings.authorFont, settings.blurbFont, settings.spineFont]
+    : [settings.blurbFont, settings.spineFont];
   const specs = new Set<string>([`400 100px ${GOTHIC}`]);
   for (const id of ids) {
     const f = COVER_FONTS[id] ?? COVER_FONTS.serif;
@@ -702,6 +707,11 @@ function paintFront(
       settings.background.kind === 'solid' ? settings.background.color : '#1b2b45';
     ctx.fillRect(x, y, w, h);
   }
+
+  // **表1に書名・著者名を入れない**(2026-10-13 ユーザー要望「表紙にタイトルと著者名を入れた画像を自分で用意したい」)。
+  // 地だけ描いて帰る。帯も敷かない(帯は書名・著者名を読ませるためのもの)。紙・電子のどちらの表1もここを通る。
+  // 色の判断もしていないので 'picked'(帯の断り書きは出ない)。背の文字・表4は呼んだ側が描くので変わらない
+  if (!coverFrontTextOn(settings)) return 'picked';
 
   // 左右の中央は「断裁後に見える範囲」の中央。ただし塊が安全領域を割るなら内側へ寄せる
   const trimCenter = box.trimX + box.trimW / 2;

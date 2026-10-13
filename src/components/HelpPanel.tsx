@@ -22,6 +22,7 @@ import {
   HELP_QA,
   HELP_REPAINT,
   HELP_SLOW,
+  HELP_SOURCES,
   HELP_TABS,
   helpMarkdown,
 } from '../help/content';
@@ -116,6 +117,30 @@ export function HelpPanel({ onClose }: Props) {
                   <li key={x}>{x}</li>
                 ))}
               </ul>
+            </section>
+
+            {/* 対応環境のすぐ下。取り込む前に読むもので、対応環境の「対象外」の行と最初の画面の③からここを指す
+                (2026-10-13 ユーザー決定。Google ドキュメントは Word、Pages はテキスト。作者の手元で試した結果だと断る) */}
+            <section className="help-sec help-sources">
+              <h3>{HELP_SOURCES.title}</h3>
+              <p>{HELP_SOURCES.lead}</p>
+              {HELP_SOURCES.tools.map((t) => (
+                <div key={t.head}>
+                  <h4>{t.head}</h4>
+                  <ul className="help-list">
+                    {t.items.map((x) => (
+                      <li key={x}>{x}</li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+              <h4>{HELP_SOURCES.aiHead}</h4>
+              <ol className="help-list">
+                {HELP_SOURCES.aiSteps.map((x) => (
+                  <li key={x}>{x}</li>
+                ))}
+              </ol>
+              <p className="help-sources-note">{HELP_SOURCES.note}</p>
             </section>
 
             {HELP_TABS.map((t) => (

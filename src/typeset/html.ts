@@ -24,7 +24,7 @@ import type {
 import { computeLayout } from './grid';
 import { clipRunningHead, runningHeadMaxChars, typesetCss } from './css';
 import { PROFILE_TITLE, authorProfileParagraphs, colophonRows } from './matter';
-import { escapeHtml, isDialogueStart, paragraphHtml, wrapDropCap } from './text';
+import { escapeHtml, isDialogueStart, paragraphHtml, stripInlineMarks, wrapDropCap } from './text';
 
 /**
  * 場面転換(原稿の `---`)。**選ばれた見た目でHTMLごと変える。**
@@ -55,11 +55,14 @@ function chapterHeading(
   const noHtml = no ? `<p class="chapter-no">${escapeHtml(no)}</p>` : '';
   // **柱にはルビの読みを出さない。** 柱の文字列は CSS の string-set が拾うが、
   // content() だと <rt> の読みまで連なってしまう(css.ts の .ct を参照)。
-  // 読みを外した字を属性で渡し、そちらを拾わせる
-  const plain = title
-    .replace(/《《([^》]+)》》/g, '$1')
-    .replace(/《[^》]*》/g, '')
-    .replace(/[｜|]/g, '');
+  // 読みを外した字を属性で渡し、そちらを拾わせる。
+  // **太字などの記法も外す**(stripInlineMarks。前は `**第1章**` の ** が柱に刷られた。2026-10-13)
+  const plain = stripInlineMarks(
+    title
+      .replace(/《《([^》]+)》》/g, '$1')
+      .replace(/《[^》]*》/g, '')
+      .replace(/[｜|]/g, ''),
+  );
   const titleHtml =
     `<h2 class="ct" data-plain="${escapeHtml(clipRunningHead(plain, headMax))}">${paragraphHtml(title, vertical)}</h2>`;
   return `<header class="chapter-title">${noHtml}${titleHtml}</header>`;

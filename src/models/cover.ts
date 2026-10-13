@@ -201,6 +201,17 @@ export interface CoverSettings {
    * 和書の背は縦積みが普通だが、欧文混じりの書名は倒すほうが読める
    */
   spineSideways: boolean;
+  /**
+   * 表1に書名・著者名を入れるか(2026-10-13 ユーザー要望「表紙にタイトルと著者名を入れた画像を自分で用意したい」)。
+   * **false のときは、表1に書名・著者名も、その下に敷く帯も描かない**(下見・紙の表紙 PDF・電子書籍の表紙 JPEG・EPUB の表紙)。
+   * 背の文字(spineTextOn)・表4のあらすじ・大扉・奥付・EPUB の書誌には効かない。
+   * 省略(この欄より前の保存)は入れる(今までどおり)。読むときは coverFrontTextOn を通す。
+   *
+   * **作り方ごとの控え(COVER_MODE_KEYS)には入れない。** 誰が書名を書くか(絵か本ちゃか)は本の中身の決めごとで、
+   * 背の文字の有無(spineTextOn)・書名の改行(titleOverride)・書体と同じ側にある。切り替えるたびに
+   * 書名が出たり消えたりすると、見えている表紙と覚えている設定が食い違って見える。1つの欄を両方の作り方で使う
+   */
+  frontTextOn?: boolean;
   band: BandKind;
   /** band が custom のときの帯色 */
   bandColor: string;
@@ -299,6 +310,14 @@ export function swapCoverModeLook(s: CoverSettings): Partial<CoverSettings> {
   return { ...(s.modeStash ?? {}), modeStash: mine };
 }
 
+/**
+ * 表1に書名・著者名(と帯)を描くか。**省略(古い保存)は描く。** false のときだけ描かない
+ * (描画・画面・書体の読み込みがみなここを通す。2026-10-13 ユーザー要望)
+ */
+export function coverFrontTextOn(s: Pick<CoverSettings, 'frontTextOn'>): boolean {
+  return s.frontTextOn !== false;
+}
+
 /** titleAnchor / authorAnchor に入れてよい値。CoverAnchor 型と同じ並び */
 export const COVER_ANCHORS: readonly CoverAnchor[] = [
   'auto',
@@ -362,12 +381,16 @@ export function sanitizeCoverModeLook(v: unknown): CoverModeLook | undefined {
  * 2. 2026-08-22 まで背文字の大きさは `spineScale` 1つで、著者名・版元名は描画のたびに
  *    書名 × SPINE_SUB_RATIO で導いていた。3つ別々にしたので、**その積を書き下ろす。**
  *    倍率を掛けた値をそのまま入れるので、開き直しても同じ大きさで刷れる
+ * 3. 2026-10-13 に frontTextOn(表1に書名・著者名を入れるか)が入った。無い保存は既定(入れる)で今までどおり。
+ *    true / false 以外が入っていたら入れる側へ倒す(書名が消えた表紙を黙って刷らない。読み込みの .json は
+ *    project/file.ts の sanitize が先に知らせて直す)
  */
 export function migrateCoverSettings(saved: Record<string, unknown>): Partial<CoverSettings> {
   const out: Partial<CoverSettings> = {};
   if (saved.blurbDecor === undefined && typeof saved.blurbBand === 'boolean') {
     out.blurbDecor = saved.blurbBand ? 'band' : 'none';
   }
+  if (saved.frontTextOn !== undefined && typeof saved.frontTextOn !== 'boolean') out.frontTextOn = true;
   const scale = typeof saved.spineScale === 'number' && saved.spineScale > 0 ? saved.spineScale : 1;
   if (saved.spineAuthorScale === undefined) out.spineAuthorScale = scale * SPINE_SUB_RATIO.author;
   if (saved.spinePublisherScale === undefined) {
@@ -392,6 +415,8 @@ export function defaultCoverSettings(): CoverSettings {
     spineAuthorScale: SPINE_SUB_RATIO.author,
     spinePublisherScale: SPINE_SUB_RATIO.publisher,
     spineSideways: false,
+    // 表1に書名・著者名を入れる(2026-10-13)。既定へ入れておくのは［すべてリセット］で戻すため(setCover はマージ型)
+    frontTextOn: true,
     band: 'auto',
     bandColor: '#ffffff',
     bandOpacity: 0.85,

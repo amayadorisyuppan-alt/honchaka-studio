@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   columnPageMode,
   columnPageParagraphs,
+  countBodyChars,
   BODY_FONTS,
   HEADING_FONT_STACK,
   PRINT_TARGETS,
@@ -233,6 +234,41 @@ function useDeferHold(): boolean {
     };
   }, []);
   return hold;
+}
+
+/**
+ * 原稿を取り込んだ・組み直したときに言うこと。**動かしたもの・入れなかったものは、その場で言う。**(2026-08-21)
+ *
+ * 差し込みページは「何章の前か」でしか位置を持てないので、章の数が変われば
+ * どこかへ動く。前は何も言わずに動く(あるいは範囲の外へ出て消える)ので、
+ * 「コラムだけはなくなっていた」というユーザー報告になった。
+ * ［原稿を組み直す］も同じ文を出す(2026-10-13。前は取り込みの断り(notes)を捨てていて、
+ * 取り除いたデータや Word のルビの数が組み直しでは出なかった)
+ */
+function importNotes(notes: string[], skippedColumnPages: string[], fit: InsertFit): string[] {
+  const said: string[] = [...notes];
+  if (skippedColumnPages.length) {
+    said.push(
+      `Word の中の［コラム］${skippedColumnPages.length}件は、章として取り込みませんでした` +
+        `（コラムページはスタジオ側が持っています。Word で書き直したぶんは反映されません）`,
+    );
+  }
+  if (fit.plates || fit.columnPages) {
+    const moved = [
+      fit.plates ? `挿絵ページ ${fit.plates}枚` : '',
+      fit.columnPages ? `コラムページ ${fit.columnPages}枚` : '',
+    ]
+      .filter(Boolean)
+      .join('と');
+    said.push(`章が減ったので、行き場のなくなった${moved}を巻末へ移しました`);
+  }
+  if (fit.chapterSettings) {
+    said.push(
+      `なくなった章についていた見た目の指定 ${fit.chapterSettings}件は、効かなくなりました`,
+    );
+  }
+  said.push(...carriedImagesNotes(fit));
+  return said;
 }
 
 /**
@@ -1250,7 +1286,12 @@ export function App() {
     try {
       // 元ファイルも保持しておく(取込処理を直したとき組み直せるように)
       const src = await readSource(file);
-      const { manuscript: ms, skippedColumnPages, notes = [] } = await parseSource(src);
+      // 取り込んだあとも本に残るコラムページを、原稿の大きさの見張りに入れる(サンプルなら下で新しい本にするので入れない。2026-10-13)
+      const before = useProject.getState();
+      const { manuscript: ms, skippedColumnPages, notes = [] } = await parseSource(
+        src,
+        before.isSample ? [] : (before.settings.columnPages ?? []),
+      );
       /**
        * **サンプルを開いたまま自分の原稿を取り込んだら、新しい本として始める。**(2026-09-25 見直し S2-9)
        * ［新規作成］の道は先にまっさらにしてから取り込むが、［AI に手直ししてもらう］などから取り込むと
@@ -1270,47 +1311,26 @@ export function App() {
         },
         src,
       );
-      /**
-       * **動かしたもの・入れなかったものは、その場で言う。**(2026-08-21)
-       *
-       * 差し込みページは「何章の前か」でしか位置を持てないので、章の数が変われば
-       * どこかへ動く。前は何も言わずに動く(あるいは範囲の外へ出て消える)ので、
-       * 「コラムだけはなくなっていた」というユーザー報告になった
-       */
-      const said: string[] = [...notes];
-      if (skippedColumnPages.length) {
-        said.push(
-          `Word の中の［コラム］${skippedColumnPages.length}件は、章として取り込みませんでした` +
-            `（コラムページはスタジオ側が持っています。Word で書き直したぶんは反映されません）`,
-        );
-      }
-      if (fit.plates || fit.columnPages) {
-        const moved = [
-          fit.plates ? `挿絵ページ ${fit.plates}枚` : '',
-          fit.columnPages ? `コラムページ ${fit.columnPages}枚` : '',
-        ]
-          .filter(Boolean)
-          .join('と');
-        said.push(`章が減ったので、行き場のなくなった${moved}を巻末へ移しました`);
-      }
-      if (fit.chapterSettings) {
-        said.push(
-          `なくなった章についていた見た目の指定 ${fit.chapterSettings}件は、効かなくなりました`,
-        );
-      }
-      said.push(...carriedImagesNotes(fit));
-      setNotice(said.join(' '));
+      // 動かしたもの・入れなかったものは、その場で言う(importNotes)
+      setNotice(importNotes(notes, skippedColumnPages, fit).join(' '));
     } catch (e) {
+      // 組版が止まるほど大きい原稿も、ここで断りの文が出る(importers/guard.ts。原稿は入れ替えない)
       setImportError(`取り込みに失敗しました: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
 
   async function handleReparse() {
     setImportError('');
+    setNotice('');
     try {
-      const fit = await reparse();
+      // 組み直せないとき(組版が止まるほど大きい原稿など。importers/guard.ts)は、reparse が原稿に触る前に投げる。
+      // 今の原稿はそのまま残り、断りの文だけが出る
+      const r = await reparse();
       setNotice(
-        ['取り込んだ原稿を、現在の取込処理で組み直しました。', ...(fit ? carriedImagesNotes(fit) : [])].join(' '),
+        [
+          '取り込んだ原稿を、現在の取込処理で組み直しました。',
+          ...(r ? importNotes(r.notes, r.skippedColumnPages, r.fit) : []),
+        ].join(' '),
       );
     } catch (e) {
       setImportError(`組み直しに失敗しました: ${userErrorText(e)}`);
@@ -1416,21 +1436,9 @@ export function App() {
     }
   }
 
+  // 数え方は取り込みの見張り(importers/guard.ts)と同じ関数。断るときの字数と、ここに出る字数をそろえる(2026-10-13)
   const totalChars = useMemo(
-    () =>
-      manuscript.chapters.reduce(
-        (sum, ch) =>
-        sum +
-          ch.blocks.reduce((s, b) => {
-            // 引用と箇条書きも本文の字数のうち(ページ数の見積もりに効く)
-            if (b.type === 'p' || b.type === 'h3' || b.type === 'quote') return s + b.text.length;
-            if (b.type === 'list') return s + b.items.reduce((n, x) => n + x.length, 0);
-            return s;
-          }, 0),
-        0,
-      ) +
-      // コラムページも刷られる文字なので数える(1枚で1ページを起こす)
-      (settings.columnPages ?? []).reduce((n, c) => n + c.title.length + c.text.length, 0),
+    () => countBodyChars(manuscript.chapters, settings.columnPages ?? []),
     [manuscript, settings.columnPages],
   );
 

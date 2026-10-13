@@ -48,6 +48,7 @@ import { COVER_FONTS, PAPER_TYPES, sanitizeCoverModeLook } from '../models/cover
 import { EDITION } from '../edition';
 import { APP_VERSION } from '../version';
 import { plainText } from '../models/inlineImages';
+import { dataBlobsRemovedOnOpenNotice, sizeNoticeOnOpen, stripChapterBlobs, stripDataBlobs } from '../importers/guard';
 import type { CoverBackground, CoverSettings, CoverWrap } from '../models/cover';
 
 export const PROJECT_FORMAT = 'book-studio-project';
@@ -812,6 +813,17 @@ export function sanitize(
     if (lost) removed.push(`挿絵ページ ${lost}枚（画像の場所が読めない）`);
   }
 
+  /**
+   * **字に置き換えた画像などのデータを、本文とコラムページから取り除いた数。**(2026-10-13)
+   * Google ドキュメントの Markdown を取り込むと、絵が 146万字の1段落になって本文に入り、組版が止まった
+   * (importers/guard.ts)。取り込みの直後に自動保存がその段落を書くので、開き直しても止まる。
+   * 取り込みと同じ取り除きをここでも当て、すでに残っている本を開けるようにする。
+   * **長いだけの本物の段落は断らない・切らない**(取り込みとは違って、ここで断ると本そのものが開けなくなる。
+   * 組版が止まるほどの大きさなら、知らせだけ出す。下の sizeNoticeOnOpen)。
+   * 知らせは「読めなかった」でも「AI が書いた」でもないので notices に出す。絵の実体(src)には触らない
+   */
+  let dataBlobs = 0;
+
   // コラムページ。挿絵と同じく、位置が範囲外なら巻末に寄せる。
   // 組み方向は知らない値なら落として「本文の逆」に戻す(既定に倒しても害がない項目)
   if (s.columnPages !== undefined && !Array.isArray(s.columnPages)) {
@@ -845,6 +857,13 @@ export function sanitize(
         if (title !== c.title || text !== c.text) {
           c = { ...c, title, text };
           touched = true;
+        }
+        // 字に置き換えた画像などのデータ(上の dataBlobs)。ページは残す(見出しも本文も空になっても)
+        const cleanTitle = stripDataBlobs(c.title);
+        const cleanText = stripDataBlobs(c.text);
+        if (cleanTitle.removed || cleanText.removed) {
+          c = { ...c, title: cleanTitle.text.trim() ? cleanTitle.text : '', text: cleanText.text };
+          dataBlobs += cleanTitle.removed + cleanText.removed;
         }
         if (typeof c.id !== 'string' || !c.id) {
           c = { ...c, id: crypto.randomUUID() };
@@ -941,16 +960,32 @@ export function sanitize(
   } else {
     manuscript = {
       ...manuscript,
-      chapters: manuscript.chapters.map((ch) => ({
-        ...ch,
-        title: typeof ch.title === 'string' ? ch.title : '',
-        ...(ch.no !== undefined ? { no: typeof ch.no === 'string' ? ch.no : String(ch.no) } : {}),
-        blocks: Array.isArray(ch.blocks) ? ch.blocks.map(fixBlock) : [],
-      })),
+      chapters: manuscript.chapters.map((ch) => {
+        const fixedCh = {
+          ...ch,
+          title: typeof ch.title === 'string' ? ch.title : '',
+          ...(ch.no !== undefined ? { no: typeof ch.no === 'string' ? ch.no : String(ch.no) } : {}),
+          blocks: Array.isArray(ch.blocks) ? ch.blocks.map(fixBlock) : [],
+        };
+        // 字に置き換えた画像などのデータを取り除く(上の dataBlobs のコメント)。章は外さない
+        const stripped = stripChapterBlobs(fixedCh);
+        dataBlobs += stripped.removed;
+        return stripped.chapter;
+      }),
     };
     if (blockFixes) fixed.push('本文の段落の形');
     if (imageFixes) fixed.push('本文中の画像');
   }
+  // 本文とコラムページから取り除いた、字に置き換えた画像などのデータ(上の dataBlobs)。
+  // 取り込んだ .md が本に残っていれば、［原稿を組み直す］で絵が絵として入ることも言う(2026-10-13 見直し。
+  // 10/13 に止まった本は、組み直せば絵も見出しの ** も \ も直る)
+  const keptSource = loaded.source as unknown;
+  const canReparse = !!keptSource && typeof keptSource === 'object' && (keptSource as { kind?: unknown }).kind === 'md';
+  if (dataBlobs) notices.push(dataBlobsRemovedOnOpenNotice(dataBlobs, canReparse));
+  // 組版が止まるほど大きい本(改行の抜けた長い段落・100万字以上)は、開くのは止めずに知らせる(importers/guard.ts の sizeNoticeOnOpen)。
+  // 前は何も言わずに組版へ渡り、開くたびに画面が止まった(2026-10-13 見直し)
+  const sizeNotice = sizeNoticeOnOpen(manuscript.chapters, Array.isArray(s.columnPages) ? s.columnPages : []);
+  if (sizeNotice) notices.push(sizeNotice);
 
   // 表紙の地・裏の地・まるごと1枚の絵。**render.ts は settings.background.kind を無条件に読む**ので、
   // AI が null や壊れた形を書くと描画中に TypeError で画面が真っ白になる(2026-09-04 レビュー指摘)。
@@ -991,6 +1026,18 @@ export function sanitize(
     }
     // 作り方のモード。知らない値なら落とす(無ければ wrap の有無から推定される)
     if (c.mode !== undefined && c.mode !== 'faces' && c.mode !== 'wrap') delete c.mode;
+    // 表1に書名・著者名を入れるか(2026-10-13)。true / false 以外(AI が "false" と文字で書くなど)は、いま開いている本の値に戻して知らせる
+    // (設定の makePaper などと同じ扱い)。**AI 用の JSON で欄が丸ごと無いときは、外してある本だけ外したまま残す** —
+    // 書名を描きこんだ絵の上に、本ちゃかの書名が黙って重なって戻らないように(設定の keepIfMissing と同じ理由)
+    if (c.frontTextOn !== undefined && typeof c.frontTextOn !== 'boolean') {
+      const now = current.cover.frontTextOn;
+      if (typeof now === 'boolean') c.frontTextOn = now;
+      else delete c.frontTextOn;
+      fixed.push('表紙に書名と著者名を入れるか');
+    } else if (keepMissing && c.frontTextOn === undefined && current.cover.frontTextOn === false) {
+      c.frontTextOn = false;
+      fixed.push('表紙に書名と著者名を入れるか');
+    }
     // **表紙の書体と用紙も表にある名前か確かめる。**(2026-09-25 見直し S1-3)
     // 「あらすじを明朝に」と頼まれた AI が "mincho" と書くと、表紙の工程と書き出しの画面が落ちた
     for (const [key, label] of [

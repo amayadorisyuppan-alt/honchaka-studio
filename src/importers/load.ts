@@ -3,10 +3,13 @@
 // 現在の処理で組み直せるように、元ファイルを SourceFile として保持する。
 
 import type { SourceFile } from '../models/project';
-import { parseDocx, type ImportResult } from './docx';
+import { parseDocx } from './docx';
 import { parseMd } from './md';
 import { parseTxt } from './txt';
 import { EMPTY_FILE_MESSAGE, friendlyDocxError, isBlankText, sourceBytesProblem } from './fileCheck';
+import { guardManuscript, type ColumnPageText } from './guard';
+import { optimizeBodyImages } from './bodyImages';
+import type { ImportResult } from './result';
 
 function kindOf(fileName: string): SourceFile['kind'] {
   if (/\.docx$/i.test(fileName)) return 'docx';
@@ -19,15 +22,20 @@ function kindOf(fileName: string): SourceFile['kind'] {
  *
  * 拡張子が分からないものは txt として読むので、Pages や PDF を選ぶと
  * 中身のバイナリがそのまま原稿として並んでしまう。何が起きたか分からないまま
- * 終わるより、直し方まで出す。**Word 以外で書いた原稿は Markdown(.md)かテキスト(.txt)にしてもらう**
+ * 終わるより、直し方まで出す。**Google ドキュメントは Word(.docx)でダウンロードしてもらう。
+ * ほかの道具(Pages など)で書いた原稿はテキスト(.txt)にしてもらう**(小見出しやルビの記号は、AI に書き足してもらって .md にする)
  * (2026-10-13 ユーザー決定: ルビ・見出しの読み取りは Word だけの特別対応。ほかの道具の .docx には広げない)
+ * (2026-10-13 ユーザー決定: Google ドキュメントは Word(.docx)だけをすすめる。動画の案内と同じ。Google の .docx は Word と同じ読み方で
+ *  見出しと画像がそのまま入るので、特別な扱いは足していない。Markdown の書き出しは画像が画面用の写しに縮み、10/13 には本が止まった)
+ * (2026-10-13 ユーザーの実機の試し: Pages には Markdown の書き出しが無く、「Word」への書き出しは章に分かれない。
+ *  だから Pages は「テキスト」への書き出しだけを言う。odt・rtf も、まずテキスト。くわしくはヘルプの「Word 以外で書いた原稿」)
  */
 const CANT_READ: Record<string, string> = {
-  pages: 'Pages の書類はそのままでは読み込めません。テキスト（.txt）として書き出すか、Markdown（.md）にしてから取り込んでください（くわしくは［ヘルプ］の「困ったとき」をご覧ください）',
-  gdoc: 'Google ドキュメントの「ファイル」→「ダウンロード」で、Markdown（.md）かテキスト（.txt）として保存したファイルを選んでください',
-  odt: 'この形式はそのままでは読み込めません。テキスト（.txt）として保存するか、Markdown（.md）にしてから取り込んでください（くわしくは［ヘルプ］の「困ったとき」をご覧ください）',
+  pages: 'Pages の「ファイル」→「書き出す」→「標準テキスト」で書き出したファイル（.txt）を選んでください（「Word」に書き出したファイルは、章に分かれません）。くわしくは［ヘルプ］の「Word 以外で書いた原稿」をご覧ください',
+  gdoc: 'Google ドキュメントで原稿を開き、「ファイル」→「ダウンロード」→「Microsoft Word（.docx）」で保存したファイルを選んでください（くわしくは［ヘルプ］の「Word 以外で書いた原稿」をご覧ください）',
+  odt: 'この形式はそのままでは読み込めません。テキスト（.txt）として保存してから取り込んでください（くわしくは［ヘルプ］の「Word 以外で書いた原稿」をご覧ください）',
   doc: '古い Word 形式です。Word で開いて［名前を付けて保存］から .docx にしてください',
-  rtf: 'Word で開いて .docx として保存し直すか、テキスト（.txt）か Markdown（.md）にしてから入れてください',
+  rtf: 'Word で開いて .docx として保存し直すか、テキスト（.txt）にしてから入れてください（くわしくは［ヘルプ］の「Word 以外で書いた原稿」をご覧ください）',
   pdf: 'PDF からは取り込めません。元の原稿を .docx か .txt で用意してください',
   epub: 'EPUB からは取り込めません。元の原稿を .docx か .txt で用意してください',
 };
@@ -123,13 +131,8 @@ export async function readSource(file: File): Promise<SourceFile> {
   return { name, kind, data };
 }
 
-/**
- * SourceFile を現在の取込処理でパースする。
- *
- * 返すのは原稿だけではなく、**本文に入れなかったものの断り**も含む。
- * .txt / .md にはコラムの目印が無いので、そちらは常に空
- */
-export async function parseSource(src: SourceFile): Promise<ImportResult> {
+/** 形式ごとのパース。見張り(guard.ts)を通す前のもの */
+async function parseByKind(src: SourceFile): Promise<ImportResult> {
   if (src.kind === 'docx') {
     // mammoth の英語の文(「Could not find main document part」など)を、そのまま画面に出さない(2026-10-13 修正リスト 28)
     try {
@@ -138,8 +141,36 @@ export async function parseSource(src: SourceFile): Promise<ImportResult> {
       throw new Error(friendlyDocxError(e));
     }
   }
-  if (src.kind === 'md') return { manuscript: parseMd(src.data, src.name), skippedColumnPages: [] };
-  return { manuscript: parseTxt(src.data, src.name), skippedColumnPages: [] };
+  // .md / .txt も、言っておくことがあれば notes に足してもらう(Word と同じく画面に出す)
+  const notes: string[] = [];
+  if (src.kind === 'md') {
+    const manuscript = parseMd(src.data, src.name, notes);
+    // .md の中に入っていた絵(Google ドキュメントの書き出しなど)も、Word の絵と同じく刷るのに要る大きさ・形にそろえる。
+    // parseMd は同期のまま(検査で node から回す)なので、ここで直す(2026-10-13)
+    await optimizeBodyImages(manuscript.chapters);
+    return { manuscript, skippedColumnPages: [], notes };
+  }
+  return { manuscript: parseTxt(src.data, src.name, notes), skippedColumnPages: [], notes };
+}
+
+/**
+ * SourceFile を現在の取込処理でパースする。取り込み(App の handleFile)と［原稿を組み直す］(store の reparse)の両方が通る。
+ *
+ * 返すのは原稿だけではなく、**本文に入れなかったものの断り**も含む。
+ * .txt / .md にはコラムの目印が無いので、skippedColumnPages は常に空。
+ *
+ * **どの形式も、組版へ渡す前に見張り(guard.ts)を通す。**(2026-10-13)
+ * 字に置き換えた画像などのデータは取り除いて notes で言う。組版が止まるほど大きい原稿(改行の抜けた5万字以上の段落・
+ * 100万字以上)は、断りの文を Error にして投げる(画面は取り込みの失敗として出す。原稿は入れ替えない)。
+ *
+ * @param columnPages 取り込んだあとも本に残るコラムページ。原稿と一緒に組まれるので、字数に入れる
+ *   (入口の画面の「◯字」と同じ。2026-10-13 見直し)
+ */
+export async function parseSource(src: SourceFile, columnPages: readonly ColumnPageText[] = []): Promise<ImportResult> {
+  const result = await parseByKind(src);
+  const guard = guardManuscript(result.manuscript, columnPages);
+  if (guard.error) throw new Error(guard.error);
+  return { ...result, manuscript: guard.manuscript, notes: [...(result.notes ?? []), ...guard.notes] };
 }
 
 export type { ImportResult };

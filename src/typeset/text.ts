@@ -171,6 +171,26 @@ export function convertEmphasis(s: string): string {
   return s;
 }
 
+/**
+ * convertEmphasis が飾りに変える記法を外して、字だけにする。**柱(章題の data-plain)に使う。**(2026-10-13)
+ *
+ * 章題そのものは paragraphHtml で組むので `**雨**` は太字になるが、柱は CSS の string-set が属性の字を
+ * そのまま刷るので、記法を外さないと `**` が柱に刷られた(Google ドキュメントの Markdown の見出し
+ * `# **第1章　雨の日の図書室**`)。外すのは convertEmphasis が変えるものと同じ(太字・斜体・取り消し線・
+ * 下線などのタグ・色や大きさのタグ・リンク・==)。章題に字として刷られるもの(対になっていない `*` など)は残す。
+ * **記法の無い字は1字も変えない**(ふつうの本の柱は変わらない)。傍点とルビは呼び出し側で先に外す
+ */
+export function stripInlineMarks(s: string): string {
+  return s
+    .replace(/\*\*([^*\n]+)\*\*/g, '$1')
+    .replace(/\*([^*\n]+)\*/g, '$1')
+    .replace(/~~([^~\n]+)~~/g, '$1')
+    .replace(/<\/?(?:u|s|del|strong|b|i|em)>/gi, '')
+    .replace(/<\/?(?:span|font|div|p|br|mark)(?:\s[^>]*?)?\/?>/gi, '')
+    .replace(/\[([^\]\n]+)\]\((https?:\/\/[^)\s]+)\)/g, '$1')
+    .replace(/==([^=\n]+)==/g, '$1');
+}
+
 /** 注釈の基本の大きさ(親文字に対する比)。和文組版の慣習どおり親文字の半分 */
 const RT_SIZE = 0.5;
 /**

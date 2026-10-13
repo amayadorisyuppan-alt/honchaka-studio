@@ -85,6 +85,16 @@ const CHAPTER_DESIGN_KEYS = [
  */
 const CHAPTER_BG_DESIGN_KEYS = BG_DESIGN_KEYS;
 
+/**
+ * ［原稿を組み直す］の結果。動かしたもの(fit)と、取り込みの断り(importers/load.ts の ImportResult と同じ notes・skippedColumnPages)。
+ * 画面(App の handleReparse)は、取り込みのとき(handleFile)と同じ文を出す(2026-10-13)
+ */
+export interface ReparseResult {
+  fit: InsertFit;
+  notes: string[];
+  skippedColumnPages: string[];
+}
+
 interface ProjectState {
   settings: ProjectSettings;
   /** 表紙の設定。自前画像は data URI で入るのでそれなりに重い */
@@ -201,9 +211,11 @@ interface ProjectState {
   swapArt: (patch: { settings?: Partial<ProjectSettings>; manuscript?: Partial<Manuscript> }, label: string) => void;
   /**
    * 保持している原稿ファイルを現在の取込処理で組み直す(書名などは引き継ぐ)。
-   * setManuscript と同じく、動かしたものを返す(原稿が無ければ undefined)
+   * setManuscript と同じく、動かしたものを返す(原稿が無ければ undefined)。
+   * 取り込みの断り(notes・skippedColumnPages)も返す。画面は取り込みのときと同じ文を出す(2026-10-13)。
+   * **組み直せないとき(組版が止まるほど大きい原稿など)は、原稿に触る前に投げる**
    */
-  reparse: () => Promise<InsertFit | undefined>;
+  reparse: () => Promise<ReparseResult | undefined>;
   /**
    * **はじめて開いたときの状態に戻す。** 原稿だけでなく、設定・表紙・絵も戻す。
    *
@@ -605,6 +617,7 @@ const CHANGE_LABELS: Record<string, string> = {
   wrap: '表紙のまるごと1枚',
   background: '表1の地',
   backCover: '表4の地',
+  frontTextOn: '表紙の書名・著者名',
   band: '表紙の帯',
   bandColor: '帯の色',
   bandOpacity: '帯の濃さ',
@@ -1118,7 +1131,10 @@ export const useProject = create<ProjectState>((set, get) => ({
   reparse: async () => {
     const src = get().source;
     if (!src) return;
-    const { manuscript: parsed } = await parseSource(src);
+    // 断り(notes)と読み飛ばしたコラム(skippedColumnPages)も画面へ返す。前はここで捨てていた(2026-10-13)。
+    // parseSource が投げたら(importers/guard.ts で断ったなど)、下の書き換えに進まないので原稿はそのまま
+    // 組み直しても残るコラムページも、原稿の大きさの見張りに入れる(入口の画面の「◯字」と同じ数え方。2026-10-13)
+    const { manuscript: parsed, notes = [], skippedColumnPages } = await parseSource(src, get().settings.columnPages ?? []);
     const cur = get().manuscript;
     // 同じ本のまま本文だけ組み直す。**戻せる**(取り込み直しとは違って本は変わらない)
     pushUndo(set, get, `reparse:${Date.now()}`, '原稿の組み直し');
@@ -1146,7 +1162,7 @@ export const useProject = create<ProjectState>((set, get) => ({
       },
     });
     scheduleSave(get());
-    return { ...fit, imagesKept: carried.kept, imagesMoved: carried.moved };
+    return { fit: { ...fit, imagesKept: carried.kept, imagesMoved: carried.moved }, notes, skippedColumnPages };
   },
 
   startNewBook: () => {
@@ -1299,6 +1315,9 @@ export const useProject = create<ProjectState>((set, get) => ({
           // 前回の続きを開いたところ。**開く前へは戻せない**
           ...clearedHistory(),
         });
+        // 開くときに直したものがあれば、直した形を一度書いておく(2026-10-13 見直し)。
+        // 前は何か手を入れるまで自動保存が書かれず、取り除いたデータが残ったまま、起動のたびに同じ知らせが出た
+        if (fixed.length || removed.length || notices.length) scheduleSave(get());
         void upgradeSampleFigs(set, get);
         return;
       }
