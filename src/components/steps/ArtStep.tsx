@@ -505,7 +505,7 @@ export function ArtStep({
               hint="指定しなかった面は、すべてこの画像になります"
               value={
                 settings.bodyBg
-                  ? { src: settings.bodyBg, fromPreset: settings.bodyBgFromPreset }
+                  ? { src: settings.bodyBg, fromPreset: settings.bodyBgFromPreset, presetId: settings.bodyBgPresetId }
                   : undefined
               }
               onChange={(spec) => {
@@ -513,6 +513,8 @@ export function ArtStep({
                 setSettings({
                   bodyBg: spec?.src,
                   bodyBgFromPreset: spec?.fromPreset,
+                  // どの同梱のプリセットか(2026-10-12 改修の希望 2)
+                  bodyBgPresetId: spec?.presetId,
                   ...(spec?.src ? {} : { bodyBgPrintMono: undefined }),
                 });
                 jump(bodyShownAt);

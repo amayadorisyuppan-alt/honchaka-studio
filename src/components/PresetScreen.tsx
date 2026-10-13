@@ -10,6 +10,8 @@
 // 画像を見るために開いたのに画面の半分が説明で埋まっていた(同日の指摘)。
 // 見た目は app.css の .preset-view / .preset-head / .preset-pinned /
 // .preset-box / .preset-foot が作っている。
+// (2026-10-12 改修の希望 2) 呼び出し側が onPickFile を渡したときは、一覧の上に「アップロード」の段
+// (自分の画像のフォルダ。FolderImages.tsx)を足す。ユーザーが決めた見出しなので、上の「4つだけ」の例外
 //
 // **選んだあとの処理は呼び出し側に任せる。** 表紙は `{ kind: 'preset', id }` を
 // そのまま設定へ書くが、背景は data URI に直してから持つ
@@ -22,6 +24,7 @@ import { useState } from 'react';
 import { TRIM_SIZES } from '../models/project';
 import { useProject } from '../store/useProject';
 import { BOOTH_SHOP_URL, FREE_HIRES_PRESETS_URL, SHOP_PACKS_LABEL } from '../shop';
+import { FolderImages } from './FolderImages';
 
 /**
  * public/covers/manifest.json の1件(scripts/build-covers.py が生成する)。
@@ -152,6 +155,12 @@ interface Props {
   shopLabel?: string;
   /** 購入導線の下に添える紹介文 */
   shopHint?: string;
+  /**
+   * 画像のフォルダ(「アップロード」の段)の画像が押された。原画のファイルと、同梱のプリセットの高解像度版なら その id。
+   * 渡したときだけ、一覧の上に「アップロード」の段を出す(2026-10-12 改修の希望 2)。
+   * 取り込みは呼び出し側の今のファイル選びと同じ道で(長辺の上限もそちらが決める)
+   */
+  onPickFile?: (file: File, presetId: string | undefined) => Promise<void> | void;
 }
 
 export function PresetScreen({
@@ -164,6 +173,7 @@ export function PresetScreen({
   error,
   shopLabel,
   shopHint,
+  onPickFile,
 }: Props) {
   // 絞り込み。テーマは固定の候補があるので select、キーワードは自由入力。
   // **この画面の中に閉じた状態にする。** 開き直すたびに条件が消えるほうが、
@@ -216,6 +226,9 @@ export function PresetScreen({
       </div>
 
       <div className="preset-box">
+        {/* 自分の画像のフォルダ。**プリセットの一覧の上に「アップロード」の見出しで並べる**
+            (2026-10-12 改修の希望 2。10/12 夜ユーザー)。一覧と一緒に流れる(絞り込みは同梱の一覧だけに効く) */}
+        {onPickFile && <FolderImages busy={busy} onPick={onPickFile} />}
         {presets.length === 0 && (
           <p className="hint">
             プリセットが読み込めませんでした。Ctrl+F5 で再読み込みしてください

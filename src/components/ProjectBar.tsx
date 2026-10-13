@@ -268,7 +268,7 @@ export const ProjectBar = forwardRef<ProjectBarHandle, Props>(function ProjectBa
   const status = !isSupported()
     ? '自動保存は Chrome / Edge のみ'
     : !backup.folder
-      ? '自動保存おすすめ（フォルダを決めるだけ）'
+      ? '自動保存おすすめ（保存先フォルダを決めるだけ）'
       : backup.error
         ? // **失敗は黙って古い表示を残さない。**(2026-09-04 レビュー指摘)
           `${backup.folder}（自動保存に失敗しています）`
@@ -347,10 +347,12 @@ export const ProjectBar = forwardRef<ProjectBarHandle, Props>(function ProjectBa
       <span className={`backup-status ${backupFailed ? 'bad' : ''}`} title={backup.error || statusFull}>
         {status}
       </span>
+          {/* ［保存先フォルダを決める］(2026-10-12 ユーザー決定。前は［フォルダを決める］)。画像を選ぶ画面に［画像フォルダを選ぶ］(改修の希望 2)が
+              入ったので、どちらのフォルダか分かる名前にした(Gemini の案) */}
       {isSupported() &&
         (!backup.folder ? (
           <button className="ghost" disabled={busy} onClick={() => void run('保存先の設定', async () => setBackup(await choose()))}>
-            フォルダを決める
+            保存先フォルダを決める
           </button>
         ) : !backup.ready ? (
           <button disabled={busy} onClick={() => void run('許可の取得', async () => setBackup(await reauthorize()))}>

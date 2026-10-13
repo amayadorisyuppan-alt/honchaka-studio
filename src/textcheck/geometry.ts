@@ -23,7 +23,7 @@
 // ここを通る絵は KDP でも通る。逆に、ここで外と言われても KDP は通すことがある(厳しめに倒してある)。
 // 利用者に見せる枠も版面なので、「枠の外に字がある」と目で確かめられる(2026-10-02 ユーザー要望)。
 import type { Binding, ImageBlock, Manuscript, Plate, ProjectSettings, WritingMode } from '../models/project';
-import { PLATE_INSET, type PageLayout } from '../typeset/grid';
+import { PLATE_INSET, plateInsetsMm, type PageLayout } from '../typeset/grid';
 import { foldBand, spreadGeometry } from '../typeset/spread';
 import type { TextBox } from './db';
 
@@ -80,7 +80,13 @@ export function typeAreaOnPaper(l: PageLayout, side: PageSide): RectMm {
  * css.ts の div.plate.full / div.fullbleed(用紙いっぱい・切り抜いて埋める)と、
  * div.plate.wide / .narrow(仕上がりの外周を空けた箱の中に、切らずに収めて、用紙の真ん中に置く)と同じ計算
  */
-export function imageOnPaper(place: Exclude<PlaceKind, 'spread'>, l: PageLayout, natW: number, natH: number): RectMm {
+export function imageOnPaper(
+  place: Exclude<PlaceKind, 'spread'>,
+  l: PageLayout,
+  natW: number,
+  natH: number,
+  side: PageSide = 'right',
+): RectMm {
   if (place === 'full') {
     const scale = Math.max(l.paperW / natW, l.paperH / natH);
     const w = natW * scale;
@@ -88,6 +94,19 @@ export function imageOnPaper(place: Exclude<PlaceKind, 'spread'>, l: PageLayout,
     return { x: (l.paperW - w) / 2, y: (l.paperH - h) / 2, w, h };
   }
   const inset = l.trimW * PLATE_INSET[place];
+  // 無線綴じで決まりの入った本は、ノド側だけ下限まで空ける(plateInsetsMm。css.ts の @page platewide / platenarrow と同じ置き方。2026-10-12 修正リスト 4-5)。
+  // 仕上がりの左端を基準にした箱(小口側 fore・ノド側 gutter)の中に、縦横比を保って収め、箱の中央に置く
+  const ins = plateInsetsMm(l, place);
+  if (ins.gutter > ins.fore) {
+    const boxW = l.trimW - ins.fore - ins.gutter;
+    const boxH = l.trimH - inset * 2;
+    const sc = Math.min(PX_MM, boxW / natW, boxH / natH);
+    const iw = natW * sc;
+    const ih = natH * sc;
+    // 左のページは小口が左・ノドが右、右のページはその逆。仕上がりの左端は 左=小口の塗り足し・右=ノドの塗り足し の位置
+    const boxX = side === 'left' ? l.bleed.fore + ins.fore : l.bleed.gutter + ins.gutter;
+    return { x: boxX + (boxW - iw) / 2, y: (l.paperH - ih) / 2, w: iw, h: ih };
+  }
   const maxW = l.trimW - inset * 2;
   const maxH = l.trimH - inset * 2;
   // max-width / max-height なので、小さい絵は引き伸ばさない
@@ -114,7 +133,7 @@ export function judgeText(
   side: PageSide,
   tolMm = TEXT_TOLERANCE_MM,
 ): TextJudge {
-  const img = imageOnPaper(place, l, natW, natH);
+  const img = imageOnPaper(place, l, natW, natH, side);
   const area = typeAreaOnPaper(l, side);
   const kx = img.w / natW;
   const ky = img.h / natH;

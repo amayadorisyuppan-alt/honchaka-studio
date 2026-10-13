@@ -9,22 +9,20 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { type BgSpec } from '../models/project';
 import { optimizeImageDataUri } from '../images/optimize';
+import { IMAGE_ACCEPT, readImageFileAsDataUri } from '../images/imageFile';
 import { loadCoverPresets } from '../covers/manifest';
+import { isBundledPresetId } from '../covers/presetIds';
 import { PresetScreen, type PresetItem } from './PresetScreen';
+import { BackgroundResolutionNote } from './ResolutionNote';
 
 // 一覧そのもの(絞り込み・並べ方・BOOTH の導線)と利用条件の文言は PresetScreen へ移した。
 // **表紙タブと同じ形を使うため。** ここから PresetTerms を import している呼び出し元が
 // いるので、名前はそのまま通しておく
 export { PresetTerms } from './PresetScreen';
 
-async function fileToDataUri(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const r = new FileReader();
-    r.onload = () => resolve(String(r.result));
-    r.onerror = () => reject(new Error('読み込みに失敗しました'));
-    r.readAsDataURL(file);
-  });
-}
+// 利用者が選んだ画像のファイルは、頭の数バイトで JPEG・PNG かを確かめてから data URI にする。
+// それ以外(HEIC・WebP・種類の分からないファイルなど)は日本語で断る(images/imageFile.ts。2026-10-13 修正リスト 27)
+const fileToDataUri = readImageFileAsDataUri;
 
 async function urlToDataUri(url: string): Promise<string> {
   const res = await fetch(url);
@@ -73,6 +71,12 @@ interface Props {
    * (2026-08-20 ユーザー指摘「リード・見出し・ボタンの関係がいまいち」)
    */
   showLabel?: boolean;
+  /**
+   * 背景としての細かさの一言(修正リスト 19)を出すか。既定は showLabel と同じ(背景の面のピッカーだけ)。
+   * 挿絵の「画像を選ぶ」にも使い回しているが、挿絵は自分の行に挿絵の大きさで測った一言を出すので、
+   * ここで全面の数字を重ねて出さない(見直しの指摘 2026-10-12)
+   */
+  showResolution?: boolean;
   /** 絵を指定しないときに「本文と同じ / 無地」を選ばせる(目次・奥付) */
   allowPlain?: boolean;
   /** 継承元の呼び名。指定すると、絵が無いとき「◯◯と同じ」と表示する */
@@ -110,6 +114,7 @@ export function BackgroundPicker({
   showState = true,
   showThumb = true,
   showLabel = true,
+  showResolution = showLabel,
   allowPlain = false,
   inheritFrom,
   shopLabel,
@@ -153,7 +158,7 @@ export function BackgroundPicker({
    * この目印が無いと「04 書き出し」の AI 生成コンテンツの申告が出せない
    * (同梱の絵は生成AI製で、KDP は申告を求めている)。
    */
-  async function pick(run: () => Promise<string>, fromPreset = false) {
+  async function pick(run: () => Promise<string>, fromPreset = false, presetId?: string) {
     setError('');
     setBusy(true);
     try {
@@ -162,6 +167,9 @@ export function BackgroundPicker({
       const next: BgSpec = { ...value, src: await optimizeImageDataUri(await run(), maxSide) };
       if (fromPreset) next.fromPreset = true;
       else delete next.fromPreset; // 自前の画像に差し替えたら目印を消す
+      // どの同梱のプリセットか(2026-10-12 改修の希望 2)。高解像度版への差し替えの手がかり。目印と同じく、自前の画像では消す
+      if (fromPreset && presetId) next.presetId = presetId;
+      else delete next.presetId;
       onChange(next);
       setOpen(false);
     } catch (e) {
@@ -175,6 +183,7 @@ export function BackgroundPicker({
     const rest: BgSpec = { ...value };
     delete rest.src;
     delete rest.fromPreset;
+    delete rest.presetId;
     // 白黒で刷る印は、その面の絵についての指定。絵を外したら一緒に外す(継いだ絵は本文全体の印に従う)
     delete rest.printMono;
     // 絵も調整も無くなったら、面ごとの設定そのものを外して継承に戻す
@@ -204,7 +213,13 @@ export function BackgroundPicker({
         shopLabel={shopLabel}
         shopHint={shopHint}
         onBack={() => setOpen(false)}
-        onPick={(pr) => void pick(() => urlToDataUri(`covers/${pr.file}`), true)}
+        // 同梱の絵には id を付ける(自分で足した開発用の絵 manifest.mine.json は同梱ではないので付けない)
+        onPick={(pr) =>
+          void pick(() => urlToDataUri(`covers/${pr.file}`), true, isBundledPresetId(pr.id) ? pr.id : undefined)
+        }
+        // 画像のフォルダ(「アップロード」の段)。［画像を選ぶ］と同じ取り込み。
+        // ファイル名が同梱のプリセットの id なら、その高解像度版として目印と id を付ける(2026-10-12 改修の希望 2)
+        onPickFile={(file, presetId) => pick(() => fileToDataUri(file), !!presetId, presetId)}
       />
     );
   }
@@ -271,13 +286,25 @@ export function BackgroundPicker({
       )}
 
       {hint && <p className="hint">{hint}</p>}
+      {/* この面の画像の細かさが足りないときの一言(2026-10-12 修正リスト 19。挿絵・表紙と同じ形)。
+          出し先が背景も測るとき(PrintTargetProfile.checksBackgroundPpi)だけ文脈から来る。それ以外は何も出ない。同梱のプリセットなら BOOTH の高解像度版の案内つき(21) */}
+      {showResolution && (
+        <BackgroundResolutionNote
+          src={src}
+          preset={value?.fromPreset === true}
+          // フォルダに高解像度版があるときの［高解像度版に差し替える］。fromPreset・presetId・濃さはそのまま残して、src だけ替える
+          presetId={value?.presetId}
+          maxSide={maxSide}
+          apply={(next) => onChange({ ...value, src: next })}
+        />
+      )}
       {extra}
       {error && <p className="error">{error}</p>}
 
       <input
         ref={fileRef}
         type="file"
-        accept="image/*"
+        accept={IMAGE_ACCEPT}
         hidden
         onChange={(e) => {
           const f = e.target.files?.[0];

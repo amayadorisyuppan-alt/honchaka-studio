@@ -135,12 +135,20 @@ export interface ResolutionEntry {
   /** 「入稿前チェック」で数えるときの分け方 */
   group: 'plate' | 'img' | 'cover' | 'bg';
   verdict: ResolutionVerdict;
+  /**
+   * 同梱のプリセットから選んだ絵か(fromPreset の目印。2026-10-12 修正リスト 21)。
+   * 同梱の絵はわざと文庫までの大きさにしてあるので、知らせに BOOTH の無料の高解像度版への案内を添えるのに使う。
+   * 表紙は、プリセットをそのまま使っている面(kind: 'preset')と、その高解像度版を入れた面(kind: 'image' の fromPreset)に付く
+   */
+  preset?: boolean;
 }
 
 /** 用紙いっぱいに敷く背景の1枚。鍵は 'bg:body' / 'bg:title' / 'bg:toc' / 'bg:colophon' / 'bg:chapter:章' / 'bg:col:コラムの id' */
 export interface PageBackground {
   key: string;
   src: string;
+  /** 同梱のプリセットから選んだ絵か(BgSpec.fromPreset / bodyBgFromPreset。2026-10-12 修正リスト 21) */
+  preset?: boolean;
 }
 
 /**
@@ -159,7 +167,9 @@ export function pageBackgrounds(
     const r = resolveBg(spec, s);
     if (!r.src || !(r.opacity > 0) || seen.has(r.src)) return;
     seen.add(r.src);
-    out.push({ key: spec?.src ? key : 'bg:body', src: r.src });
+    // 面ごとの絵はその面の目印、本文の地を継ぐ面は本文全体の目印(bodyBgFromPreset)
+    const preset = spec?.src ? spec.fromPreset === true : s.bodyBgFromPreset === true;
+    out.push({ key: spec?.src ? key : 'bg:body', src: r.src, ...(preset ? { preset: true } : {}) });
   };
   if (book.hasTitle) add('bg:title', s.titleBg);
   if (book.hasToc) add('bg:toc', s.tocBg);
@@ -183,6 +193,8 @@ export interface CollectInput {
   /** 絵(src)→ 画素数。測れていない・測れなかった絵は入っていない(言わない) */
   sizes: ReadonlyMap<string, PxSize | null>;
   base: number;
+  /** 同梱のプリセットの id → 画素数(表紙にプリセットをそのまま使っている面を数える。covers/presetIds.ts の bundledPresetPx) */
+  presetPx?: (id: string) => PxSize | undefined;
 }
 
 /**
@@ -193,39 +205,67 @@ export interface CollectInput {
 export function collectResolution(input: CollectInput): ResolutionEntry[] {
   const { plates, chapters, layout, cover, sizes, base, backgrounds = [] } = input;
   const out: ResolutionEntry[] = [];
-  const add = (key: string, group: ResolutionEntry['group'], ppi: number) => {
+  const add = (key: string, group: ResolutionEntry['group'], ppi: number, preset = false) => {
     const verdict = judgePpi(ppi, base);
-    if (verdict.level !== 'ok') out.push({ key, group, verdict });
+    if (verdict.level !== 'ok') out.push({ key, group, verdict, ...(preset ? { preset: true } : {}) });
   };
   for (const p of plates) {
     const px = !p.blank && p.src ? sizes.get(p.src) : null;
-    if (px) add(`plate:${p.id}`, 'plate', placedPpi(px, layout, p.size));
+    if (px) add(`plate:${p.id}`, 'plate', placedPpi(px, layout, p.size), p.fromPreset === true);
   }
   chapters.forEach((ch, ci) => {
     ch.blocks.forEach((b, bi) => {
       if (typeof b !== 'object' || b === null || b.type !== 'image' || !b.src) return;
       const px = sizes.get(b.src);
-      if (px) add(`img:${imageKey(ci, bi)}`, 'img', placedPpi(px, layout, imageSizeOf(b)));
+      if (px) add(`img:${imageKey(ci, bi)}`, 'img', placedPpi(px, layout, imageSizeOf(b)), b.fromPreset === true);
     });
   });
   if (cover) {
-    const srcOf = (v: { kind: string; src?: string } | undefined) => (v?.kind === 'image' ? v.src : undefined);
-    // まるごと1枚があるときは、面ごとの地は描かない(models/cover.ts の CoverWrap)
-    const wrapSrc = srcOf(cover.settings.wrap);
-    const parts: [CoverPart, string | undefined][] = wrapSrc
-      ? [['wrap', wrapSrc]]
+    /**
+     * 表紙の1面の画素数と、同梱のプリセット(またはその高解像度版)か。
+     * **同梱のプリセットをそのまま使っている面も数える**(配布物の一覧の大きさ presetPx で。絵は読まない)。
+     * 前は自分の画像だけを数えていて、同梱の絵の表紙は B5 でも知らせが出なかった(2026-10-12 改修の希望 2。
+     * 同梱の絵はわざと文庫までの大きさなので、足りないときは BOOTH の無料の高解像度版へ案内する)
+     */
+    const partOf = (v: CoverSettings['background'] | CoverSettings['wrap']) => {
+      if (v?.kind === 'image') return { px: v.src ? sizes.get(v.src) : null, preset: v.fromPreset === true };
+      if (v?.kind === 'preset') return { px: input.presetPx?.(v.id), preset: true };
+      return null;
+    };
+    // まるごと1枚があるときは、面ごとの地は描かない(models/cover.ts の CoverWrap)。
+    // プリセットのまるごと1枚も同じ(前は自分の画像のときだけ見ていて、プリセットだと描かれない面を数えていた)
+    const parts: [CoverPart, ReturnType<typeof partOf>][] = cover.settings.wrap
+      ? [['wrap', partOf(cover.settings.wrap)]]
       : [
-          ['front', srcOf(cover.settings.background)],
-          ['back', srcOf(cover.settings.backCover)],
+          ['front', partOf(cover.settings.background)],
+          ['back', partOf(cover.settings.backCover)],
         ];
-    for (const [part, src] of parts) {
-      const px = src ? sizes.get(src) : null;
-      if (px) add(`cover:${part}`, 'cover', coverPpi(px, cover.layout, part));
+    for (const [part, p] of parts) {
+      if (p?.px) add(`cover:${part}`, 'cover', coverPpi(p.px, cover.layout, part), p.preset);
     }
   }
   for (const b of backgrounds) {
     const px = sizes.get(b.src);
-    if (px) add(b.key, 'bg', placedPpi(px, layout, 'full'));
+    if (px) add(b.key, 'bg', placedPpi(px, layout, 'full'), b.preset === true);
+  }
+  return out;
+}
+
+/**
+ * 背景の画面で、画像ごとに出す細かさの知らせの引き当て表。画像(src)→ 判定。(2026-10-12 修正リスト 19)
+ * **同じ絵を敷く面が複数あっても、細かさは同じ**(どの面も塗り足し込みの用紙に cover で敷くので)。
+ * 入稿前チェックと数字が食い違わないよう、collectResolution の結果(group が 'bg')から作る。
+ * 足りている絵・数えていない絵は入らない(= 何も出さない)。公開版は背景を数えないので、空の表になる
+ */
+export function backgroundVerdictsBySrc(
+  backgrounds: readonly PageBackground[],
+  entries: readonly ResolutionEntry[],
+): Map<string, ResolutionVerdict> {
+  const byKey = new Map(entries.filter((e) => e.group === 'bg').map((e) => [e.key, e.verdict]));
+  const out = new Map<string, ResolutionVerdict>();
+  for (const b of backgrounds) {
+    const v = byKey.get(b.key);
+    if (v) out.set(b.src, v);
   }
   return out;
 }

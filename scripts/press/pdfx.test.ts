@@ -354,7 +354,7 @@ await test('1. 名目より小さい側に 0.16mm 振れた PDF(Chrome 実測の
 });
 
 await test('1. 小さい側に振れた PDF は、独立の検査 check-press.py の boxes を通る', () => {
-  if (!pyAvailable('pypdf, pymupdf, numpy')) return void console.log('       (python か pypdf・pymupdf が無いので飛ばした)');
+  if (!pyAvailable('pypdf, pymupdf, numpy')) return void console.log('       [飛ばした] (python か pypdf・pymupdf が無いので飛ばした)');
   const res = pyRun([join(repo, 'scripts', 'check-press.py'), '--kind', 'body-gray', '--out', join(tmp, 'smaller.pdf'), '--trim', '148x210', '--bleed', '3.2,3.2,3.2,0', '--first-gutter', 'right', '--only', 'boxes', '--quiet']);
   assert.equal(res.code, 0, res.text);
 });
@@ -416,7 +416,7 @@ await test('2. 既定は「Info に書く」。定数を切り替えると「書
 });
 
 await test('2. check-press.py も、Info の版の印を両方の向きで確かめる(--info-pdfx-version write|omit)', async () => {
-  if (!pyAvailable('pypdf, pymupdf, numpy')) return void console.log('       (python か pypdf・pymupdf が無いので飛ばした)');
+  if (!pyAvailable('pypdf, pymupdf, numpy')) return void console.log('       [飛ばした] (python か pypdf・pymupdf が無いので飛ばした)');
   const run = (file: string, mode: string) =>
     pyRun([join(repo, 'scripts', 'check-press.py'), '--kind', 'body-gray', '--out', file, '--trim', '148x210', '--bleed', '3.2,3.2,3.2,0', '--first-gutter', 'right', '--only', 'pdfx', '--quiet', '--info-pdfx-version', mode]);
   const w = await blank(151.2, 216.4);
@@ -477,7 +477,7 @@ await test('3. 書名は Info と XMP に同じ文字で入り、XMP は XML の
     paths.push(p);
     assert.equal(infoTitles[i], pdfxMod.cleanTitle(title), `Info の書名が整えた物になっている: ${JSON.stringify(title)}`);
   }
-  if (!pyAvailable('xml.dom.minidom')) return void console.log('       (python が無いので、XML の読み手での確認は飛ばした)');
+  if (!pyAvailable('xml.dom.minidom')) return void console.log('       [飛ばした] (python が無いので、XML の読み手での確認は飛ばした)');
   const script = `
 import sys, json
 from xml.dom import minidom
@@ -648,7 +648,7 @@ await broken('暗号化の印(/Encrypt)', (d) => {
 // ───────────────────────── 3. 実物 ─────────────────────────
 const fixtures = process.env.PRESS_FIXTURES;
 if (!fixtures || !existsSync(join(fixtures, 'color-a5.pdf'))) {
-  console.log('\n実物の検査は飛ばした(環境変数 PRESS_FIXTURES に color-a5.pdf などのあるフォルダを渡すと回る)');
+  console.log('\n[飛ばした] 実物の検査は飛ばした(環境変数 PRESS_FIXTURES に color-a5.pdf などのあるフォルダを渡すと回る)');
 } else {
   console.log('\n実物');
   const out = process.env.PRESS_OUT ?? join(fixtures, '..', 'out', 'pdfx');

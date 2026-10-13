@@ -26,6 +26,8 @@ import { APP_URL, CONTACT_EMAIL, FEEDBACK_FORM_URL, NOTE_TIP_URL, TIP_URL, YOUTU
 import { HeroBook } from './HeroBook';
 import { NoticeBar } from './NoticeBar';
 import { FrogPeek, StudioLogo } from './FrogMark';
+import { ENV_NOTICE_TEXT, envNoticeOf, osOf } from './reportText';
+import { platformVersionNow } from './envProbe';
 
 /**
  * 「スタジオを応援する」のカードの縁で、カエルが言うひと言。**開くたびに1つ選ぶ。**
@@ -394,6 +396,21 @@ export function StartScreen({
   // 「投げ銭をしてもしなくても、使える機能は同じ」をカードに書いて、引き換えにしないことを言葉にした。
   // 使い方動画はまだ本数が無いので、カードにはせず下の1行のまま(空の棚へ誘わない)
   const [frogLine] = useState(() => FROG_LINES[Math.floor(Math.random() * FROG_LINES.length)]);
+  // 対応環境の外の人への知らせ。止めはしない(2026-10-13 運用の見直し 12 / 対応環境)。
+  // Mac の Chrome・Edge は userAgent で macOS の版が分からない(10_15_7 に固定)ので、userAgentData から非同期に取る。
+  // 取れなければ null のまま(古い macOS の知らせが出ないだけ。失敗は黙る)
+  const [macVersion, setMacVersion] = useState<string | null>(null);
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || osOf(navigator.userAgent) !== 'macOS') return;
+    let alive = true;
+    void platformVersionNow().then((v) => {
+      if (alive) setMacVersion(v);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+  const envNotice = typeof navigator === 'undefined' ? null : envNoticeOf(navigator.userAgent, macVersion);
   const linkCards = (
     <>
       <div className="start-menu start-links">
@@ -590,6 +607,25 @@ export function StartScreen({
               データは自分のもの
             </li>
           </ul>
+          {/* 動作環境の一言(札は5つまでなので、札の下に別の1行で置く)。2026-10-13 運用の見直し 12。
+              合わない環境の人にだけ、下の知らせが出る(止めはしない)。
+              スマホ・タブレットの知らせは CSS で出し分ける(タッチが主の端末のとき。.start-env-touch) */}
+          {/* 2026-10-13 夜: 「動作環境」から「対応環境」に(ユーザー決定。この範囲の不具合は直し、外は直せないと最初に言う) */}
+          <p className="start-env">
+            対応環境: Windows 10・11 / macOS 13 以降の Google Chrome・Microsoft Edge（最新版）
+            <button className="linklike" onClick={onOpenHelp}>
+              くわしく見る
+            </button>
+          </p>
+          <p className="start-env-note start-env-touch" role="note">
+            本ちゃかはパソコン専用です。スマホやタブレットは画面が狭く、仕上がりの確認や操作ができません。パソコンで開いてください。
+          </p>
+          {envNotice && (
+            <p className="start-env-note start-env-browser" role="note">
+              {/* 何が外かを言う(Safari・Firefox・古い OS・古い版。どれも対象外。2026-10-13 夜 ユーザー決定)。文は reportText.ts の ENV_NOTICE_TEXT */}
+              {ENV_NOTICE_TEXT[envNotice]}
+            </p>
+          )}
 
           {/* 本物のサンプルを表紙から奥付までめくれる(public/hero が無ければ出ない)。
               「これが何か」を本のすぐ上で言う(2026-09-02「開かせるナビゲーションがほしい」) */}
@@ -665,9 +701,12 @@ export function StartScreen({
 
           <div className="start-step">
             <p className="start-step-title">③ 原稿を取り込む</p>
+            {/* 見出し・ルビの読み取りは Word(.docx)だけの特別対応。ほかの道具に取り込みを広げない(2026-10-13 夜 ユーザー決定)。
+                Pages・Google ドキュメントの人は Markdown かテキストにして持ってくる(AI に頼めば Markdown にしてくれる。頼み方は AI の工程とヘルプ)
+                (2026-10-13 夜 ユーザー「Markdown かテキストで」。テキストは「第一章」などの行で章に分かれ、ルビは記号で書ける。見出しの印と画像は落ちる) */}
             <p className="start-step-desc">
               .txt / .md / .docx が読めます。Pages や Google ドキュメントで書いた原稿は、
-              Word 形式（.docx）で書き出してから入れてください
+              Markdown（.md）かテキスト（.txt）にしてから取り込んでください（テキストなら「第一章」のような行で章に分かれます。くわしくは［ヘルプ］をご覧ください）
             </p>
             <button className="primary-action" onClick={handleImport}>
               原稿を取り込む
@@ -678,11 +717,24 @@ export function StartScreen({
             {importError && <p className="error">{importError}</p>}
             {notice && <p className="notice">{notice}</p>}
 
+            {/* 取り込んだ形式で案内を分ける(2026-10-13 運用の見直し 12)。
+                .docx は「第一章」と書いても章にならない(見出し1だけを読む)ので、1つの文にまとめると Word の人が迷う */}
             {noChapters && (
               <p className="warn">
                 <b>章に分かれていません。</b>
-                章にしたい行は「第一章」「プロローグ」のように書くか、行頭に <b>#&nbsp;</b>
-                を付けてください（.docx なら見出し1）
+                {/* .md も「第一章」だけの行は章にならない(# の行だけを読む。importers/md.ts) */}
+                {source?.kind === 'docx' ? (
+                  <>Word で、章にしたい行を「見出し 1」にしてから、取り込み直してください</>
+                ) : source?.kind === 'md' ? (
+                  <>
+                    章にしたい行の頭に <b>#&nbsp;</b> を付けてください（「# 第一章」のように）
+                  </>
+                ) : (
+                  <>
+                    章にしたい行は「第一章」「プロローグ」のように書くか、行頭に <b>#&nbsp;</b>
+                    を付けてください
+                  </>
+                )}
               </p>
             )}
             {/* 書き方そのものは［ヘルプ］に置いた。ここに畳んで入れていたが、
@@ -720,11 +772,11 @@ export function StartScreen({
               <>
                 <p className="start-step-desc">
                   <b>Chrome / Edge なら自動でも残せます。</b>画面の上の
-                  <b>［フォルダを決める］</b>で .json の置き場所を1度決めておくと、
+                  <b>［保存先フォルダを決める］</b>で .json の置き場所を1度決めておくと、
                   変更のたびに自動で控えが残ります
                 </p>
                 <button className="ghost" disabled={busy} onClick={() => void handleChoose()}>
-                  {folder ? `フォルダを決め直す（いま: ${folder}）` : 'フォルダを決める'}
+                  {folder ? `保存先フォルダを決め直す（いま: ${folder}）` : '保存先フォルダを決める'}
                 </button>
                 {error && <p className="error">{error}</p>}
               </>

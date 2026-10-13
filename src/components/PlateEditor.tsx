@@ -15,7 +15,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { isEpubImage } from '../exporters/epub';
 import { overText, type TextRowState } from '../textcheck/geometry';
-import { resolutionNote, type ResolutionVerdict } from '../models/imageResolution';
+import { type ResolutionVerdict } from '../models/imageResolution';
+import { ResolutionNote, type HiresSwap } from './ResolutionNote';
 import { SPREAD_AUTO_BLANK_NOTE, SPREAD_EBOOK_NOTE, SPREAD_FOLD_SAFE_MM, SPREAD_REPICK_NOTE, spreadBindingNote } from '../typeset/spread';
 import { WRAP_MAX_SIDE } from '../images/optimize';
 import {
@@ -284,18 +285,14 @@ export function PlateEditor({
   };
   /**
    * 絵の細かさの知らせ(その絵の行に1行)。足りている絵には出さない。電子書籍の下見では出さない(紙の話)。
-   * 「かなり足りない」ときは、頭に太字を付けて強める
+   * 「かなり足りない」ときは、頭に太字を付けて強める。
+   * 同梱のプリセットの絵(preset)には、BOOTH の無料の高解像度版への案内を添える(2026-10-12 修正リスト 21)
    */
-  const resNote = (key: string) => {
-    const v = resRows?.get(key);
-    const text = v && !ebookView ? resolutionNote(v, printTargetLabel) : null;
-    return text ? (
-      <p className="warn" role="status">
-        {v!.level === 'veryLow' && <b>細かさがかなり足りません。 </b>}
-        {text}
-      </p>
-    ) : null;
-  };
+  // swap を渡すと、画像のフォルダに高解像度版があるとき［高解像度版に差し替える］を出す(2026-10-12 改修の希望 2)
+  const resNote = (key: string, preset = false, swap?: HiresSwap) =>
+    ebookView ? null : (
+      <ResolutionNote verdict={resRows?.get(key)} targetLabel={printTargetLabel} preset={preset} swap={swap} />
+    );
   /**
    * 「このままにする」を選んだ絵の行に出す、戻すための1行。
    * 検査にかかる大きさ(全面・余白すこし・余白おおめ)のときだけ(ほかの大きさは、もともと調べない)
@@ -665,7 +662,7 @@ export function PlateEditor({
         {!p.blank && (
           <BackgroundPicker
             label={`${i + 1}枚目の画像`}
-            value={p.src ? { src: p.src, fromPreset: p.fromPreset } : undefined}
+            value={p.src ? { src: p.src, fromPreset: p.fromPreset, presetId: p.presetId } : undefined}
             showState={false}
             showThumb={false}
             showLabel={false}
@@ -676,7 +673,8 @@ export function PlateEditor({
             maxSide={p.size === 'spread' ? WRAP_MAX_SIDE : undefined}
             onChange={(spec) =>
               // 絵を替えたら、「このままにする」も消す(別の絵なので、確かめ直す)
-              patch(p.id, { src: spec?.src ?? '', fromPreset: spec?.fromPreset, textOk: undefined })
+              // presetId はどの同梱のプリセットか(2026-10-12 改修の希望 2。高解像度版への差し替えの手がかり)
+              patch(p.id, { src: spec?.src ?? '', fromPreset: spec?.fromPreset, presetId: spec?.presetId, textOk: undefined })
             }
           />
         )}
@@ -714,7 +712,16 @@ export function PlateEditor({
             () => patch(p.id, { textOk: true }),
           )}
         {!open && textKeptNote(p.textOk, !p.blank && !!p.src && p.size !== 'print', () => patch(p.id, { textOk: undefined }))}
-        {!open && !p.blank && !!p.src && resNote(`plate:${p.id}`)}
+        {!open &&
+          !p.blank &&
+          !!p.src &&
+          resNote(`plate:${p.id}`, p.fromPreset === true, {
+            presetId: p.presetId,
+            src: p.src,
+            maxSide: p.size === 'spread' ? WRAP_MAX_SIDE : undefined,
+            // 絵を替えたら「このままにする」も消す(画像を選び直したときと同じ)。fromPreset・presetId はそのまま
+            apply: (src) => patch(p.id, { src, textOk: undefined }),
+          })}
         {!open && !p.blank && !!p.src && printColor && !ebookView && (
           <PrintMonoToggle
             checked={!!p.printMono}
@@ -832,7 +839,7 @@ export function PlateEditor({
         )}
         <BackgroundPicker
           label={`${i + 1}枚目の画像`}
-          value={img.src ? { src: img.src, fromPreset: img.fromPreset } : undefined}
+          value={img.src ? { src: img.src, fromPreset: img.fromPreset, presetId: img.presetId } : undefined}
           showState={false}
           showThumb={false}
           showLabel={false}
@@ -844,6 +851,9 @@ export function PlateEditor({
               const next: ImageBlock = { ...b, src: spec?.src ?? '' };
               if (spec?.fromPreset) next.fromPreset = true;
               else delete next.fromPreset;
+              // どの同梱のプリセットか(2026-10-12 改修の希望 2)
+              if (spec?.presetId) next.presetId = spec.presetId;
+              else delete next.presetId;
               // 絵を替えたら、「このままにする」も消す(別の絵なので、確かめ直す)
               delete next.textOk;
               return next;
@@ -875,7 +885,18 @@ export function PlateEditor({
             原稿（Word）に貼ってあった画像です。原稿を取り込み直すと、原稿のとおりの場所に戻ります
           </p>
         )}
-        {!!img.src && resNote(`img:${imageKey(chapter, block)}`)}
+        {!!img.src &&
+          resNote(`img:${imageKey(chapter, block)}`, img.fromPreset === true, {
+            presetId: img.presetId,
+            src: img.src,
+            apply: (src) =>
+              // 同じ絵の高解像度版なので、下見の場所は動かさない(writeAndFollow ではなく write)
+              write((b) => {
+                const next: ImageBlock = { ...b, src };
+                delete next.textOk; // 絵を替えたら「このままにする」も消す
+                return next;
+              }),
+          })}
         {!!img.src && isRenderableImage(img.src) && printColor && !ebookView && (
           <PrintMonoToggle
             checked={!!img.printMono}

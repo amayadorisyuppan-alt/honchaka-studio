@@ -282,9 +282,25 @@ export interface PageLayout {
   fontPt: number;
   lineFeedPt: number;
   writingMode: WritingMode;
+  /**
+   * 無線綴じの本が出し先の決まり(印刷所の決まり)を持つとき、**ノドの下限(mm)**。(2026-10-12 修正リスト 4-5)
+   * 挿絵ページの「余白すこし」の絵は、ノド側だけこの下限まで空ける(plateInsetsMm)。
+   * 中綴じ・KDP・決まりをまだ入れていない本は付けない(挿絵の置き方も組版HTMLも従来のまま)
+   */
+  plateGutterMm?: number;
 }
 
 export function computeLayout(s: ProjectSettings): PageLayout {
+  const l = computeLayoutBase(s);
+  // 挿絵ページ(余白あり)のノド側の下限。無線綴じで決まりが入っている本だけ(中綴じ・KDP・決まりなしは付けない)
+  if (bindingOf(s) === 'perfect' && printRulesOf(s)) {
+    const g = gutterFloorMm(s.estimatedPages, s);
+    if (g > 0) return { ...l, plateGutterMm: g };
+  }
+  return l;
+}
+
+function computeLayoutBase(s: ProjectSettings): PageLayout {
   const trim = TRIM_SIZES[s.trim] ?? TRIM_SIZES.bunko;
   const charMm = s.fontPt * PT_TO_MM;
   const lineMm = s.lineFeedPt * PT_TO_MM;
@@ -478,8 +494,24 @@ export function plateAreaMm(l: PageLayout, size: PlateSize): { w: number; h: num
   if (size === 'full') return { w: l.paperW, h: l.paperH };
   if (size === 'spread') return spreadArtMm(l);
   if (size === 'print') return pageAreaMm(l);
+  const ins = plateInsetsMm(l, size);
+  // 左右対称のときは従来の式のまま(浮動小数点の最後の桁まで変えない)
+  return { w: l.trimW - (ins.gutter === ins.fore ? ins.fore * 2 : ins.fore + ins.gutter), h: l.trimH - ins.top * 2 };
+}
+
+/**
+ * 挿絵ページ(余白すこし・おおめ)の絵の四方の内寸(mm)。**css.ts の div.plate.wide / .narrow と textcheck/geometry.ts が同じ値を使う。**
+ * 天地・小口側は仕上がり幅の比(PLATE_INSET)。**ノド側だけ**、無線綴じで決まりの入った本はノドの下限(l.plateGutterMm)まで空ける
+ * (2026-10-12 修正リスト 4-5。A5 の「余白すこし」は 4% = 5.9mm で、下限 15mm を割っていた)。
+ * 比のほうが大きい(おおめなど)ときは比のまま。左右が非対称になるので、絵は縦横比を保ったまま空けたぶん小さくなる。
+ * gutter > fore のときだけノド側を空けている(= 規則を足す)。そうでなければ従来の左右対称
+ */
+export function plateInsetsMm(
+  l: Pick<PageLayout, 'trimW' | 'plateGutterMm'>,
+  size: 'wide' | 'narrow',
+): { top: number; fore: number; gutter: number } {
   const inset = l.trimW * PLATE_INSET[size];
-  return { w: l.trimW - inset * 2, h: l.trimH - inset * 2 };
+  return { top: inset, fore: inset, gutter: Math.max(inset, l.plateGutterMm ?? 0) };
 }
 
 /** 挿絵ページに入れる画像の推奨画素数(300dpi) */

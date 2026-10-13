@@ -44,7 +44,7 @@ for (const kind of ['body-gray', 'body-cmyk', 'cover-cmyk'] as PressKind[]) {
 console.log('\n実物');
 const fixturesEnv = process.env.PRESS_FIXTURES;
 if (process.env.PRESS_GS !== '1' || !fixturesEnv) {
-  console.log('  skip PRESS_GS=1 と PRESS_FIXTURES(title-p1.pdf などのあるフォルダ)が両方あるときだけ、Ghostscript を通す実物の検査を回す');
+  console.log('  [飛ばした] PRESS_GS=1 と PRESS_FIXTURES(title-p1.pdf などのあるフォルダ)が両方あるときだけ、Ghostscript を通す実物の検査を回す');
 } else {
   const fixtures = resolve(fixturesEnv);
   const outDir = resolve(fixtures, '../out/autorotate');
@@ -52,7 +52,7 @@ if (process.env.PRESS_GS !== '1' || !fixturesEnv) {
   for (const file of ['title-p1.pdf', 'title-p1-6.pdf']) {
     const input = join(fixtures, file);
     if (!existsSync(input)) {
-      console.log(`  skip ${file} が無い`);
+      console.log(`  [飛ばした] ${file} が無い`);
       continue;
     }
     await test(`${file}: 白黒の本文として通すと、全ページに /Rotate が無く TrimBox・BleedBox がある`, async () => {

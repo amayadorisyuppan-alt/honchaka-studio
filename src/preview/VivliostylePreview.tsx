@@ -29,10 +29,15 @@ import { CoreViewer, Navigation, PageViewMode, type Payload } from '@vivliostyle
 import { FrogPeek } from '../components/FrogMark';
 import { fontUrlsIn, prefetchFonts } from './fontPrefetch';
 import { installFontWaitGuard } from './fontWaitGuard';
+import { scanPreviewFontFailures, watchFontFailures } from './fontFailures';
+import { useFontRetryEpoch } from './useFontFailures';
 import { createThumbs, type AddKind, type InsertKind, type ThumbStrip } from './PageThumbs';
+import { releaseFontFetchers } from './fontFetcherRelease';
 
 // Vivliostyle の書体の読み込み待ちが、アプリの書体(約 3,700 面)まで全部読ませないように(fontWaitGuard.ts)
 installFontWaitGuard();
+// 本の書体を読み込めなかったら数えて知らせる(fontFailures.ts。2026-10-13 修正リスト 29)
+watchFontFailures();
 
 export interface LayoutInfo {
   /** 挿絵がいま何ページ目に出ているか。挿絵の id で引く */
@@ -806,6 +811,16 @@ export const VivliostylePreview = forwardRef<PreviewHandle, Props>(function Vivl
    */
   const renderedRef = useRef<{ html: string; view: PreviewView } | null>(null);
 
+  /**
+   * **読めなかった書体を読み直せたら、同じ原稿でも組み直す。**(2026-10-13 修正リスト 29)
+   * 代わりの書体で組んだ紙面は、字の幅も行の折り返しも違う。下の「同じ原稿なら組み直さない」を
+   * 外すため、覚えている紙面を忘れる(この effect は下の組版の effect より先に走る)
+   */
+  const fontEpoch = useFontRetryEpoch();
+  useEffect(() => {
+    if (fontEpoch > 0) renderedRef.current = null;
+  }, [fontEpoch]);
+
   useEffect(() => {
     const el = containerRef.current;
     if (!el || !html) return;
@@ -899,8 +914,18 @@ export const VivliostylePreview = forwardRef<PreviewHandle, Props>(function Vivl
      */
     if (!bufsRef.current) bufsRef.current = [makeBuf(el), makeBuf(el)];
     const bufs = bufsRef.current;
-    const buf =
+    let buf =
       buildingRef.current ?? bufs.find((b) => b.inner !== liveInnerRef.current) ?? bufs[0]!;
+    /*
+     * **組みかけの面を、60秒の保険(下の safety)で見せているとき。**(2026-10-13 修正リスト 31)
+     * その面へ重ねると、組み直しの頭で面を隠す(opacity 0)ので、もう片方も隠れていて**下見が真っ白**になる
+     * (遅い PC で、組み上がる前に判型や書体を変えたとき)。組みかけの回は止めて(主線を取り合わない)、
+     * 見せたまま、もう片方の面へ組む
+     */
+    if (buf.inner === liveInnerRef.current) {
+      cancelRender(buf);
+      buf = bufs.find((b) => b !== buf) ?? buf;
+    }
     buildingRef.current = buf;
     const { inner, viewer } = buf;
     // 仕上がり線と版面の枠の位置を、この面に書く(この面がこれから載せる紙面の塗り足しと余白)
@@ -1044,9 +1069,26 @@ export const VivliostylePreview = forwardRef<PreviewHandle, Props>(function Vivl
     };
 
     /**
-     * 保険。**組み上がりの合図が来なくても覆いは外す。**
+     * 保険。**組み上がりの合図が来なくても、紙面は見せる。**
      * 隠れたまま何も見えないほうが、途中経過が見えるより悪い
+     *
+     * **ただし「作っています」は下ろさない。**(2026-10-13 修正リスト 31)
+     * もとはここで覆い・一覧の札・「数えています」をまとめて下ろしていた。遅い PC(実測: CPU を4倍遅くして
+     * 約300ページの最初の組み上がりが4分)では、60秒で全部が「終わった」顔になり、裏では組み続けていた。
+     * 帯のページ数は概算(1冊目)か前の数(組み直し)に戻り、ページ一覧も途中までしか無いのに札が消えた。
+     * いまは紙面を見せて、覆いを隅の小さい札(「◯ページできました」)に変えるだけにする。
+     * 帯の「数えています…」もそのまま。下ろすのは本当に組み上がったとき(onReady)か、
+     * ページが増えなくなったとき(下の poll。目次で止まる不具合のような、合図が二度と来ない場合の逃げ道)
      */
+    let safetyShown = false;
+    /**
+     * 保険のあと、**ページがこの長さ増えなければ、止まったとみなして札を下ろす。**(2026-10-13 修正リスト 31)
+     * 組んでいるあいだは、遅い PC でもページは数秒おきに増える(CPU 4倍遅いまねで約300ページを約4分 = 1ページ1秒弱)
+     */
+    const STALL_MS = 90000;
+    let lastCount = -1;
+    let lastGrowAt = Date.now();
+    let stallGivenUp = false;
     const safety = setTimeout(() => {
       // 合図が来なくても、隠したままにはしない(途中経過でも見えるほうがまし)
       // **見せる前に、いまできているぶんの中で見ていたページへ寄せる。**
@@ -1056,11 +1098,10 @@ export const VivliostylePreview = forwardRef<PreviewHandle, Props>(function Vivl
       const back = Math.min(currentPageRef.current, Math.max(0, els.length - 1));
       if (back > 0 || !shownPages().includes(0)) viewer.navigateToPage(Navigation.EPAGE, back);
       show();
-      setBusy(false);
-      // **一覧の札もここで消す。** 覆いだけ消して札を残すと、
-      // 「中央は終わったのに一覧は作り続けている」という嘘の画面になる
-      thumbs?.setBusy(false);
-      countingRef.current?.(false);
+      // 大きな覆いを隅の札に変える(1冊目で、まだ1ページも見せていなかったとき)
+      setHasPage(true);
+      safetyShown = true;
+      lastGrowAt = Date.now();
     }, 60000);
 
     /**
@@ -1112,6 +1153,17 @@ export const VivliostylePreview = forwardRef<PreviewHandle, Props>(function Vivl
       const els = pageEls();
       thumbs?.sync(els);
       setBuilt(els.length);
+      if (els.length !== lastCount) {
+        lastCount = els.length;
+        lastGrowAt = Date.now();
+      } else if (safetyShown && !stallGivenUp && Date.now() - lastGrowAt > STALL_MS) {
+        // 止まった(合図が二度と来ない)。前の保険と同じく、覆い・一覧の札・「数えています」を下ろす。
+        // あとから本当に組み上がったら、onReady がいつもどおり片づける
+        stallGivenUp = true;
+        setBusy(false);
+        thumbs?.setBusy(false);
+        countingRef.current?.(false);
+      }
     }, 700);
 
     // ---- この回のあいだだけ効く聞き耳。面を作るときに立てた口へ差し込む ----
@@ -1178,6 +1230,8 @@ export const VivliostylePreview = forwardRef<PreviewHandle, Props>(function Vivl
         if (buildingRef.current === buf) buildingRef.current = null;
         // この原稿・この見方は組み上がった。隠して戻っただけなら次は組み直さない
         renderedRef.current = { html, view };
+        // 組み上がった = この回の書体は全部取り寄せ済み。原稿への糸をここで切る(修正リスト 30)
+        releaseFontFetchers(buf.viewer);
         try {
           /**
            * **いちばん先に、見ていたページへ戻す。**
@@ -1242,6 +1296,13 @@ export const VivliostylePreview = forwardRef<PreviewHandle, Props>(function Vivl
           thumbs?.setBusy(false);
           // **数え終わった。** ここまでは画面に「数えています…」を出しておく
           countingRef.current?.(false);
+          // 組み上がった1冊の書体のうち、読めなかったものを数え直す(fontFailures.ts。2026-10-13 修正リスト 29)。
+          // 知らせのための数えなので、落ちても組版には響かせない
+          try {
+            scanPreviewFontFailures(html);
+          } catch {
+            /* 数えられなくても紙面はそのまま */
+          }
         }
       },
     };
@@ -1250,6 +1311,8 @@ export const VivliostylePreview = forwardRef<PreviewHandle, Props>(function Vivl
     const url = URL.createObjectURL(blob);
     const load = () => {
       if (!alive) return;
+      // 前の回の書体の取り寄せ係から、前の回の原稿への糸を切っておく(fontFetcherRelease.ts。修正リスト 30)
+      releaseFontFetchers(buf.viewer);
       viewer.loadDocument(
         { url },
         {},
@@ -1284,7 +1347,7 @@ export const VivliostylePreview = forwardRef<PreviewHandle, Props>(function Vivl
       // Blob URL は読み込み途中の組版が参照している可能性があるので遅れて破棄
       setTimeout(() => URL.revokeObjectURL(url), 10000);
     };
-  }, [html, view, visible]);
+  }, [html, view, visible, fontEpoch]);
 
   /**
    * 本を切り替えるとこの部品ごと入れ替わる(App の `key={settings.bookId}`)。

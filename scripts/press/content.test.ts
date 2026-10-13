@@ -756,12 +756,12 @@ await test('B5: buildDoc の Form(自前の資源なし)は、呼んでいるペ
 console.log('実物');
 
 const dirEnv = process.env.PRESS_FIXTURES;
-if (!dirEnv) console.log('  skip PRESS_FIXTURES が無いので、実物の検査は飛ばした');
+if (!dirEnv) console.log('  [飛ばした] PRESS_FIXTURES が無いので、実物の検査は飛ばした');
 else {
   for (const name of ['color-a5.pdf', 'mono-bunko.pdf', 'sakura-shinsho.pdf']) {
     const path = join(dirEnv, name);
     if (!existsSync(path)) {
-      console.log(`  skip ${name} が無い`);
+      console.log(`  [飛ばした] ${name} が無い`);
       continue;
     }
     const src = readFileSync(path);

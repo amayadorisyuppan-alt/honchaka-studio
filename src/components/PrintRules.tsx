@@ -39,6 +39,7 @@ import {
   type GuideReport,
 } from '../project/printGuide';
 import { copyFallback, copyText } from './copyText';
+import { clampNoteText, readDraft } from './numberDraft';
 
 /** 下見で色づける場所。欄に触っているあいだだけ(null は色づけなし) */
 export type PrintFocus = 'bleed' | 'gutter' | null;
@@ -61,6 +62,8 @@ export function DraftNum({
   zeroIsEmpty = false,
   placeholder,
   ariaLabel,
+  unit = '',
+  className,
   onCommit,
   onFocusChange,
   onClamped,
@@ -77,6 +80,9 @@ export function DraftNum({
   zeroIsEmpty?: boolean;
   placeholder?: string;
   ariaLabel: string;
+  /** 範囲の知らせに添える単位(「pt」「mm」「倍」)。無ければ数だけ */
+  unit?: string;
+  className?: string;
   /** 読める数になった値(空欄を受けるときは null)。いまと同じ値のときは呼ばない */
   onCommit: (v: number | null) => void;
   onFocusChange?: (focused: boolean) => void;
@@ -92,8 +98,12 @@ export function DraftNum({
 
   /** 文字を値として読む。読めなければ元の値へ戻す */
   const commit = (raw: string) => {
-    const t = raw.trim();
-    if (t === '') {
+    // 触っていない(いまの表示のまま)なら何もしない。範囲の外の値が入った本(古い保存・手で直した .json)を、
+    // 欄に触れて離れただけで黙って書き換えないため(2026-10-13 修正リスト 24)
+    if (raw === shown) return;
+    // 空・数でない・範囲の丸めは numberDraft.ts(単体で検査している)
+    const r = readDraft(raw, min, max, integer);
+    if (r.kind === 'empty') {
       if (allowEmpty) {
         setText('');
         if (value !== null && value !== undefined) onCommit(null);
@@ -102,14 +112,12 @@ export function DraftNum({
       }
       return;
     }
-    const n = Number(t);
-    if (!Number.isFinite(n)) {
+    if (r.kind === 'invalid') {
       setText(shown);
       return;
     }
-    let v = Math.min(max, Math.max(min, n));
-    if (integer) v = Math.round(v);
-    v = Number(v.toFixed(2));
+    const v = r.value;
+    const n = r.typed;
     if (allowEmpty && zeroIsEmpty && v === 0) {
       setText('');
       if (value !== null && value !== undefined) onCommit(null);
@@ -118,12 +126,13 @@ export function DraftNum({
     setText(show(v));
     // 設定へ入れてから知らせる(入れる側が通知を消すので、順番が逆だと範囲の通知が消える)
     if (v !== value) onCommit(v);
-    if (v !== n) onClamped?.(`${ariaLabel}は ${min}〜${max} の範囲で入れられます。${show(v)} にしました`);
+    if (v !== n) onClamped?.(clampNoteText(ariaLabel, min, max, v, unit));
   };
 
   return (
     <input
       type="number"
+      className={className}
       min={min}
       max={max}
       step={step}

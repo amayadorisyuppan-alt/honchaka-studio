@@ -47,7 +47,11 @@ import {
   BODY_FONTS,
   SCENE_BREAKS,
   THEME_BODY_FONT,
+  bodyFontIdOf,
   hasSceneBreak,
+  isBodyFontId,
+  titlepageFontsOf,
+  type TitlepageFont,
   maxColumns,
   outputsOf,
   resolveBg,
@@ -82,6 +86,8 @@ const PAGE_LABEL: Record<SpecialPage, string> = { title: '大扉', toc: '目次'
 /** 本文の帯が向いている先。本全体・章(番号)・コラム(col:id)・大扉／目次／奥付(page:名前) */
 export type BarScope = 'book' | number | `col:${string}` | `page:${SpecialPage}`;
 import { InfoBar } from './InfoBar';
+import { DraftNum } from './PrintRules';
+import { useClampNote } from './useClampNote';
 
 /**
  * 表1の文字の色について、色の欄のそばに出す断り書き。
@@ -462,13 +468,14 @@ export function FormatBar({
    * 奥付は既定で無地)。左の欄の調整も「その面に実際に絵が出るときだけ」出していた(2026-10-09 見直しで発見)
    */
   const pageBgShown = !pageBgKey || !!resolveBg(pageBg, settings).src;
-  const setPageBg = (patch: Partial<BgSpec>) => {
+  /** extra はいっしょに書く設定。1回の setSettings にまとめると、Ctrl+Z の1回で全部戻る(2026-10-12 大扉の書体のリセット) */
+  const setPageBg = (patch: Partial<BgSpec>, extra: Parameters<typeof setSettings>[0] = {}) => {
     if (!pageBgKey) return;
     const spec: BgSpec = { ...(settings[pageBgKey] ?? {}), ...patch };
     for (const k of Object.keys(spec) as (keyof BgSpec)[]) {
       if (spec[k] === undefined) delete spec[k];
     }
-    setSettings({ [pageBgKey]: Object.keys(spec).length ? spec : undefined });
+    setSettings({ ...extra, [pageBgKey]: Object.keys(spec).length ? spec : undefined });
   };
   /**
    * 奥付の工程で、いま触っているのが奥付か著者紹介か。
@@ -692,6 +699,8 @@ export function FormatBar({
    * 'font' = 書体(固定) / 'size' = 文字の大きさ・行送り(読む人が決める)
    */
   const [notice, setNotice] = useState<null | 'font' | 'size'>(null);
+  /** 数の欄を範囲に丸めたときの知らせ(2026-10-13 修正リスト 24) */
+  const clampNote = useClampNote();
   /** 断りを開いたボタン。閉じたらそこへフォーカスを返す(キーボードで帯の頭からやり直させない) */
   const noticeOpener = useRef<HTMLElement | null>(null);
   const openNotice = (kind: 'font' | 'size') => {
@@ -1295,10 +1304,10 @@ export function FormatBar({
     : byColumn
       ? `${columnLabel(colNow.id)}で変えた書体・サイズ・行送り・背景の濃さ・文字のフチ・下の帯・文字の色・文字のまわりの余白を、本文と同じに戻します（敷いた画像はそのまま）`
       : byPage
-        ? `${PAGE_LABEL[pageNow]}の背景の濃さと文字のフチを、本文と同じに戻します（敷いた画像は残ります）`
+        ? `${PAGE_LABEL[pageNow]}の${pageNow === 'title' ? '書名・著者名の書体、背景の濃さ、文字のフチ' : '背景の濃さと文字のフチ'}を、本文と同じに戻します（敷いた画像は残ります）`
         : byChapter
       ? `${chapterName}だけの指定をやめて、本全体と同じに戻します（この章に敷いた画像はそのまま）`
-      : '書体・サイズ・行送り・余白・段組み・章はじめの大文字・場面転換・背景の濃さ・文字のフチ・本文の下の帯・文字の色・ノンブルと柱の書体を、はじめの状態に戻します（判型・組み方向・画像はそのまま）';
+      : '書体・サイズ・行送り・余白・段組み・章はじめの大文字・場面転換・背景の濃さ・文字のフチ・本文の下の帯・文字の色・ノンブルと柱の書体を、はじめの状態に戻します。章・コラム・大扉・目次・奥付で変えた指定も戻ります（判型・組み方向・画像はそのまま）';
   /**
    * 押す前の確認。**取り消せることまで書く。**
    * 表紙の［すべてリセット］が先に同じ形を採っていて、そちらは「反応がない」と
@@ -1309,10 +1318,10 @@ export function FormatBar({
     : byColumn
       ? `${columnLabel(colNow.id)}だけの変更をやめて、本文と同じに戻しますか？\n\n書体・サイズ・行送り・見出し・背景の濃さ・文字のフチ・下の帯・文字の色・文字のまわりの余白が、本文の設定に戻ります。\nこのコラムに敷いた画像はそのまま残ります。\n（Ctrl+Z で元に戻せます）`
       : byPage
-        ? `${PAGE_LABEL[pageNow]}の背景の濃さと文字のフチを、本文と同じに戻しますか？\n\n敷いた画像はそのまま残ります。\n（Ctrl+Z で元に戻せます）`
+        ? `${PAGE_LABEL[pageNow]}の${pageNow === 'title' ? '書名・著者名の書体、背景の濃さ、文字のフチ' : '背景の濃さと文字のフチ'}を、本文と同じに戻しますか？\n\n敷いた画像はそのまま残ります。\n（Ctrl+Z で元に戻せます）`
         : byChapter
       ? `${chapterName}だけの指定をやめて、本全体と同じに戻しますか？\n\n書体・サイズ・行送り・段の数・章はじめの大文字・背景の濃さ・文字のフチ・本文の下の帯・文字の色が、本全体の値に戻ります。\nこの章に敷いた画像は消えません。\n（Ctrl+Z で元に戻せます）`
-      : '本全体のデザインを、はじめの状態に戻しますか？\n\n書体・文字サイズ・行送り・余白・段組み・章はじめの大文字・場面転換・背景の濃さ・文字のフチ・本文の下の帯・文字の色・ノンブルと柱の書体が戻ります。\n章ごとに変えた指定も消えます。\n判型・組み方向・画像・原稿はそのままです。\n（Ctrl+Z で元に戻せます）';
+      : '本全体のデザインを、はじめの状態に戻しますか？\n\n書体・文字サイズ・行送り・余白・段組み・章はじめの大文字・場面転換・背景の濃さ・文字のフチ・本文の下の帯・文字の色・ノンブルと柱の書体が戻ります。\n章・コラム・大扉・目次・奥付で変えた指定も、いっしょに戻ります。\n判型・組み方向・画像・原稿はそのままです。\n（Ctrl+Z で元に戻せます）';
 
   return (
     <div
@@ -1320,6 +1329,7 @@ export function FormatBar({
       style={{ ['--step-accent' as string]: accent }}
     >
       {noticeBoard}
+      {clampNote.note}
       <div className="formatbar-tools">
         {/* **対象の切り替えが、帯の名札そのもの。**(2026-08-19)
             はじめは名札の隣に小さな select を置いたが、操作を平らに並べたら
@@ -1515,16 +1525,19 @@ export function FormatBar({
             hint={headPtNow === undefined ? '本文と連動' : headReset('headingPt')}
           >
             <span className="num">
-              <input
-                type="number"
+              {/* 打っている途中は欄の中だけに持ち、離れたとき(か Enter)に範囲へ丸めて入れる。
+                  空のまま離れたら「連動」(本文と同じ)に戻る = 空が値(2026-10-13 修正リスト 24) */}
+              <DraftNum
+                value={headPtNow}
                 min={6}
                 max={24}
                 step={0.5}
+                allowEmpty
                 placeholder="連動"
-                value={headPtNow ?? ''}
-                onChange={(e) =>
-                  setHeadPt(e.target.value === '' ? undefined : Number(e.target.value))
-                }
+                ariaLabel="見出しのサイズ"
+                unit="pt"
+                onCommit={(v) => setHeadPt(v === null ? undefined : v)}
+                onClamped={clampNote.say}
               />
               pt
             </span>
@@ -1534,13 +1547,15 @@ export function FormatBar({
         {paperBar && (
         <BarField label={isMatter || byColumn ? '本文のサイズ' : 'サイズ'} hint={mark('chapterFontPt', 'fontPt')}>
           <span className="num">
-            <input
-              type="number"
+            <DraftNum
+              value={fontPtPick.value}
               min={7}
               max={14}
               step={0.5}
-              value={fontPtPick.value}
-              onChange={(e) => fontPtPick.set(Number(e.target.value))}
+              ariaLabel="サイズ"
+              unit="pt"
+              onCommit={(v) => v !== null && fontPtPick.set(v)}
+              onClamped={clampNote.say}
             />
             pt
           </span>
@@ -1559,13 +1574,15 @@ export function FormatBar({
           }
         >
           <span className="num">
-            <input
-              type="number"
+            <DraftNum
+              value={feedShown}
               min={10}
               max={28}
               step={0.5}
-              value={feedShown}
-              onChange={(e) => feedPick.set(Number(e.target.value))}
+              ariaLabel="行送り"
+              unit="pt"
+              onCommit={(v) => v !== null && feedPick.set(v)}
+              onClamped={clampNote.say}
             />
             pt
           </span>
@@ -1606,6 +1623,70 @@ export function FormatBar({
             </select>
           </BarField>
         )}
+
+        {/* **大扉の書名・著者名の書体。**(2026-10-12 今後の改修の希望 5。ユーザー「大扉だけは諦めたくない」)
+            帯を「大扉だけデザインする」に向けたときだけ出す。書名と著者名で別々に選ぶ。
+            「表紙と同じ」('cover')は表紙の書体に**つながる** — 表紙の書体を変えると大扉もついてくる。
+            欄で別の書体を選ぶと、その項目のつながりは切れる。［表紙とそろえる］は両方をつなぐ。
+            紙だけ(電子書籍の扉は書体を指定しない。電子の下見では大扉を選べない)。組み直さずに下見に出る(preview/paint.ts) */}
+        {pageNow === 'title' && paperBar && (() => {
+          const bodyId = bodyFontIdOf(settings);
+          const shortName = (id: BodyFontId) => BODY_FONTS[id].label.split('｜')[0];
+          const coverName = (f: string) => shortName(isBodyFontId(f) ? f : bodyId);
+          const now = titlepageFontsOf(settings, cover);
+          const linked = settings.titlepageTitleFont === 'cover' && settings.titlepageAuthorFont === 'cover';
+          const fontSelect = (
+            value: TitlepageFont | undefined,
+            shown: BodyFontId,
+            coverFont: string,
+            set: (v: TitlepageFont | undefined) => void,
+          ) => (
+            <select
+              className="wide"
+              style={{ fontFamily: BODY_FONTS[shown].stack }}
+              value={value ?? ''}
+              onChange={(e) => set((e.target.value || undefined) as TitlepageFont | undefined)}
+            >
+              <option value="">本文と同じ（{shortName(bodyId)}）</option>
+              <option value="cover">表紙と同じ（{coverName(coverFont)}）</option>
+              {['明朝', 'ゴシック', '装飾'].map((group) => (
+                <optgroup key={group} label={group}>
+                  {(Object.entries(BODY_FONTS) as [BodyFontId, (typeof BODY_FONTS)[BodyFontId]][])
+                    .filter(([, f]) => f.group === group)
+                    .map(([id, f]) => (
+                      <option key={id} value={id} style={{ fontFamily: f.stack }}>
+                        {f.label}
+                      </option>
+                    ))}
+                </optgroup>
+              ))}
+            </select>
+          );
+          return (
+            <>
+              <BarField label="書名の書体">
+                {fontSelect(settings.titlepageTitleFont, now.title, cover.titleFont, (v) =>
+                  setSettings({ titlepageTitleFont: v }),
+                )}
+              </BarField>
+              <BarField label="著者名の書体">
+                {fontSelect(settings.titlepageAuthorFont, now.author, cover.authorFont, (v) =>
+                  setSettings({ titlepageAuthorFont: v }),
+                )}
+              </BarField>
+              <button
+                type="button"
+                className="barbtn"
+                disabled={linked}
+                title="大扉の書名と著者名を、表紙の書名・著者名と同じ書体にします。あとで表紙の書体を変えると、大扉も同じ書体に変わります"
+                onClick={() => setSettings({ titlepageTitleFont: 'cover', titlepageAuthorFont: 'cover' })}
+              >
+                {linked ? '表紙とそろっています' : '表紙とそろえる'}
+              </button>
+              <span className="barsep" />
+            </>
+          );
+        })()}
 
         {paperBar && !byPage && <span className="barsep" />}
 
@@ -1921,17 +2002,15 @@ export function FormatBar({
                   <label>
                     段のあいだ
                     <span className="num">
-                      <input
-                        type="number"
+                      <DraftNum
+                        value={settings.columnGapLines}
                         min={0}
                         max={4}
                         step={0.5}
-                        value={settings.columnGapLines}
-                        onChange={(e) =>
-                          setSettings({
-                            columnGapLines: Number(e.target.value),
-                          })
-                        }
+                        ariaLabel="段のあいだ"
+                        unit="行"
+                        onCommit={(v) => v !== null && setSettings({ columnGapLines: v })}
+                        onClamped={clampNote.say}
                       />
                       行
                     </span>
@@ -2029,7 +2108,12 @@ export function FormatBar({
             // コラムは店の resetDesign の範囲(本全体・章・奥付)の外。見た目の欄を全部と、
             // 地の濃さを落とす(絵と余白は残す)
             if (byPage) {
-              setPageBg({ opacity: undefined, outline: undefined, outlineColor: undefined });
+              // 大扉は書名・著者名の書体も帯に出ている(2026-10-12 希望 5)ので、本文の書体に戻す。
+              // 背景と同じ1回の setSettings で書く(別々に書くと取り消しの段が2つになり、1回の Ctrl+Z で書体が戻らない。見直しの指摘)
+              setPageBg(
+                { opacity: undefined, outline: undefined, outlineColor: undefined },
+                pageNow === 'title' ? { titlepageTitleFont: undefined, titlepageAuthorFont: undefined } : {},
+              );
               return;
             }
             if (byColumn) {

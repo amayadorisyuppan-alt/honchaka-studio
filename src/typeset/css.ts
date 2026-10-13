@@ -17,6 +17,7 @@ import {
   type MarginSlot,
   PRINT_TARGETS,
   THEME_BODY_FONT,
+  bindingOf,
   hasOwnBg,
   isRenderableImage,
   maxColumns,
@@ -26,6 +27,7 @@ import {
   type ProjectSettings,
   type ResolvedBg,
   tcyStack,
+  titlepageFontsOf,
   titleWritingModeOf,
 } from '../models/project';
 import {
@@ -35,6 +37,8 @@ import {
   PLATE_INSET,
   PT_TO_MM,
   chapterColumn,
+  gutterFloorMm,
+  plateInsetsMm,
   type PageLayout,
 } from './grid';
 import { assetUrl } from './blobUrl';
@@ -45,6 +49,17 @@ const GOTHIC = HEADING_FONT_STACK;
 
 const pt = (v: number) => `${+v.toFixed(3)}pt`;
 const mm = (v: number) => `${+v.toFixed(3)}mm`;
+
+/**
+ * 奥付のノド側の余裕(2026-10-13 修正リスト 23)。
+ * 奥付の箱(罫線と文字)は版面の端から端まで使う。ノドの余白が出し先の下限ちょうど(無線綴じのノド 15mm など)のとき、
+ * CSS の px の丸めで、罫線と文字のノド側の端が仕上がりから 14.992mm になり、入稿チェックの「ノド余白不足」(W-702)が出た(刷れる。念のための知らせ)。
+ * 下限との差が SLACK_MM 未満のときだけ、**奥付の箱を左右から INSET_MM ずつ内へ寄せる**(罫線も文字も 15mm を割らない。
+ * 本文の組み・ページ数は動かない。箱の幅が 0.6mm 狭くなるだけ)。罫線だけを寄せる形では、文字が 14.992mm のまま残った(テストデータの PDF で実測)。
+ * 奥付は左右どちらのページにも来て、どちらがノド側か要素からは分からないので、両端を同じだけ寄せる。差が十分ある本は従来の CSS のまま
+ */
+const COLOPHON_RULE_SLACK_MM = 0.5;
+const COLOPHON_RULE_INSET_MM = 0.3;
 
 /**
  * 段と段のあいだの罫線を、**表罫(おもてけい)の重さまで落とす。**
@@ -118,6 +133,31 @@ export function withAlpha(hex: string, alpha: number): string {
   if (!m) return hex;
   const n = parseInt(m[1], 16);
   return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${+alpha.toFixed(3)})`;
+}
+
+/**
+ * 余白ありの挿絵(余白すこし・おおめ)を、ノド側を下限まで空けた名前付きページ(@page platewide / platenarrow)で組むか。
+ * 組むなら、その箱(四方の内寸と箱の幅 mm)。組まない(余白0の @page plate で組む)なら null。
+ * 無線綴じで印刷所の決まりがあり、ノド側の内寸が比の内寸より大きい本だけ(2026-10-12 修正リスト 4-5)。
+ * 組版(typesetCss)と下見の重ね(paint.ts の挿絵の余白。修正リスト 13)が同じ判定を使う
+ */
+export function plateGutterBoxOf(
+  l: PageLayout,
+  size: 'wide' | 'narrow',
+): { ins: ReturnType<typeof plateInsetsMm>; boxW: number } | null {
+  const ins = plateInsetsMm(l, size);
+  if (!(ins.gutter > ins.fore)) return null;
+  return { ins, boxW: l.trimW - ins.fore - ins.gutter };
+}
+
+/**
+ * 余白ありの挿絵の、絵の最大の幅・高さ(mm)。css.ts の div.plate.wide / .narrow img と、
+ * 下見の重ね(paint.ts。修正リスト 13)が同じ値を使う。比は grid.ts の PLATE_INSET
+ */
+export function plateImgBox(l: PageLayout, size: 'wide' | 'narrow'): { maxW: number; maxH: number } {
+  const inset = l.trimW * PLATE_INSET[size];
+  const gutter = plateGutterBoxOf(l, size);
+  return { maxW: gutter ? gutter.boxW : l.trimW - inset * 2, maxH: l.trimH - inset * 2 };
 }
 
 /**
@@ -248,6 +288,29 @@ export function titleHorizontalDecls(
 }
 
 /**
+ * 大扉の書名・著者名の書体の宣言(2026-10-12 今後の改修の希望 5)。
+ *
+ * **組版HTMLのCSS(typesetCss)と、下見の「組まずに書体だけ変える」パッチ(preview/paint.ts)が同じものを使う。**
+ * 書体は titlepageFontsOf で決める。'cover'(表紙とつながる)は、ここへ来る前に App が withTitlepageCover で
+ * 表紙のいまの書体へ置き換えておく(置き換えずに来たら本文の書体に倒れる)。
+ * 太さはその書体の bold(佑字 肅・ドット・Reggae One は 400、Klee は 600)。太字を持たない書体を 700 で頼むと、
+ * ブラウザが字を太らせて形が崩れる。
+ * **指定の無い項目は空を返す。** 大扉はいままでどおり本文の書体・太さ 700 で組み、組版HTMLは1バイトも変わらない。
+ * 縦中横(.tcy)の詰め数字も、選んだ書体のものにそろえる
+ */
+export function titlepageFontDecls(s: ProjectSettings): { h1: string; author: string; h1Tcy: string; authorTcy: string } {
+  const f = titlepageFontsOf(s);
+  const titleOn = s.titlepageTitleFont !== undefined;
+  const authorOn = s.titlepageAuthorFont !== undefined;
+  return {
+    h1: titleOn ? `font-family: ${BODY_FONTS[f.title].stack}; font-weight: ${BODY_FONTS[f.title].bold};` : '',
+    author: authorOn ? `font-family: ${BODY_FONTS[f.author].stack};` : '',
+    h1Tcy: titleOn ? `font-family: ${tcyStack(f.title)};` : '',
+    authorTcy: authorOn ? `font-family: ${tcyStack(f.author)};` : '',
+  };
+}
+
+/**
  * @param bookTitle 柱に書名を入れる設定のときだけ使う。
  *   書名は本文の中に無いので `string()` では拾えず、CSS に直に埋めるしかない
  */
@@ -282,6 +345,8 @@ export function typesetCss(s: ProjectSettings, l: PageLayout, bookTitle = ''): s
   // 縦組みの本で、大扉の書名・著者名だけ横組みにするか(2026-10-03)。本文・柱・奥付は変えない
   const titleH = vertical && titleWritingModeOf(s) === 'horizontal';
   const titleDecls = titleHorizontalDecls(s, l);
+  // 大扉の書名・著者名だけの書体(2026-10-12 希望 5)。指定が無ければ空 = いままでどおり
+  const tpFont = titlepageFontDecls(s);
   // 保存済みデータに bodyFont が無い場合(この設定より前のプロジェクト)はテーマから補う
   const font = BODY_FONTS[s.bodyFont] ?? BODY_FONTS[THEME_BODY_FONT[s.theme]];
   const bodyFont = font.stack;
@@ -456,12 +521,48 @@ export function typesetCss(s: ProjectSettings, l: PageLayout, bookTitle = ''): s
   // = 仕上がり幅 − ノド − 小口。ノド側にも塗り足しを足すので、gutterM で引かないと版面がそのぶん広がる
   const pageAreaW = l.paperW - gutterM - foreM;
   const pageAreaH = l.paperH - topM - bottomM;
+  // 奥付の罫線を内へ寄せるか(下限が分かる出し先 = 印刷所の決まりが入った本か中綴じ。KDP の表は対象にしない)
+  const colophonRuleInset =
+    (bindingOf(s) === 'saddle' || printRulesOf(s)) && l.margins.gutter - gutterFloorMm(s.estimatedPages, s) < COLOPHON_RULE_SLACK_MM
+      ? COLOPHON_RULE_INSET_MM
+      : 0;
 
   // 挿絵ページの四方の内寸(mm)。判型に対する比で持つので、大きい判型ほど余白も広がる。
   // 2つの差がはっきり出る値にする(近いと選ぶ意味がないうえ、本文の版面と偶然一致して見える)
   // 比は grid.ts の PLATE_INSET が持つ。画面に出す推奨サイズと同じ値を使うため
-  const plateInsetWide = l.trimW * PLATE_INSET.wide;
-  const plateInsetNarrow = l.trimW * PLATE_INSET.narrow;
+  // 無線綴じで決まりの入った本は、ノド側だけ下限まで空ける(2026-10-12 修正リスト 4-5。grid.ts plateInsetsMm)。
+  // ノドは見開きの内側なので、左右のページで入れ替わる。要素からはページの左右が分からないため、
+  // **ページの余白で絵の箱の位置を決める**(:recto/:verso ごとに左右の余白を変えた名前付きページ。printplate と同じ手)。
+  // 空けるのは ノド側の内寸が比の内寸より大きいときだけ(そうでなければ規則を1行も足さない = 従来の組版HTMLのまま)。
+  // 式は下見の重ね(paint.ts の挿絵の余白)と共用するので、外の plateGutterBoxOf / plateImgBox に置いた(2026-10-12 修正リスト 13)
+  const plateGutterWide = plateGutterBoxOf(l, 'wide');
+  const plateGutterNarrow = plateGutterBoxOf(l, 'narrow');
+  const plateBoxWide = plateImgBox(l, 'wide');
+  const plateBoxNarrow = plateImgBox(l, 'narrow');
+  /**
+   * ページの左右の余白(mm)。左のページは 小口が左・ノドが右、右のページはその逆。
+   * 余白は 塗り足し + 内寸(仕上がりの端から絵の箱までの距離)。箱の中に絵を中央寄せで置く
+   */
+  const plateGutterMargins = (ins: { fore: number; gutter: number }, side: 'left' | 'right') =>
+    side === 'left'
+      ? { left: bleed.fore + ins.fore, right: bleed.gutter + ins.gutter }
+      : { left: bleed.gutter + ins.gutter, right: bleed.fore + ins.fore };
+  /** 余白ありの挿絵のページ(@page platewide / platenarrow)。:recto は 縦組みなら左のページ・横組みなら右のページ */
+  const plateGutterPages = (name: string, ins: { fore: number; gutter: number }) => {
+    const page = (pseudo: 'recto' | 'verso') => {
+      const side = (pseudo === 'recto') === vertical ? 'left' : 'right';
+      const mg = plateGutterMargins(ins, side);
+      return `
+@page ${name}:${pseudo} {${noBoxes}
+  margin-left: ${mm(mg.left)};
+  margin-right: ${mm(mg.right)};
+}`;
+    };
+    return `
+@page ${name} {${noBoxes}
+  margin: 0;
+}${page('recto')}${page('verso')}`;
+  };
   // 見開きの絵(2026-10-03)。**使っている本にだけ規則を足す**(使っていない本の組版HTMLは1バイトも変えない)。
   // 絵の置き方・左右の割り当て・塗り足しの重ね方は typeset/spread.ts
   const spreadCss = (s.plates ?? []).some((p) => p.size === 'spread' && !p.blank && p.src && isRenderableImage(p.src))
@@ -1016,7 +1117,7 @@ ${marginBoxes(false)}
 /* 挿絵ページ。余白ありの絵のときは本文の背景がまわりに出てほしいので背景は消さない */
 @page plate {${noBoxes}
   margin: 0;
-}
+}${plateGutterWide ? plateGutterPages('platewide', plateGutterWide.ins) : ''}${plateGutterNarrow ? plateGutterPages('platenarrow', plateGutterNarrow.ins) : ''}
 /* 版面いっぱいの挿絵ページ。**余白は本文と同じまま**(ノド・小口の入れ替わりも @page :recto/:verso から
    そのまま継ぐ。コラムページと同じ作り)。絵の中の文字が余白に出ないための大きさなので、
    余白を 0 にする plate とは別のページにする。ノンブル・柱は他の挿絵ページにそろえて刷らない */
@@ -1721,8 +1822,8 @@ section.titlepage {
   margin: 0;
   ${vertical && !titleH ? `margin-right: ${pt(titleCenterOffset)};` : titleH ? titleDecls.h1 : 'text-align: center;'}
   padding-top: ${pt(feed * 5)};
-  font-family: ${bodyFont};
-  font-weight: 700;
+  ${tpFont.h1 || `font-family: ${bodyFont};
+  font-weight: 700;`}
   font-size: ${pt(s.fontPt * 2)};
   line-height: ${pt(feed * 2)};
 }
@@ -1735,8 +1836,12 @@ section.titlepage {
     ? `bottom: ${pt(feed * 2)}; right: ${pt(authorOffset)};`
     : titleH
       ? titleDecls.author
-      : `bottom: ${pt(feed * 3)}; left: 0; right: 0; text-align: center;`}
-}
+      : `bottom: ${pt(feed * 3)}; left: 0; right: 0; text-align: center;`}${tpFont.author ? `
+  /* 大扉だけの書体(titlepageAuthorFont。2026-10-12 希望 5) */
+  ${tpFont.author}` : ''}
+}${tpFont.h1Tcy ? `
+.titlepage h1 .tcy { ${tpFont.h1Tcy} }` : ''}${tpFont.authorTcy ? `
+.titlepage .author .tcy { ${tpFont.authorTcy} }` : ''}
 
 /* ---- 全面画像(裁ち落とし) ----
    用紙(塗り足し込み)いっぱいに敷く。断裁位置が多少ずれても白フチが出ない。
@@ -1792,12 +1897,24 @@ div.plate.full img {
    余白は本文の版面から取らない。本文のノドが広い判型でも挿絵まで寄って見えるのを避けるため、
    仕上がり寸法に対する四方の内寸で決める(判型が変わっても見た目の比率が揃う) */
 div.plate.wide img {
-  max-width: ${mm(l.trimW - plateInsetWide * 2)};
-  max-height: ${mm(l.trimH - plateInsetWide * 2)};
+  max-width: ${mm(plateBoxWide.maxW)};
+  max-height: ${mm(plateBoxWide.maxH)};
 }
 div.plate.narrow img {
-  max-width: ${mm(l.trimW - plateInsetNarrow * 2)};
-  max-height: ${mm(l.trimH - plateInsetNarrow * 2)};
+  max-width: ${mm(plateBoxNarrow.maxW)};
+  max-height: ${mm(plateBoxNarrow.maxH)};
+}${
+  // 無線綴じで決まりの入った本: ノド側だけ下限まで空ける(修正リスト 4-5)。箱の位置は @page platewide / platenarrow の左右の余白が決めるので、
+  // 箱はページの版面の幅にして、その中に絵を中央寄せで置く。
+  // **幅は mm で決める(auto にしない)**: 縦組み(vertical-rl)では width が行の進む向きの大きさなので、auto だと箱が絵の幅まで縮んで
+  // 右(ブロックの始まり)へ寄り、縦長の絵が箱の真ん中に来ない(見直しの指摘。素の Chrome で実測)
+  (plateGutterWide
+    ? `
+/* ノド側を下限まで空ける(無線綴じ・印刷所の決まりあり)。ページの左右の余白で箱の位置を決める */
+div.plate.wide { page: platewide; width: ${mm(plateGutterWide.boxW)}; }`
+    : '') +
+  (plateGutterNarrow ? `
+div.plate.narrow { page: platenarrow; width: ${mm(plateGutterNarrow.boxW)}; }` : '')
 }
 /* 版面いっぱい。箱を用紙ではなく**版面の実寸**にして、その中で中央に寄せる。
    ページは本文と同じ余白を持つ(@page printplate)ので、箱の位置はそのまま版面に重なる。
@@ -2052,11 +2169,12 @@ section.colophon {
    奥付が縦に伸び、次ページへこぼれることがある(実測で確認) */
 .colophon-box {
   position: absolute;
-  left: 0;
+  /* 左右の寄せ(colophonRuleInset)はノドの余白が下限ちょうどの本だけ。ふつうは 0(修正リスト 23) */
+  left: ${mm(colophonRuleInset)};
   bottom: 0;
   /* 幅は実寸で与える。縦組みのページに置くと left/right:0 だけでは幅が決まらず、
      箱が細くなって奥付の最終行が次ページへこぼれた(実測で確認) */
-  width: ${mm(pageAreaW)};
+  width: ${mm(pageAreaW - 2 * colophonRuleInset)};
   writing-mode: horizontal-tb;
   border-top: 0.4pt solid #000;
   padding-top: ${pt(feed * 0.8)};
@@ -2079,7 +2197,11 @@ section.colophon {
    **奥付とはくっつけない。** 天から流して、奥付は地に貼ったままにする
    (地でひとかたまりにすると、奥付の付属物に見えてしまう) */
 .profile-box {
-  writing-mode: horizontal-tb;
+  writing-mode: horizontal-tb;${
+    // 奥付の箱と同じく、ノドの余白が下限ちょうどの本だけ左右から内へ寄せる(修正リスト 23。
+    // 著者紹介の横組みの行頭も版面の端に来るので、14.992mm になっていた。テストデータの PDF で実測)
+    colophonRuleInset > 0 ? `\n  margin-left: ${mm(colophonRuleInset)};\n  margin-right: ${mm(colophonRuleInset)};` : ''
+  }
   font-family: ${bodyFont};
   font-size: ${pt(s.fontPt * 0.9)};
   line-height: ${pt(feed)};

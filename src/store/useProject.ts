@@ -3,6 +3,7 @@
 import { create } from 'zustand';
 import { openDB, type IDBPDatabase } from 'idb';
 import { EDITION } from '../edition';
+import { createWriteCounter, requestLeaveConfirm, shouldConfirmLeave } from './leaveGuard';
 import { parseSource } from '../importers/load';
 import { sanitize } from '../project/file';
 import {
@@ -27,6 +28,7 @@ import {
 import { defaultCoverSettings, migrateCoverSettings, type CoverSettings } from '../models/cover';
 import { carryStudioImages, matchChapters } from '../models/inlineImages';
 import { sampleManuscript } from '../sample';
+import { BG_DESIGN_KEYS, resetPageDesigns } from './designReset';
 import { hasSampleFigStandIns, loadSampleArt, loadSampleFigs, replaceSampleFigs, sampleCover } from '../sampleArt';
 
 /**
@@ -81,7 +83,7 @@ const CHAPTER_DESIGN_KEYS = [
  * **`src`(その章に敷いた絵)は消さない。** 絵は［本文に画像とコラムを入れる］で選ぶもので、
  * 見た目の道具である帯のリセットで消えてよいものではない
  */
-const CHAPTER_BG_DESIGN_KEYS = ['opacity', 'outline', 'outlineColor'] as const;
+const CHAPTER_BG_DESIGN_KEYS = BG_DESIGN_KEYS;
 
 interface ProjectState {
   settings: ProjectSettings;
@@ -191,6 +193,12 @@ interface ProjectState {
    * (キャプションを打つ1字ずつを別の手にしない)。渡さなければ欄の名前でまとめる
    */
   patchManuscript: (patch: Partial<Manuscript>, undoKey?: string) => void;
+  /**
+   * 設定と原稿にまたがる絵の差し替えを、**1つの「元に戻す」**で書く。
+   * 画像のフォルダの高解像度版への［まとめて差し替える］が使う(挿絵は設定、章の途中の絵は原稿にあるので、
+   * setSettings と patchManuscript を続けて呼ぶと2段になる。2026-10-12 改修の希望 2)
+   */
+  swapArt: (patch: { settings?: Partial<ProjectSettings>; manuscript?: Partial<Manuscript> }, label: string) => void;
   /**
    * 保持している原稿ファイルを現在の取込処理で組み直す(書名などは引き継ぐ)。
    * setManuscript と同じく、動かしたものを返す(原稿が無ければ undefined)
@@ -374,8 +382,11 @@ function scheduleSave(s: Saved) {
  * **ページを離れるときに、待っている自動保存を書き出す。**(2026-10-09 全体確認)
  * 変えてから 0.8 秒以内に再読み込み・タブを閉じると、その変更が自動保存に入っていなかった
  * (ヘルプは「閉じて開き直せば続きから作れます」と言っている)。離れる合図(beforeunload・pagehide)で書き始める。
- * 画像の多い大きな本では、再読み込みのときに書き終わらないことがある(確認の窓は出さない)
+ * 画像の多い大きな本では、再読み込みのときに書き終わらないことがある。
+ * そこで beforeunload では、**書き込み待ちか書き込み中のときだけ**ブラウザの確認の窓も頼む
+ * (2026-10-12 修正リスト 2-2。保存済みのふだんは出さない。leaveGuard.ts)
  */
+const writeCounter = createWriteCounter();
 function flushSave() {
   if (!pendingSave || autosaveBlocked) return;
   clearTimeout(saveTimer);
@@ -384,11 +395,21 @@ function flushSave() {
   void writeSave(p, true);
 }
 if (typeof window !== 'undefined') {
-  window.addEventListener('beforeunload', flushSave);
+  window.addEventListener('beforeunload', (e) => {
+    // 先に「まだ書き終わっていないか」を見てから書き出す(flushSave が待ちを空にするため)
+    const confirm = shouldConfirmLeave({
+      queued: !!pendingSave,
+      writing: writeCounter.active,
+      blocked: autosaveBlocked,
+    });
+    flushSave();
+    requestLeaveConfirm(e, confirm);
+  });
   window.addEventListener('pagehide', flushSave);
 }
 
 async function writeSave(s: Saved, leaving = false) {
+  writeCounter.begin();
   const snapshot: Saved = {
     settings: s.settings,
     cover: s.cover,
@@ -424,7 +445,29 @@ async function writeSave(s: Saved, leaving = false) {
         'この端末への自動保存に失敗しました（空き容量が足りない可能性があります）。' +
         '［保存する］で .json ファイルに控えを取ってください。',
     });
+  } finally {
+    writeCounter.end(); // 離れる確認(leaveGuard)のため、書き込みの最中の数を戻す
   }
+}
+
+/**
+ * 自動保存(この版の IndexedDB の 'current')をそのまま読む。エラーの画面の逃げ道で、空にする前の控えを作るのに使う
+ * (2026-10-13 修正リスト 25。components/crashEscape.ts)。版ごとの名前(DB_NAME)はここで閉じる
+ */
+export async function readAutosave(): Promise<unknown> {
+  return (await db()).get(STORE, 'current');
+}
+
+/**
+ * **自動保存を空にする。** エラーの画面の逃げ道だけが使う(2026-10-13 修正リスト 25)。
+ * 先に書き込みを止める: 待っている自動保存や、再読み込みのときの書き出し(flushSave)が、
+ * 落ちた本をもう一度書き戻さないように。止めたままにする(このあとページを読み直す)
+ */
+export async function clearAutosave(): Promise<void> {
+  autosaveBlocked = true;
+  clearTimeout(saveTimer);
+  pendingSave = undefined;
+  await (await db()).delete(STORE, 'current');
 }
 
 /**
@@ -511,6 +554,7 @@ const CHANGE_LABELS: Record<string, string> = {
   // 色と背景
   bodyBg: '本文の背景',
   bodyBgFromPreset: '本文の背景',
+  bodyBgPresetId: '本文の背景',
   bgOpacity: '背景の濃さ',
   titleBg: '大扉の背景',
   tocBg: '目次の背景',
@@ -538,6 +582,9 @@ const CHANGE_LABELS: Record<string, string> = {
   nombreFont: 'ノンブルの書体',
   runningHeadSlot: '柱の位置',
   runningHeadFont: '柱の書体',
+  // 大扉の書体(2026-10-12 希望 5)
+  titlepageTitleFont: '大扉の書名の書体',
+  titlepageAuthorFont: '大扉の著者名の書体',
   runningHeadPages: '柱を出すページ',
   runningHeadText: '柱の文字',
   // 差し込みページ
@@ -967,10 +1014,16 @@ export const useProject = create<ProjectState>((set, get) => ({
       // ノンブル・柱の書体も帯(本全体)に出るようになった(2026-10-09)。帯に出ている以上、ここで戻す
       nombreFont: undefined,
       runningHeadFont: undefined,
+      // 大扉の書名・著者名の書体(2026-10-12 希望 5)。大扉の帯に出ているので、本全体を戻すときも本文の書体へ戻す
+      titlepageTitleFont: undefined,
+      titlepageAuthorFont: undefined,
     };
     // **章ごとの上書きも消す。** 残すと「本全体を戻したのに誌面が変わらない」ことになり、
     // 直そうとした人が章を1つずつ開いて回る羽目になる(それを避けるためのボタン)
     for (const k of CHAPTER_DESIGN_KEYS) next[k] = undefined;
+    // **コラム・大扉・目次・奥付の帯で変えたものも戻す。**(2026-10-12 修正リスト 2-3 ユーザー判断)
+    // 戻すのは帯が書き込む見た目の値だけ(store/designReset.ts)。コラムの文章・敷いた絵、各ページの絵、書名などの中身は残す
+    Object.assign(next, resetPageDesigns(s.settings));
     if (s.settings.chapterBg) {
       const all: typeof s.settings.chapterBg = {};
       for (const [i, bg] of Object.entries(s.settings.chapterBg)) {
@@ -1045,6 +1098,19 @@ export const useProject = create<ProjectState>((set, get) => ({
       // 立て、開き直したときに本文を差し替えないようにする(freshenSample)。isSample を落とすと、
       // サンプルに［直した原稿を取り込み直す］が出てしまう(2026-09-23 ユーザー報告)
       ...('chapters' in patch && get().isSample ? { sampleEdited: true } : {}),
+    });
+    scheduleSave(get());
+  },
+
+  swapArt: ({ settings, manuscript }, label) => {
+    if (!settings && !manuscript) return;
+    // 鍵に時刻を入れて、続けて押しても別の手にする(まとめ直しなので前の操作とは混ぜない)
+    pushUndo(set, get, `swapArt:${Date.now()}`, label);
+    set({
+      ...(settings ? { settings: { ...get().settings, ...settings } } : {}),
+      ...(manuscript
+        ? { manuscript: { ...get().manuscript, ...manuscript }, ...(get().isSample ? { sampleEdited: true } : {}) }
+        : {}),
     });
     scheduleSave(get());
   },

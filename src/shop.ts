@@ -20,9 +20,10 @@ export const SHOP_PACKS_LABEL = '有料の画像パックを見る（BOOTH）';
  * 同梱プリセットの高解像度版(**無料**)。同じ絵を B5 まで使える大きさにしたもの。
  * 同梱ぶん(public/covers)は重さの都合で文庫までの大きさのまま配っている
  * (素材の仕分けで「同梱＝文庫まで / BOOTHの無料パック＝B5まで」と決めてある)。
- * **商品ページが公開されたら、その商品の URL に差し替える。** それまではショップの入口
+ * 商品ページ「【無料】表紙プリセット 高解像度版｜表紙の絵84点＋本文の帯2点」(2026-10-12 に URL が決まった。修正リスト 21)。
+ * 細かさの知らせが同梱のプリセットに出たときの案内と、プリセットの一覧の画面の案内が、ここへ飛ばす
  */
-export const FREE_HIRES_PRESETS_URL = BOOTH_SHOP_URL;
+export const FREE_HIRES_PRESETS_URL = 'https://amydr-publish.booth.pm/items/8956503';
 
 /** あまやどり出版の公式サイト */
 export const SITE_URL = 'https://www.hittyaka-maker.com/';

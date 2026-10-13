@@ -264,6 +264,14 @@ export function sampleCover(): CoverSettings {
   };
 }
 
+/**
+ * 同梱のプリセットの id(ファイル名から拡張子を除いたもの)。見本の絵にも presetId を付けて、
+ * あとで高解像度版へ差し替えられるようにする(2026-10-12 改修の希望 2)
+ */
+function pid(file: string): string {
+  return file.replace(/\.[^.]+$/, '');
+}
+
 async function toDataUri(file: string, dir = 'covers'): Promise<string> {
   const res = await fetch(`${dir}/${file}`);
   if (!res.ok) throw new Error(`${dir}/${file} を読み込めませんでした`);
@@ -358,13 +366,14 @@ export async function loadSampleArt(
      * そのうち前者へ置いた。**最終章を絵で締めてからあとがきへ渡す**形になる
      */
     const plates: Plate[] = [
-      { id: crypto.randomUUID(), src: plateA, beforeChapter: 0, size: 'full', fromPreset: true },
+      { id: crypto.randomUUID(), src: plateA, beforeChapter: 0, size: 'full', fromPreset: true, presetId: pid(ART.plates[0]) },
       {
         id: crypto.randomUUID(),
         src: plateB,
         beforeChapter: Math.min(3, Math.max(1, chapterCount - 1)),
         size: 'wide',
         fromPreset: true,
+        presetId: pid(ART.plates[1]),
       },
       /**
        * **文字の入った絵を2枚。**(2026-10-05 ユーザー要望「サンプルにも見開き画像や文字入り画像を入れたい」)
@@ -397,6 +406,7 @@ export async function loadSampleArt(
         size: 'narrow',
         order: 0,
         fromPreset: true,
+        presetId: pid(ART.plates[2]),
       },
     ];
 
@@ -404,7 +414,7 @@ export async function loadSampleArt(
     // 絵をこの濃さまで落とせば飾りなしで読める
     // (実測: 版面のいちばん暗い1%でも 黒文字とのコントラスト 10.6:1。
     //  元の 55% では 7.8:1 で、絵の濃い帯に書名が沈んでいた)
-    const titleBg: BgSpec = { src: title, opacity: 0.4, fromPreset: true };
+    const titleBg: BgSpec = { src: title, opacity: 0.4, fromPreset: true, presetId: pid(ART.title) };
     /**
      * 2つめの章だけ地を変える。章ごとに持てることが目で分かる。
      *
@@ -413,7 +423,7 @@ export async function loadSampleArt(
      * 濃さ 0.3 は実測でいちばん暗い1%でも 黒文字と 10.3:1 で、9pt でも読める
      */
     const chapterBg: ChapterBackgrounds = {};
-    if (chapterCount > 1) chapterBg[1] = { src: chapter, opacity: 0.3, fromPreset: true };
+    if (chapterCount > 1) chapterBg[1] = { src: chapter, opacity: 0.3, fromPreset: true, presetId: pid(ART.chapter) };
     /**
      * 4つめの章は**帯つきの地**にする。紙面いっぱいの絵(2つめの章)との違いを並べて見せる。
      *
@@ -437,7 +447,7 @@ export async function loadSampleArt(
      * (紙面いっぱいの地である2つめの章が 0.3 なのと、ここが逆になるのはそのせい)。
      * 帯そのものは紙との対比 1.58:1。飾りとして見え、本文と競わない濃さ
      */
-    if (chapterCount > 3) chapterBg[3] = { src: band, opacity: 1, fromPreset: true };
+    if (chapterCount > 3) chapterBg[3] = { src: band, opacity: 1, fromPreset: true, presetId: pid(ART.band) };
 
     /**
      * コラムページ。**本文と組み方向が違う1ページ**を実演する。
@@ -486,7 +496,7 @@ export async function loadSampleArt(
         bodyFont: 'klee',
         fontPt: 8.5,
         headingPt: 12,
-        bg: { src: colBg, opacity: 0.18, fromPreset: true },
+        bg: { src: colBg, opacity: 0.18, fromPreset: true, presetId: pid(ART.colpage) },
         /**
          * **文字の領域を内側へ(2026-09-11 ユーザー提案「サンプルにも
          * このコラムの効果を取り入れた状態を見せられるといい」)。**
@@ -549,7 +559,7 @@ export async function loadSampleArt(
         color: '#ffffff',
         headingColor: '#ffffff',
         // 濃さ 1.0 = 白のベールを重ねない。**絵をそのまま敷く**のがこの面の狙い
-        bg: { src: colBgDark, opacity: 1, fromPreset: true },
+        bg: { src: colBgDark, opacity: 1, fromPreset: true, presetId: pid(ART.colpageDark) },
       },
     ];
 

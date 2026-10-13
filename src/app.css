@@ -593,7 +593,9 @@ button.ghost:hover { background: var(--bg-hover); }
 .rail-cell .rail-step { flex: 1; justify-content: center; min-width: 0; white-space: normal; text-align: center; word-break: auto-phrase; }
 /* 狭い画面だけに出す案内(App の作業画面。パソコン向けであることを断る) */
 .narrow-notice { display: none; }
-@media (max-width: 899px), (max-height: 500px) {
+/* 幅 899px 以下・高さ 500px 以下に加えて、タッチが主の端末(スマホ・タブレット)でも出す。
+   iPad の横置きは 1024px あって幅だけでは拾えない(2026-10-13 運用の見直し 12 / 動作環境) */
+@media (max-width: 899px), (max-height: 500px), (hover: none) and (pointer: coarse) {
   .narrow-notice {
     display: block;
     margin: 0;
@@ -1954,6 +1956,8 @@ button.projectbar-flash.bad:hover { background: var(--bad-fill-hover); }
 .report-copy { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin-top: 6px; }
 .report-copy > button { padding: 4px 10px; font-size: 11.5px; }
 .report-copy-note { margin: 0; font-size: 11.5px; line-height: 1.7; }
+/* ボタンの中身の説明(10/13 改名のとき。何が入って何に使うか・原稿は入らないこと) */
+.report-copy-hint { flex-basis: 100%; margin: 0; font-size: 11.5px; line-height: 1.7; color: var(--text-faint); }
 .crash .report-copy { margin-top: 12px; }
 
 /* タブと書名・著者名の入力は役割が違うので、区切り線とアキで離す */
@@ -2284,6 +2288,54 @@ button.projectbar-flash.bad:hover { background: var(--bad-fill-hover); }
 .preset-item:hover { outline: 2px solid var(--line-bold); outline-offset: 0; }
 .preset-item.active,
 .preset-item.active:hover { outline: 3px solid var(--accent-line); outline-offset: 0; }
+/* 「アップロード」の段(自分の画像のフォルダ。FolderImages.tsx。2026-10-12 改修の希望 2)。
+   プリセットの一覧の上に置き、下の線で一覧と分ける。サムネイルは一覧と同じ .preset-grid / .preset-item */
+.folder-imgs { margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--line-soft); }
+.folder-title { margin: 0 0 6px; font-size: 12px; font-weight: 700; }
+.folder-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 6px; }
+.folder-name {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+.folder-imgs > .hint,
+.folder-imgs > .warn { margin: 4px 0; }
+/* サムネイルがまだ無い(作っている途中・読めない)1枚。名前だけの箱を、絵と同じ縦長で置く */
+.folder-noimg {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 2 / 3;
+  padding: 4px;
+  border-radius: 6px;
+  background: var(--bg-chrome);
+  color: var(--text-faint);
+  font-size: 10px;
+  line-height: 1.3;
+  word-break: break-all;
+}
+.folder-item:disabled { cursor: default; opacity: 0.6; }
+.folder-item { position: relative; }
+/* 同梱のプリセットの高解像度版の印。絵の左下に小さく(押す前に分かるように。入れると AI 申告に数える) */
+.folder-badge {
+  position: absolute;
+  left: 4px;
+  bottom: 4px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 10px;
+  line-height: 1.4;
+  pointer-events: none;
+}
+/* 細かさの知らせの中の［高解像度版に差し替える］［まとめて差し替える］(2026-10-12 改修の希望 2 の続き)。
+   文の途中に置くので、ふつうの ghost より小さく、文字の高さに合わせる */
+.hires-swap { margin: 0 4px; padding: 2px 8px; font-size: 11.5px; line-height: 1.4; vertical-align: baseline; }
 
 /* いま選んでいるプリセット1枚。設定の列(340px)に一覧を並べるのをやめた代わりに置く。
    **44pxの .bg-thumb では絵柄が分からない**ので、ここだけ96pxにする
@@ -4317,6 +4369,8 @@ button.pulse { animation: pulse-ring 1.8s ease-out infinite; }
   color: var(--text-strong);
 }
 .help-sec > p { margin: 0 0 8px; font-size: 13px; line-height: 1.7; color: var(--text-mid); }
+/* 対応環境の2段(対応・対象外)と、性能など・版の調べ方の小見出し(2026-10-13 運用の見直し 12) */
+.help-env h4 { margin: 12px 0 4px; font-size: 13px; color: var(--text-strong); }
 .about.help .help-list { margin: 0; padding-left: 1.3em; font-size: 13px; line-height: 1.75; }
 .about.help .help-list li { margin-bottom: 2px; color: var(--text-mid); }
 /* 気をつけること。**できることの一覧と地を分ける**(読む理由が違う) */
@@ -4511,6 +4565,24 @@ button.pulse { animation: pulse-ring 1.8s ease-out infinite; }
 .start-heroed .start-badges { margin: 18px 0 0; }
 .start-heroed .start-badges li {
   background: var(--hero-glass); border-color: var(--hero-glass-line); color: var(--hero-ink);
+}
+/* 対応環境の一言と、対応環境の外の人にだけ出す知らせ(2026-10-13 運用の見直し 12) */
+.start-env { margin: 12px auto 0; max-width: 640px; font-size: 12.5px; line-height: 1.8; text-align: center; color: var(--hero-sub); }
+.start-env .linklike { font-size: inherit; color: inherit; }
+/* 色を継いだぶん、ホバーで色が変わらなくなるので戻す(見直しの指摘。2026-10-13) */
+.start-env .linklike:hover { color: var(--hero-strong); }
+.start-env-note {
+  margin: 12px auto 0; max-width: 640px; padding: 8px 14px;
+  font-size: 12.5px; line-height: 1.8; text-align: center;
+  color: var(--hero-ink); background: var(--hero-glass);
+  border: 1px solid var(--hero-glass-line); border-radius: 10px;
+}
+/* スマホ・タブレットの知らせは、タッチが主の端末(作業画面の .narrow-notice と同じ見分け方)のときだけ。
+   そのとき Safari・Firefox の知らせは重ねない(iPadOS の Safari は Mac の Safari を名乗るため) */
+.start-env-touch { display: none; }
+@media (hover: none) and (pointer: coarse) {
+  .start-env-touch { display: block; }
+  .start-env-browser { display: none; }
 }
 
 /* ── めくれる本 ── */
@@ -5218,6 +5290,31 @@ button.pulse { animation: pulse-ring 1.8s ease-out infinite; }
 /* 表紙の工程の見本の上に出す［← 書き出しに戻る］(書き出しの画面から来たとき) */
 .cover-top-slot { flex: 0 0 auto; }
 .cover-top-slot .preview-return { position: static; }
+/* 書体を読み込めなかったときの知らせ(components/FontFailureNotice.tsx。2026-10-13 修正リスト 29)。
+   お知らせ欄の注意(.notice-bar-item.warn)と同じ色。下見の上では、戻り道(.preview-return 左上)と重ならないよう右上に浮かせる */
+.font-fail {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin: 0;
+  padding: 8px 12px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--warn-text);
+  background: var(--warn-fill);
+  border: 1px solid var(--warn);
+  border-radius: 8px;
+}
+.font-fail.in-preview {
+  position: absolute; top: 8px; right: 12px; z-index: 7;
+  max-width: min(520px, calc(100% - 24px));
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+}
+.font-fail-text { flex: 1 1 260px; min-width: 0; }
+.font-fail-actions { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.font-fail-retry { width: auto; padding: 4px 12px; font-size: 12.5px; }
+.font-fail-still { font-size: 12px; }
 /* 電子書籍だけの本のコラム: ページごとの見た目(紙だけの指定)を隠す */
 .colpage-list li.ebook-only .colpage-type { display: none; }
 /* **ほかの工程へ移る・戻るボタン。**(2026-09-24 ユーザー指摘「表紙や本文に飛ぶと緑のボタンなのに、

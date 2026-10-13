@@ -1,0 +1,23 @@
+<!doctype html>
+<!--
+  見本の本の千鳥(第二章の文中の画像)が、判型ごとにどう組まれるかを測る検査用のページ(2026-10-12 修正リスト 20)。
+    sample-fig-probe.html?trim=bunko&before=いい買いものだ
+  測り終わると #probe-result に JSON が入り、title が PROBE-DONE になる。
+-->
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <base href="/" />
+    <title>PROBE-RUNNING</title>
+    <style>
+      html, body { margin: 0; height: 100%; }
+      #probe-viewport { position: absolute; inset: 0; overflow: auto; }
+      #probe-result { position: absolute; z-index: 9; inset: auto 0 0 0; font: 12px monospace; white-space: pre-wrap; background: #fff; }
+    </style>
+  </head>
+  <body>
+    <div id="probe-viewport"></div>
+    <pre id="probe-result"></pre>
+    <script type="module" src="./sample-fig-probe.ts"></script>
+  </body>
+</html>

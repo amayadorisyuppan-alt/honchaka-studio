@@ -16,8 +16,10 @@ import {
   printRulesOf,
   saddleCoverOf,
   tcyStack,
+  titlepageFontsOf,
   trimUnsupported,
   usesOwnPrintRules,
+  withTitlepageCover,
   type InsertFit,
 } from '../models/project';
 import { bodyBoxes } from '../press/boxes';
@@ -56,15 +58,31 @@ import {
 import { parseSource, readSource } from '../importers/load';
 import { confirmReplaceBook, confirmReplaceManuscript, useProject } from '../store/useProject';
 import { COVER_BLEED_MM, computeCoverLayout, coverSpineMm, PAPER_TYPES, papersFor, printerPapersOf, usesPrinterSpine } from '../models/cover';
+import type { CoverSettings } from '../models/cover';
 import {
   basePpiOf,
   collectResolution,
   coverPartAreaMm,
   fitWithin,
+  backgroundVerdictsBySrc,
   imageCheckPrompt,
   pageBackgrounds,
   resolutionIssueText,
 } from '../models/imageResolution';
+import {
+  BgResolutionContext,
+  FolderHiresBulk,
+  FolderHiresContext,
+  PresetHiresNote,
+  type BgResolution,
+} from './ResolutionNote';
+import { FontFailureNotice, FontRetryButton } from './FontFailureNotice';
+import { fontFailureText } from '../preview/fontFailures';
+import { useFontFailures } from '../preview/useFontFailures';
+import { userErrorText } from './errorText';
+import { useFolderHires } from './useFolderHires';
+import { bundledPresetPx } from '../covers/presetIds';
+import { countSwapUnits, swapPresetArt, type SwapFilter, type SwapPlace } from '../models/hiresSwap';
 import { useImageSizes } from '../images/useImageSizes';
 import { useArtPalette } from '../images/usePalette';
 import { ColorPaletteProvider } from './ColorInput';
@@ -237,6 +255,37 @@ function carriedImagesNotes(fit: InsertFit): string[] {
       `章の途中に入れていた画像のうち ${fit.imagesMoved}枚は、前にあった段落が見つからなかったので、` +
         'その章の最後に移しました（［挿絵］の一覧で場所を選び直せます）',
     );
+  }
+  return out;
+}
+
+/** 表紙の面と、その設定の欄 */
+const COVER_FIELDS = { front: 'background', back: 'backCover', wrap: 'wrap' } as const;
+/** 表紙の、フォルダの高解像度版へ差し替えられる面(2026-10-12 改修の希望 2) */
+interface CoverSwapPlace {
+  field: 'background' | 'backCover' | 'wrap';
+  presetId: string;
+  /** いまの面を見分ける鍵(自分の画像は src、プリセットそのものは 'preset:id')。差し替えずみの見分けと、書く前の確かめに使う */
+  src: string;
+}
+/** 表紙の1面を見分ける鍵(coverSwapPlaces の src) */
+function coverGroundKey(v: CoverSettings['background'] | CoverSettings['wrap']): string | undefined {
+  if (v?.kind === 'image') return v.src;
+  if (v?.kind === 'preset') return `preset:${v.id}`;
+  return undefined;
+}
+/** 細かさの知らせが出ている表紙の面のうち、同梱のプリセット(またはその高解像度版)で presetId が分かるもの */
+function coverSwapPlaces(cover: CoverSettings, entries: readonly { key: string; group: string; preset?: boolean }[]): CoverSwapPlace[] {
+  const out: CoverSwapPlace[] = [];
+  for (const e of entries) {
+    if (e.group !== 'cover' || !e.preset) continue;
+    const part = e.key.slice('cover:'.length) as keyof typeof COVER_FIELDS;
+    const field = COVER_FIELDS[part];
+    if (!field) continue;
+    const v = cover[field];
+    const presetId = v?.kind === 'preset' ? v.id : v?.kind === 'image' ? v.presetId : undefined;
+    const src = coverGroundKey(v);
+    if (presetId && src) out.push({ field, presetId, src });
   }
   return out;
 }
@@ -895,9 +944,12 @@ export function App() {
    * 背景を「白黒で刷る」にした面は、灰色の写しで塗る(4-6。写しができたら塗り直す)
    */
   const paintCss = useMemo(
-    () => previewPaintCss(withGrayCopies(settings, manuscript, grayCopyOf).settings),
+    // 大扉の書体が「表紙とつながる」('cover')なら、表紙のいまの書体に置き換えてから塗る(2026-10-12 希望 5)。
+    // 大扉の書体は組版では本文のまま(paintNeutral)で、ここのパッチが書名・著者名の書体を重ねる。
+    // 表紙の書体を変えたときも、組み直さずに下見の大扉がついてくる
+    () => previewPaintCss(withTitlepageCover(withGrayCopies(settings, manuscript, grayCopyOf).settings, cover)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [settings, manuscript, grayVersion],
+    [settings, manuscript, grayVersion, cover.titleFont, cover.authorFont],
   );
   /**
    * 組版のもとになる HTML は、**手が止まるのを待ってから**渡す。(2026-08-22)
@@ -1261,7 +1313,7 @@ export function App() {
         ['取り込んだ原稿を、現在の取込処理で組み直しました。', ...(fit ? carriedImagesNotes(fit) : [])].join(' '),
       );
     } catch (e) {
-      setImportError(`組み直しに失敗しました: ${e instanceof Error ? e.message : String(e)}`);
+      setImportError(`組み直しに失敗しました: ${userErrorText(e)}`);
     }
   }
 
@@ -1280,7 +1332,7 @@ export function App() {
         if (settings.epubTarget === 'reader') {
           throw new Error(
             '表紙を作れなかったので中止しました（「表紙まで同梱」を選んでいます）。' +
-              `［表紙をつくる］で表紙を確かめてください: ${e instanceof Error ? e.message : String(e)}`,
+              `［表紙をつくる］で表紙を確かめてください: ${userErrorText(e)}`,
           );
         }
         cover = undefined; // KDP向けは表紙なしで続行(入稿画面で別に渡すため)
@@ -1295,7 +1347,7 @@ export function App() {
         );
       }
     } catch (e) {
-      setImportError(`EPUB出力に失敗しました: ${e instanceof Error ? e.message : String(e)}`);
+      setImportError(`EPUB出力に失敗しました: ${userErrorText(e)}`);
     } finally {
       setExporting(false);
     }
@@ -1332,11 +1384,21 @@ export function App() {
       const graying = prepareGrayCopies(grayCopySources(settings, manuscript));
       if (graying) await graying;
       const paper = withGrayCopies(settings, manuscript, grayCopyOf);
+      // **大扉の書体(2026-10-12 希望 5)。** 「表紙とつながる」は表紙のいまの書体に置き換えてから組む
+      // (組版は表紙の設定を見ない)。大扉で使う書体の @font-face も足す。下見用の fontFaceCss には入れていない
+      // (入れると大扉の書体を変えるたびに組版HTMLが変わり、全ページが組み直る)ので、ここで足さないと紙の大扉の書体が落ちる
+      const paperSettings = withTitlepageCover(paper.settings, cover);
+      let paperFontCss = fontFaceCss;
+      if (paperSettings.titlepageTitleFont !== undefined || paperSettings.titlepageAuthorFont !== undefined) {
+        const tp = titlepageFontsOf(paperSettings);
+        const extra = [...new Set([tp.title, tp.author])].flatMap((f) => [BODY_FONTS[f].stack, tcyStack(f)]);
+        paperFontCss = `${fontFaceCss}\n${collectFontFaceCss(extra, bookText)}`;
+      }
       await printToPdf(
         manuscriptHtml(
           paper.manuscript,
-          paper.settings,
-          fontFaceCss,
+          paperSettings,
+          paperFontCss,
           // 白いページは下見と同じ枚数(中綴じの 4 の倍数・無線綴じを偶数にそろえる出し先の 2 の倍数)
           padUnit !== null ? { padPages: padCount, ...(faces ? { coverFaces: faces } : {}) } : {},
         ),
@@ -1347,7 +1409,7 @@ export function App() {
       return true;
     } catch (e) {
       setNotice('');
-      setImportError(`紙PDFの出力に失敗しました: ${e instanceof Error ? e.message : String(e)}`);
+      setImportError(`紙PDFの出力に失敗しました: ${userErrorText(e)}`);
       return false;
     } finally {
       setPrinting(false);
@@ -1495,12 +1557,118 @@ export function App() {
             sizes: resSizes,
             base: basePpiOf(settings.printTarget),
             backgrounds: resBgs,
+            // 表紙に同梱のプリセットをそのまま使っている面も数える(2026-10-12 改修の希望 2)
+            presetPx: bundledPresetPx,
           })
         : [],
     [paperOn, settings.plates, manuscript.chapters, layout, cover, resCoverLayout, resSizes, settings.printTarget, resBgs],
   );
+  /** 押された時点の知らせ(表紙のまとめての差し替えが引く) */
+  const resEntriesRef = useRef(resEntries);
+  resEntriesRef.current = resEntries;
   /** 左の欄の、絵の行ごとに出す細かさ(鍵は textRows と同じ plate:id / img:鍵) */
   const resRows = useMemo(() => new Map(resEntries.map((e) => [e.key, e.verdict])), [resEntries]);
+  /**
+   * 背景の画面(各面の画像の所)に出す、画像ごとの細かさの判定。入稿前チェックと同じ resEntries から作る
+   * (2026-10-12 修正リスト 19)。背景を測らない出し先では resBgs が空なので、表も空で何も出ない
+   */
+  const bgResolution = useMemo<BgResolution>(
+    () => ({
+      verdicts: backgroundVerdictsBySrc(resBgs, resEntries),
+      targetLabel: PRINT_TARGETS[settings.printTarget].label,
+    }),
+    [resBgs, resEntries, settings.printTarget],
+  );
+  /**
+   * **本に入れた同梱のプリセットの絵を、画像のフォルダの高解像度版へ差し替える。**(2026-10-12 改修の希望 2 の続き)
+   * 細かさの知らせが同梱のプリセットに出ているときだけフォルダを数える(useFolderHires)。
+   * フォルダに高解像度版が無い・許可が切れている・フォルダが無いときは、今までどおり BOOTH の案内になる。
+   * 行ごとの［高解像度版に差し替える］は PlateEditor・BackgroundPicker が、
+   * 入稿前チェックの［まとめて差し替える］は下の problems が出す(どちらも文脈 FolderHiresContext から引く)
+   */
+  const folderHires = useFolderHires(resEntries.some((e) => e.preset));
+  /** 差し替えの対象(知らせの出ている絵)を、挿絵・章の途中の絵('body')と背景('bg')に分けたもの */
+  const swapFilterOf = (which: 'body' | 'bg'): SwapFilter => {
+    const keysOf = (g: (typeof resEntries)[number]['group']) =>
+      new Set(resEntries.filter((e) => e.group === g).map((e) => e.key));
+    if (which === 'body') return { plates: keysOf('plate'), imgs: keysOf('img'), bgSrcs: new Set() };
+    const bgKeys = keysOf('bg');
+    return {
+      plates: new Set(),
+      imgs: new Set(),
+      bgSrcs: new Set(resBgs.filter((b) => bgKeys.has(b.key)).map((b) => b.src)),
+    };
+  };
+  /** 入稿前チェックの行に出す数: フォルダに高解像度版がある枚数(n)・無い枚数(rest)・知らせが出ている同梱の絵の枚数(total) */
+  const swapInfo = useMemo(() => {
+    const info = (which: 'body' | 'bg') => {
+      const group = resEntries.filter((e) => (which === 'body' ? e.group === 'plate' || e.group === 'img' : e.group === 'bg'));
+      const total = group.filter((e) => e.preset).length;
+      const places = swapPresetArt(settings, manuscript, swapFilterOf(which), () => undefined).places;
+      const n = countSwapUnits(places, (p) => folderHires.has(p.presetId) && !folderHires.isSwapped(p.src));
+      // 差し替えずみ(それでもまだ足りない)の絵には、案内を添えない
+      const done = countSwapUnits(places, (p) => folderHires.isSwapped(p.src));
+      return { n, total, rest: Math.max(0, total - n - done), done };
+    };
+    // 表紙(表1・表4・まるごと1枚)。同梱のプリセットそのもの(kind: 'preset')も、高解像度版を入れた面も、presetId で引く
+    const covPlaces = coverSwapPlaces(cover, resEntries);
+    const covTotal = resEntries.filter((e) => e.group === 'cover' && e.preset).length;
+    const covN = covPlaces.filter((c) => folderHires.has(c.presetId) && !folderHires.isSwapped(c.src)).length;
+    const covDone = covPlaces.filter((c) => folderHires.isSwapped(c.src)).length;
+    const coverInfo = { n: covN, total: covTotal, rest: Math.max(0, covTotal - covN - covDone), done: covDone };
+    return { body: info('body'), bg: info('bg'), cover: coverInfo };
+    // swapFilterOf は resEntries・resBgs から作る
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resEntries, resBgs, settings, manuscript, cover, folderHires]);
+  /** 最新の対象・フォルダを、押された時点で引く(problems の表に閉じ込めた古い値を使わない) */
+  const swapLatest = useRef({ swapFilterOf, folderHires });
+  swapLatest.current = { swapFilterOf, folderHires };
+  /**
+   * 知らせの出ている同梱の絵のうち、フォルダに高解像度版があるものを**まとめて**差し替える。
+   * 先に原画を全部読み(1つでも読めなければ、何も替えずに断りを出す)、そのあと設定と原稿を**1回で**書く
+   * (store の swapArt。挿絵は設定、章の途中の絵は原稿にあるが、元に戻すのは1段)
+   */
+  const swapHires = async (which: 'body' | 'bg') => {
+    const { swapFilterOf: filterOf, folderHires: fh } = swapLatest.current;
+    const filter = filterOf(which);
+    const st = useProject.getState();
+    const loadKey = (p: { presetId: string; wide: boolean }) => `${p.presetId}|${p.wide ? 'w' : 'n'}`;
+    const wanted = new Map<string, SwapPlace>();
+    for (const p of swapPresetArt(st.settings, st.manuscript, filter, () => undefined).places) {
+      if (fh.has(p.presetId) && !fh.isSwapped(p.src)) wanted.set(loadKey(p), p);
+    }
+    if (wanted.size === 0) return;
+    const loaded = new Map<string, string>();
+    for (const [k, p] of wanted) loaded.set(k, await fh.load(p.presetId, p.wide ? WRAP_MAX_SIDE : undefined));
+    // 読んでいるあいだに本が変わったかもしれないので、書く直前の本で作り直す
+    const now = useProject.getState();
+    const res = swapPresetArt(now.settings, now.manuscript, filter, (p) => loaded.get(loadKey(p)));
+    for (const s of loaded.values()) fh.markSwapped(s);
+    if (res.settings || res.manuscript) {
+      now.swapArt({ settings: res.settings, manuscript: res.manuscript }, '高解像度版への差し替え');
+    }
+  };
+  /**
+   * 表紙の、知らせの出ている同梱の絵を、フォルダの高解像度版へまとめて差し替える(入稿前チェックの表紙の行)。
+   * 先に原画を全部読んでから、表紙の設定を**1回で**書く(元に戻すのは1段)。差し替えた面は自分の画像の形
+   * (kind: 'image')になり、fromPreset(AI 申告)と presetId を持つ。まるごと1枚は大きい上限で取り込む
+   */
+  const swapCoverHires = async () => {
+    const fh = swapLatest.current.folderHires;
+    const st = useProject.getState();
+    const places = coverSwapPlaces(st.cover, resEntriesRef.current).filter((c) => fh.has(c.presetId) && !fh.isSwapped(c.src));
+    if (places.length === 0) return;
+    const loaded: { c: CoverSwapPlace; src: string }[] = [];
+    for (const c of places) loaded.push({ c, src: await fh.load(c.presetId, c.field === 'wrap' ? WRAP_MAX_SIDE : undefined) });
+    const patch: Partial<CoverSettings> = {};
+    for (const { c, src } of loaded) {
+      fh.markSwapped(src);
+      // 読んでいるあいだに表紙が替わっていたら、その面は書かない
+      if (coverGroundKey(useProject.getState().cover[c.field]) !== c.src) continue;
+      patch[c.field] = { kind: 'image', src, fromPreset: true, presetId: c.presetId };
+    }
+    if (Object.keys(patch).length > 0) useProject.getState().setCover(patch);
+  };
   /**
    * **カラーの紙の本で、絵ごとに「白黒で刷る」を選べる。**(2026-10-12 1.1.0。修正リストの 4-6)
    * 白黒に見えるのに色の情報を持つ絵・ごく淡い色の絵を、色のずれ(images/chroma.ts。縮めて測る)で見分けて、
@@ -2037,6 +2205,8 @@ export function App() {
     [manuscript, layout],
   );
 
+  /** 読み込めなかった書体(src/preview/fontFailures.ts。2026-10-13 修正リスト 29) */
+  const fontFails = useFontFailures();
   const problems = useMemo<Problem[]>(() => {
     // 横組みは行末の句読点がノドへ1字ぶら下がるので、そのぶんを足した幅で見る(grid.ts gutterNeedMm)
     const gutterMin = gutterNeedMm(pageCount || estPages, settings);
@@ -2221,6 +2391,14 @@ export function App() {
       const label = PRINT_TARGETS[settings.printTarget].label;
       const worstOf = (es: typeof resEntries) => es.reduce((a, b) => (b.verdict.ppi < a.verdict.ppi ? b : a)).verdict;
       const body = resEntries.filter((e) => e.group === 'plate' || e.group === 'img');
+      // 同梱のプリセットの絵に添える一言。フォルダに高解像度版があれば［まとめて差し替える］、無ければ BOOTH の案内、
+      // 差し替えずみ(それでもまだ足りない)の絵だけなら何も添えない(2026-10-12 改修の希望 2 の続き)
+      const presetNoteOf = (i: { n: number; total: number; rest: number; done: number }, which: 'body' | 'bg' = 'body') =>
+        i.n > 0 ? (
+          <FolderHiresBulk n={i.n} rest={i.rest} onSwap={() => swapHires(which)} />
+        ) : i.total - i.done > 0 ? (
+          <PresetHiresNote />
+        ) : undefined;
       const cov = resEntries.filter((e) => e.group === 'cover');
       // 用紙いっぱいに敷く背景(出し先が背景も測るときだけ入っている。2026-10-12)
       const bgs = resEntries.filter((e) => e.group === 'bg');
@@ -2229,6 +2407,8 @@ export function App() {
         // 鍵を渡すと、挿絵の一覧がその行を枠で囲み、上に一覧の札を出す(PlateEditor の spotlight)
         list.push({
           text: resolutionIssueText(body.length, worstOf(body), label, '挿絵と本文中の画像'),
+          // 同梱のプリセットの絵が入っているときは、BOOTH の無料の高解像度版への案内を添える(修正リスト 21)
+          note: presetNoteOf(swapInfo.body),
           goto: {
             label: toPlates.label,
             run: () => {
@@ -2242,12 +2422,20 @@ export function App() {
       if (cov.length > 0) {
         list.push({
           text: resolutionIssueText(cov.length, worstOf(cov), label, '表紙の画像'),
+          // 同梱のプリセットの絵なら、フォルダの高解像度版への差し替えか BOOTH の案内を添える(2026-10-12 改修の希望 2)
+          note:
+            swapInfo.cover.n > 0 ? (
+              <FolderHiresBulk n={swapInfo.cover.n} rest={swapInfo.cover.rest} onSwap={swapCoverHires} />
+            ) : swapInfo.cover.total - swapInfo.cover.done > 0 ? (
+              <PresetHiresNote />
+            ) : undefined,
           goto: { label: '→ 表紙をつくる', run: () => setStep('cover') },
         });
       }
       if (bgs.length > 0) {
         list.push({
           text: resolutionIssueText(bgs.length, worstOf(bgs), label, '背景の画像'),
+          note: presetNoteOf(swapInfo.bg, 'bg'),
           // 画像の工程は、紙の本なら背景の面から開く(ArtStep の既定)。前に挿絵の面へ飛んだ覚えが残っていると
           // そちらが開くので、消してから移る
           goto: {
@@ -2362,15 +2550,25 @@ export function App() {
         goto: { label: '→ 奥付と著者紹介を入れる', run: () => setStep('colophon') },
       });
     }
+    // 本文・大扉・表紙の書体の一部を読み込めなかった(ネットが切れた・サーバーが断った)。そのままだと
+    // 代わりの書体で書き出される。**止めない**(ほかの知らせと同じ)。読み直すボタンを添える(2026-10-13 修正リスト 29)
+    if (fontFails.count > 0) {
+      list.push({
+        text: fontFailureText(fontFails),
+        note: <FontRetryButton />,
+        goto: { label: '→ 本のかたちを決める', run: () => setStep('shape') },
+      });
+    }
     return list;
   }, [
+    fontFails,
     totalChars, noChapters, manuscript.author, layout, layout.margins.gutter,
     pageCount, estPages, imgStats, blurbOverflow, spineOverflow, profileOverflow,
     settings.plates, settings.columnPages, settings.writingMode, settings.makePaper,
     settings.makeEbook, settings.printTarget, settings.printRules, settings.fontPt, settings.trim,
     settings.binding, settings.saddleCover, saddleOn, paperPagesNow,
     cover.spineMmFromPrinter, cover.spineMmPages,
-    textFindings, textUnchecked, textChecking, resEntries, colorRows,
+    textFindings, textUnchecked, textChecking, resEntries, colorRows, swapInfo,
   ]);
 
   /**
@@ -2419,6 +2617,9 @@ export function App() {
       cover.wrap?.kind === 'preset' ||
       cover.background.kind === 'preset' ||
       cover.backCover.kind === 'preset' ||
+      // 画像のフォルダから入れた同梱のプリセットの高解像度版(BOOTH の無料版)。表紙では自分の画像の形になるので目印で見る
+      // (2026-10-12 改修の希望 2。見落とすと過少申告になる)
+      [cover.wrap, cover.background, cover.backCover].some((v) => v?.kind === 'image' && v.fromPreset === true) ||
       settings.bodyBgFromPreset === true ||
       [settings.titleBg, settings.tocBg, settings.colophonBg].some((b) => b?.fromPreset) ||
       Object.values(settings.chapterBg ?? {}).some((b) => b?.fromPreset) ||
@@ -2766,6 +2967,8 @@ export function App() {
 
   return (
     <ColorPaletteProvider colors={bookPalette} label="この本の画像の色" mono={settings.ink === 'mono'}>
+    <BgResolutionContext.Provider value={bgResolution}>
+    <FolderHiresContext.Provider value={folderHires}>
     <div className="app">
       {/* 書名は入口画面と 02 奥付、著者名も 02 奥付にある。
           ここにも同じ欄があると、どれが本物か分からなくなるので重ねない */}
@@ -2882,7 +3085,7 @@ export function App() {
           スマホで作業画面に入ると下見がほとんど見えず、案内も無かった) */}
       {!showStart && (
         <p className="narrow-notice" role="note">
-          この画面はパソコン向けのため、画面が狭いと仕上がりの確認や操作がしづらいことがあります。
+          この画面はパソコン向けです。スマホ・タブレットや狭い画面では、仕上がりの確認や操作ができません。
           ［保存する］で保存し、パソコンの［続けて作る］から開くのがおすすめです。
         </p>
       )}
@@ -3088,6 +3291,8 @@ export function App() {
             )}
             {/* 書き出しの画面から飛んできたときの戻り道 */}
             {step !== 'cover' && returnButton}
+            {/* 本の書体を読み込めなかったときの知らせと［書体を読み直す］(2026-10-13 修正リスト 29)。無ければ何も出さない */}
+            <FontFailureNotice className="in-preview" />
             {/* **［電子書籍の本文］の札と、EPUB の1ページ目に入る表紙は外した。**(2026-08-21)
                 どちらもあの工程で下見を出していたからこそ要ったもので、
                 下見をやめた(ExportStep の .epub-stage)いま、出す場所そのものが無い。
@@ -3139,7 +3344,15 @@ export function App() {
           binding={saddleOn ? 'saddle' : 'perfect'}
           selfCover={selfCover}
           makes={outputsOf(settings)}
-          topSlot={step === 'cover' ? returnButton : null}
+          /* 表紙の書体を読み込めなかったときの知らせも、表紙の画面の上に出す(2026-10-13 修正リスト 29) */
+          topSlot={
+            step === 'cover' && (returnButton || fontFails.count > 0) ? (
+              <>
+                {returnButton}
+                <FontFailureNotice />
+              </>
+            ) : null
+          }
           title={manuscript.title}
           author={manuscript.author}
           publisher={manuscript.publisher}
@@ -3229,6 +3442,8 @@ export function App() {
         />
       )}
     </div>
+    </FolderHiresContext.Provider>
+    </BgResolutionContext.Provider>
     </ColorPaletteProvider>
   );
 }

@@ -264,8 +264,8 @@ await test('B1: Node のヒープを 256MB に絞った別プロセスでも、3
 console.log('実物');
 
 const dirEnv = process.env.PRESS_FIXTURES;
-if (!dirEnv) console.log('  skip PRESS_FIXTURES が無いので、実物の検査は飛ばした');
-else if (!existsSync(join(dirEnv, 'color-a5.pdf'))) console.log('  skip color-a5.pdf が無い');
+if (!dirEnv) console.log('  [飛ばした] PRESS_FIXTURES が無いので、実物の検査は飛ばした');
+else if (!existsSync(join(dirEnv, 'color-a5.pdf'))) console.log('  [飛ばした] color-a5.pdf が無い');
 else {
   await test('color-a5.pdf: neutralize → limitInk → 点検 で、描く命令の RGB の残り 0・カラーのページが 1,3,13-16,18-28(17ページ)・最大インク 300%', async () => {
     const doc = await PDFDocument.load(readFileSync(join(dirEnv, 'color-a5.pdf')), { updateMetadata: false });

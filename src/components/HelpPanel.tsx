@@ -16,6 +16,7 @@
 import { useEffect, useState } from 'react';
 import {
   HELP_BAR,
+  HELP_ENV,
   HELP_EPUB_DIFF,
   HELP_GLOSSARY,
   HELP_QA,
@@ -87,6 +88,36 @@ export function HelpPanel({ onClose }: Props) {
 
         {view === 'tabs' && (
           <>
+            {/* いちばん先に置く。「自分のパソコン・ブラウザで使えるか」は、使い方より前に知りたいこと
+                (2026-10-13 運用の見直し 12。入口の1行からここへ来る) */}
+            <section className="help-sec help-env">
+              <h3>{HELP_ENV.title}</h3>
+              <p>{HELP_ENV.lead}</p>
+              {/* 対応・対象外の2段(2026-10-13 夜 ユーザー決定)→ 性能など → 版の調べ方 */}
+              {HELP_ENV.tiers.map((t) => (
+                <div key={t.head}>
+                  <h4>{t.head}</h4>
+                  <ul className="help-list">
+                    {t.items.map((x) => (
+                      <li key={x}>{x}</li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+              <h4>{HELP_ENV.otherHead}</h4>
+              <ul className="help-list">
+                {HELP_ENV.items.map((x) => (
+                  <li key={x}>{x}</li>
+                ))}
+              </ul>
+              <h4>{HELP_ENV.howToHead}</h4>
+              <ul className="help-list">
+                {HELP_ENV.howTo.map((x) => (
+                  <li key={x}>{x}</li>
+                ))}
+              </ul>
+            </section>
+
             {HELP_TABS.map((t) => (
               <section key={t.title} className="help-sec">
                 <h3>{t.title}</h3>

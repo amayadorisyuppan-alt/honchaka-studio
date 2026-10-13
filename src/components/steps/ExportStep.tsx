@@ -36,6 +36,8 @@ import type { BodyBoxes } from '../../press/types';
  */
 export interface Problem {
   text: string;
+  /** 文のあとに添える一言(リンクを含められる)。細かさの知らせの、BOOTH の高解像度版への案内に使う(2026-10-12 修正リスト 21) */
+  note?: ReactNode;
   /** 直しに行く先 */
   goto: { label: string; run: () => void };
 }
@@ -416,6 +418,7 @@ export function ExportStep({
                     <span className="ic">!</span>
                     <span>
                       {p.text}
+                      {p.note && <>。{p.note}</>}
                       <button className="link-btn" onClick={p.goto.run}>
                         {p.goto.label}
                       </button>

@@ -29,6 +29,7 @@
 
 import {
   BODY_FONTS,
+  isBodyFontId,
   DEFAULT_PRINT_RULES,
   PLATE_SIZES,
   PRINT_TARGETS,
@@ -39,8 +40,10 @@ import {
   migrateSceneBreak,
   migrateEbookMono,
   normalizePrintRules,
+  isPresetId,
+  isLoadableImageSrc,
 } from '../models/project';
-import type { BodyFontId, Manuscript, ProjectSettings, SourceFile } from '../models/project';
+import type { BgSpec, BodyFontId, Manuscript, ProjectSettings, SourceFile } from '../models/project';
 import { COVER_FONTS, PAPER_TYPES, sanitizeCoverModeLook } from '../models/cover';
 import { EDITION } from '../edition';
 import { APP_VERSION } from '../version';
@@ -138,6 +141,23 @@ const GUIDE_FOR_BACKUP = [
 const OLD_PLACEHOLDER = /^#img(\d+)$/;
 /** 新形式。`place` の中身は下の mapImages が渡す置き場所の名前(例: titleBg, plate.<id>, body.3) */
 const NEW_PLACEHOLDER = /^#img:(.+)$/;
+
+/**
+ * 表(書体・用紙・挿絵の大きさなど)の自分のキーか。(2026-10-13 修正リスト 26)
+ * `v in TABLE` は toString・constructor など Object の元の名前にも true になり、.json の `"toString"` が検査をすり抜けて
+ * 表紙の書名が消えた(運用の見直し 12 の B3)。表を引く検査はこれで見る
+ */
+function ownKey(table: object, v: unknown): boolean {
+  return typeof v === 'string' && Object.prototype.hasOwnProperty.call(table, v);
+}
+
+/**
+ * 読み込んだ .json の画像の欄に入っていてよい値か(sanitize の段階)。(2026-10-13 修正リスト 25・33)
+ * 画像の目印(#img0・#img:titleBg)はこのあと実体に置き換えるので通す。実体は置き換えるときに isLoadableImageSrc で見る
+ */
+function isImageSrcOrPlaceholder(v: unknown): v is string {
+  return isLoadableImageSrc(v) || (typeof v === 'string' && (OLD_PLACEHOLDER.test(v) || NEW_PLACEHOLDER.test(v)));
+}
 
 /**
  * プロジェクト内の画像 src をまとめて変換する。
@@ -284,6 +304,41 @@ export function toProjectFile(p: ProjectSnapshot, withImages: boolean): string {
   // 整形しても大きさは変わらない(中身のほとんどが1本の長い文字列なので)。
   // 1行のままだと人も道具も読み進められないので、必ず整形する
   return JSON.stringify(file, null, 2);
+}
+
+/**
+ * **形が壊れているかもしれない本から、控え(画像込みの .json)を作る。**(2026-10-13 修正リスト 25)
+ * エラーの画面の逃げ道で、自動保存を空にする前に使う。ふつうは toProjectFile と同じものを返す。
+ * 本の形が崩れていて toProjectFile が落ちたら(章が配列でない など)、中身を手を加えずにそのまま書く —
+ * 画像は data URI のまま本文の中に残るが、［読み込む］はそのまま読める(読むときに sanitize が形を直す)。
+ * それも書けなければ例外を投げる(呼ぶ側は、控えが取れないあいだは何も消さない)
+ */
+export function rescueProjectFile(raw: unknown): string {
+  const r = (raw && typeof raw === 'object' ? raw : {}) as Partial<ProjectSnapshot>;
+  try {
+    return toProjectFile(
+      { settings: r.settings!, cover: r.cover!, manuscript: r.manuscript!, source: r.source ?? null },
+      true,
+    );
+  } catch {
+    return JSON.stringify(
+      {
+        format: PROJECT_FORMAT,
+        version: VERSION,
+        _このファイルについて: GUIDE_FOR_BACKUP,
+        savedAt: new Date().toISOString(),
+        savedBy: { app: APP_VERSION, edition: EDITION.id },
+        withImages: true,
+        settings: r.settings,
+        cover: r.cover,
+        // 原稿が無い本の控えも［読み込む］で開けるように、空の原稿を入れておく(無いと「中身が足りません」で開けない)
+        manuscript: r.manuscript ?? { title: '', chapters: [] },
+        source: r.source ?? null,
+      },
+      null,
+      2,
+    );
+  }
 }
 
 /**
@@ -452,9 +507,70 @@ export function sanitize(
     keepIfMissing('chapterBg', '章ごとの背景');
     // 書名の向き(2026-10-03): AI が本文だけを直して返した JSON に項目が無くても、横書きにした本が黙って縦へ戻らない
     keepIfMissing('titleWritingMode', '書名の向き');
+    // 大扉の書体(2026-10-12 希望 5): 同じ理由。表紙とそろえた大扉が、AI の JSON を読んだだけで本文の書体へ戻らない
+    keepIfMissing('titlepageTitleFont', '大扉の書名の書体');
+    keepIfMissing('titlepageAuthorFont', '大扉の著者名の書体');
     // 綴じ方(2026-10-03): 同じ理由。AI が本文だけを直して返した JSON に項目が無くても、中綴じの本が黙って無線へ戻らない
     keepIfMissing('binding', '綴じ方');
     keepIfMissing('saddleCover', '中綴じの表紙の入れ方');
+  }
+  /*
+   * **絵を置く欄は、形と src を確かめる。**(2026-10-13 修正リスト 25・33。運用の見直し 12 の B2)
+   * bodyBg(生の文字列)と各面の背景の src を見ていなかった。`bodyBg: {…}`・`titleBg.src: 5` のような .json を読むと
+   * 画面がエラーになり、その値が自動保存に残って、**開き直しても入口にすら戻れなかった**(9/25 の見直し S1-3 と同じ形)。
+   * https の場所も、読み込むと外のサイトへ取りに行くので外す。合わない値は外して知らせる(いまの本の絵は入れない。
+   * 読めなかった絵の代わりに別の絵が入るより、無いほうが気づける)。
+   * 自動保存から開くとき(useProject の hydrate)もここを通るので、すでに悪い値が残っている人もこれで入れる
+   */
+  const fixBgSpec = (v: unknown): { spec: BgSpec | null | undefined; bad: boolean } => {
+    // null は無いのと同じに扱われる(resolveBg・mapImages は ?. で読む)ので触らない
+    if (v === undefined || v === null) return { spec: v, bad: false };
+    if (typeof v !== 'object' || Array.isArray(v)) return { spec: undefined, bad: true };
+    const o = v as BgSpec;
+    if (o.src === undefined || isImageSrcOrPlaceholder(o.src)) return { spec: o, bad: false };
+    // 絵を外すときは、同梱の絵の印(AI の申告・高解像度版の差し替えに使う)も一緒に外す
+    const next: BgSpec = { ...o };
+    delete next.src;
+    delete next.fromPreset;
+    delete next.presetId;
+    return { spec: next, bad: true };
+  };
+  if (s.bodyBg !== undefined && !isImageSrcOrPlaceholder(s.bodyBg)) {
+    delete s.bodyBg;
+    delete s.bodyBgFromPreset;
+    delete s.bodyBgPresetId;
+    fixed.push('本文の背景の画像');
+  }
+  for (const [key, label] of [
+    ['titleBg', '大扉の背景の画像'],
+    ['tocBg', '目次の背景の画像'],
+    ['colophonBg', '奥付の背景の画像'],
+  ] as const) {
+    const r = fixBgSpec(s[key]);
+    if (!r.bad) continue;
+    if (r.spec) s[key] = r.spec;
+    else delete s[key];
+    fixed.push(label);
+  }
+  if (s.chapterBg !== undefined && s.chapterBg !== null) {
+    const src = s.chapterBg as unknown;
+    if (typeof src !== 'object' || Array.isArray(src)) {
+      delete s.chapterBg;
+      fixed.push('章ごとの背景の画像');
+    } else {
+      let bad = false;
+      const next: Record<number, BgSpec> = {};
+      for (const [k, v] of Object.entries(src as Record<string, unknown>)) {
+        const r = fixBgSpec(v);
+        if (r.bad) bad = true;
+        if (r.spec) next[Number(k)] = r.spec;
+        else if (r.spec === null) (next as Record<number, unknown>)[Number(k)] = null;
+      }
+      if (bad) {
+        s.chapterBg = next;
+        fixed.push('章ごとの背景の画像');
+      }
+    }
   }
   const num = (key: keyof ProjectSettings, label: string, lo: number, hi: number) => {
     if (missing(key)) return;
@@ -574,7 +690,9 @@ export function sanitize(
    * 書くことがあり、組版の BODY_FONTS[不正値].stack で画面が落ちたうえ、その値が自動保存されて
    * 開き直しても毎回落ちた。無い名前の欄は外す(既定の書体に戻る)
    */
-  const isBodyFont = (v: unknown): v is BodyFontId => typeof v === 'string' && v in BODY_FONTS;
+  // `v in BODY_FONTS` は toString・constructor などにも true になり、すり抜けていた(2026-10-13 修正リスト 26)。
+  // 表の自分のキーかで見る isBodyFontId に寄せる
+  const isBodyFont = (v: unknown): v is BodyFontId => isBodyFontId(v);
   const dropFont = (key: 'nombreFont' | 'runningHeadFont', label: string) => {
     if (s[key] !== undefined && !isBodyFont(s[key])) {
       delete s[key];
@@ -583,6 +701,17 @@ export function sanitize(
   };
   dropFont('nombreFont', 'ノンブルの書体');
   dropFont('runningHeadFont', '柱の書体');
+  // 大扉の書名・著者名の書体(2026-10-12 今後の改修の希望 5)。表にある書体か 'cover'(表紙とつながる)だけ。
+  // それ以外は外す(未指定 = 本文の書体に戻る)。項目の無い古いファイルは触らない
+  const dropTitlepageFont = (key: 'titlepageTitleFont' | 'titlepageAuthorFont', label: string) => {
+    const v = s[key];
+    if (v !== undefined && v !== 'cover' && !isBodyFontId(v)) {
+      delete s[key];
+      fixed.push(label);
+    }
+  };
+  dropTitlepageFont('titlepageTitleFont', '大扉の書名の書体');
+  dropTitlepageFont('titlepageAuthorFont', '大扉の著者名の書体');
   if (s.chapterFont !== undefined) {
     const src = s.chapterFont as unknown;
     const next: Record<number, BodyFontId> = {};
@@ -662,14 +791,15 @@ export function sanitize(
     let touched = false;
     const all = s.plates;
     s.plates = all
-      .filter((p) => p && typeof p.src === 'string')
+      // src は文字列で、data URI か目印か同梱の場所だけ(https の場所は外す。2026-10-13 修正リスト 25・33)
+      .filter((p) => p && typeof p === 'object' && isImageSrcOrPlaceholder(p.src))
       .map((p) => {
         // id は一覧の行・並べ替え・消去の目印。無いと画面が落ちるので、無ければ振る
         if (typeof p.id !== 'string' || !p.id) {
           p = { ...p, id: crypto.randomUUID() };
           touched = true;
         }
-        const size = String(p.size) in PLATE_SIZES ? p.size : 'full';
+        const size = ownKey(PLATE_SIZES, p.size) ? p.size : 'full';
         const before =
           typeof p.beforeChapter === 'number' && p.beforeChapter >= 0 && p.beforeChapter <= chapters
             ? p.beforeChapter
@@ -689,6 +819,7 @@ export function sanitize(
   } else if (Array.isArray(s.columnPages)) {
     const chapters = Array.isArray(loaded.manuscript?.chapters) ? loaded.manuscript.chapters.length : 0;
     let touched = false;
+    let badColumnBg = false;
     const all = s.columnPages;
     /**
      * **見出しと本文は、字にできるものは字にして残す。**(2026-09-25 見直し S1-5)
@@ -726,6 +857,14 @@ export function sanitize(
             touched = true;
           }
         }
+        // ページの地の絵(2026-10-13 修正リスト 25・33)。各面の背景と同じ確かめ。ページは残し、読めない絵だけ外す
+        const bg = fixBgSpec(c.bg);
+        if (bg.bad) {
+          c = { ...c };
+          if (bg.spec) c.bg = bg.spec;
+          else delete c.bg;
+          badColumnBg = true;
+        }
         const before =
           typeof c.beforeChapter === 'number' && c.beforeChapter >= 0 && c.beforeChapter <= chapters
             ? c.beforeChapter
@@ -739,6 +878,7 @@ export function sanitize(
         return next;
       });
     if (touched) fixed.push('コラムページの位置・組み方向・書体・見出しか本文の形');
+    if (badColumnBg) fixed.push('コラムページの地の画像');
     const lost = all.length - s.columnPages.length;
     if (lost) removed.push(`コラムページ ${lost}枚（中身が読めない）`);
   }
@@ -748,6 +888,7 @@ export function sanitize(
    * 文字列1つ、のような形で来ると、組版の文字列処理で画面が落ちた(開き直しても落ちる)
    */
   let blockFixes = 0;
+  let imageFixes = 0;
   const fixBlock = (b: unknown): Manuscript['chapters'][number]['blocks'][number] => {
     if (!b || typeof b !== 'object') {
       blockFixes++;
@@ -774,6 +915,22 @@ export function sanitize(
       if (listStart(n) === 1) delete out.start;
       blockFixes++;
     }
+    // 本文中の画像(2026-10-13 修正リスト 25・33)。読めない src(文字列でない・https の場所)は空の枠にする
+    // (絵をまだ選んでいない枠と同じ。組版には出ない)。説明文・キャプションは字にする(全角スペースの戻しが字として読む)
+    if (o.type === 'image') {
+      if (!isImageSrcOrPlaceholder(o.src)) {
+        out = { ...out, src: '' };
+        delete out.fromPreset;
+        delete out.presetId;
+        imageFixes++;
+      }
+      for (const f of ['alt', 'caption'] as const) {
+        if (o[f] !== undefined && typeof o[f] !== 'string') {
+          out = { ...out, [f]: o[f] == null ? '' : String(o[f]) };
+          blockFixes++;
+        }
+      }
+    }
     return out as unknown as Manuscript['chapters'][number]['blocks'][number];
   };
   // 原稿。章が配列でなければ丸ごと手元のものを使う(ここが壊れると組版に入れない)
@@ -792,6 +949,7 @@ export function sanitize(
       })),
     };
     if (blockFixes) fixed.push('本文の段落の形');
+    if (imageFixes) fixed.push('本文中の画像');
   }
 
   // 表紙の地・裏の地・まるごと1枚の絵。**render.ts は settings.background.kind を無条件に読む**ので、
@@ -802,14 +960,15 @@ export function sanitize(
     const o = v as Record<string, unknown>;
     if (o.kind === 'solid') return typeof o.color === 'string';
     if (o.kind === 'preset') return typeof o.id === 'string';
-    if (o.kind === 'image') return typeof o.src === 'string';
+    // https の場所は通さない(2026-10-13 修正リスト 33。外のサイトへ取りに行く)
+    if (o.kind === 'image') return isImageSrcOrPlaceholder(o.src);
     return false;
   };
   const isCoverWrap = (v: unknown): v is CoverWrap => {
     if (!v || typeof v !== 'object') return false;
     const o = v as Record<string, unknown>;
     if (o.kind === 'preset') return typeof o.id === 'string';
-    if (o.kind === 'image') return typeof o.src === 'string';
+    if (o.kind === 'image') return isImageSrcOrPlaceholder(o.src);
     return false;
   };
   let cover = loaded.cover;
@@ -846,14 +1005,14 @@ export function sanitize(
         c[key] = current.cover[key];
         continue;
       }
-      if (!(typeof c[key] === 'string' && c[key] in COVER_FONTS)) {
+      if (!ownKey(COVER_FONTS, c[key])) {
         c[key] = current.cover[key];
         fixed.push(label);
       }
     }
     if (c.paper === undefined) {
       c.paper = current.cover.paper;
-    } else if (!(typeof c.paper === 'string' && c.paper in PAPER_TYPES)) {
+    } else if (!ownKey(PAPER_TYPES, c.paper)) {
       c.paper = current.cover.paper;
       fixed.push('本文用紙');
     }
@@ -875,7 +1034,45 @@ export function sanitize(
     cover = c;
   }
 
-  return { project: { ...loaded, settings: s, cover, manuscript }, fixed, removed, notices };
+  // 同梱のプリセットの id(2026-10-12 改修の希望 2)。id の形でないものは黙って外す(古いファイルは無くてよい)
+  // 表紙の高解像度版(kind: 'image' の presetId)も同じ
+  const settingsOut = stripBadPresetIds(s) as ProjectSettings;
+  manuscript = stripBadPresetIds(manuscript) as Manuscript;
+  cover = stripBadPresetIds(cover) as CoverSettings;
+  return { project: { ...loaded, settings: settingsOut, cover, manuscript }, fixed, removed, notices };
+}
+
+/**
+ * `presetId` / `bodyBgPresetId` のうち、同梱のプリセットの id の形(isPresetId)でないものを外した写しを返す。(2026-10-12 改修の希望 2)
+ * 絵を置ける場所(各面の背景・挿絵ページ・コラムの地・本文中の画像)は深さがまちまちなので、
+ * 場所を並べずに全体をたどる。外すものが無い枝は同じオブジェクトのまま返す(大きな data URI の文字列は写さない)
+ */
+export function stripBadPresetIds(v: unknown): unknown {
+  if (Array.isArray(v)) {
+    let changed = false;
+    const out = v.map((x) => {
+      const y = stripBadPresetIds(x);
+      if (y !== x) changed = true;
+      return y;
+    });
+    return changed ? out : v;
+  }
+  if (!v || typeof v !== 'object') return v;
+  const o = v as Record<string, unknown>;
+  let out: Record<string, unknown> | null = null;
+  for (const [k, x] of Object.entries(o)) {
+    if ((k === 'presetId' || k === 'bodyBgPresetId') && x !== undefined && !isPresetId(x)) {
+      out ??= { ...o };
+      delete out[k];
+      continue;
+    }
+    const y = stripBadPresetIds(x);
+    if (y !== x) {
+      out ??= { ...o };
+      out[k] = y;
+    }
+  }
+  return out ?? o;
 }
 
 /** 本文をひとつなぎにする(取りこぼしの検査用) */
@@ -990,8 +1187,9 @@ export function fromProjectFile(text: string, current: ProjectSnapshot): LoadRes
    */
   const fileBook = file.settings.bookId;
   const currentBook = current.settings.bookId;
+  // 書名が文字でない(壊れた控え・手で直した .json)ときも落ちないように、文字にしてから比べる(2026-10-13 見直し)
   const sameTitle =
-    (file.manuscript.title ?? '').trim() === (current.manuscript.title ?? '').trim();
+    String(file.manuscript.title ?? '').trim() === String(current.manuscript.title ?? '').trim();
   const otherBook =
     !!fileBook && !!currentBook ? fileBook !== currentBook : !sameTitle;
 
@@ -1034,23 +1232,26 @@ export function fromProjectFile(text: string, current: ProjectSnapshot): LoadRes
   // 新形式では「知らない名前(古いバージョンが作った置き場所が無くなった等)」も
   // ここに数える — 黙って画像を諦めるのではなく、利用者に「N枚戻せなかった」と伝えるため
   const unresolved = new Set<string>();
+  /**
+   * 実体はあるが読めないもの(文字列でない・https の場所)。(2026-10-13 修正リスト 25・33)
+   * ファイル末尾の images は sanitize を通らないので、ここで見る。数や {} を組版へ渡すと画面が落ち、
+   * 自動保存に残って開き直しても落ちる。https の場所は外のサイトへ取りに行く
+   */
+  const unusable = new Set<string>();
+  const supply = (found: unknown, src: string): string => {
+    if (typeof found === 'string' && found !== '' && isLoadableImageSrc(found)) return found;
+    if (found === undefined || found === null || found === '') unresolved.add(src);
+    else unusable.add(src);
+    return ''; // 壊れた src を組版へ渡さない
+  };
   const withImages = mapImages(loaded, (src) => {
     const oldMatch = OLD_PLACEHOLDER.exec(src);
-    if (oldMatch) {
-      const found = oldSupply[Number(oldMatch[1])];
-      if (found) return found;
-      unresolved.add(src);
-      return ''; // 壊れた src を組版へ渡さない
-    }
+    if (oldMatch) return supply(oldSupply[Number(oldMatch[1])], src);
     const newMatch = NEW_PLACEHOLDER.exec(src);
-    if (newMatch) {
-      const found = newSupply.get(newMatch[1]);
-      if (found) return found;
-      unresolved.add(src);
-      return '';
-    }
+    if (newMatch) return supply(newSupply.get(newMatch[1]), src);
     return src; // プレースホルダではない(通常はここに来ない)
   });
+  if (unusable.size) removed.push(`画像 ${unusable.size}枚（画像のデータではないか、別のサイトの画像だった）`);
 
   // AI が半角に変えた全角スペースを戻してから、残りを検査する
   const { project, repaired } = repairSpacing(withImages, current);

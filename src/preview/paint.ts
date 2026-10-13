@@ -70,6 +70,25 @@
 //       書名・著者名の字の並びは縦用と横用の両方を組版HTMLに入れてある(html.ts の titleBothWays)。
 //       紙の書き出しは完全な設定で組むので、正しい向きの1つだけが入る
 //
+// ### 大扉の書体(2026-10-12 今後の改修の希望 5。向きと同じ扱い)
+//   titlepageTitleFont / titlepageAuthorFont(大扉の書名・著者名の書体。'cover' は表紙の書体につながる)
+//     … 変わるのは大扉の1ページの中だけ(上の向きと同じ理由で、ページ数もほかのページも動かない)。
+//       組版には**本文の書体のまま**を固定して渡し(paintNeutral)、下見の大扉の書名・著者名に
+//       書体と太さを `!important` で重ねる(previewPaintCss の「大扉の書体」)。表紙の書体を変えたときも、
+//       App が表紙のいまの書体に置き換えて塗り直すだけで、組み直さない。
+//       紙の書き出しは完全な設定(表紙の書体に置き換えたもの)で組み、その書体の @font-face も足す(App の handlePrintPdf)
+//
+// ### 挿絵の余白(2026-10-12 修正リスト 13。向きと同じ扱い)
+//   plates[].size のうち 全面(full)・余白すこし(wide)・余白おおめ(narrow)の切り替え
+//     … 挿絵ページは1枚で独立したページ(前後で改ページ)で、3つとも同じ箱(用紙の実寸・中央寄せ)と
+//       同じ @page plate(余白0)で組む。違うのは絵の寸法だけなので、ページ数もほかのページの字も動かない。
+//       組版には**全面**を固定して渡し(paintNeutral の neutralPlates)、下見はその絵の寸法を `!important` で重ねる
+//       (previewPaintCss の「挿絵の余白」。値は css.ts の plateImgBox と共用)。
+//     ただし**無線綴じで印刷所の決まりがある本の余白すこし/おおめ**は、ノド側を空けた名前付きページ
+//       (@page platewide / platenarrow。css.ts の plateGutterBoxOf)で組み、ページの余白で箱の位置を決める。
+//       ページの余白は組版の時点で決まり重ねでは動かせないので、その大きさは固定せず今までどおり組み直す(plateBare)。
+//     見開き(2ページ)・版面いっぱい(@page printplate)への切り替え・絵の差し替え・位置・足す/消すも今までどおり組み直す
+//
 // ### 実測して決めたもの・安全側に倒したもの
 //   文字のフチ(textOutline) … -webkit-text-stroke ではなく8方向の text-shadow で
 //     作ってある(css.ts)。影は字幅もボックスも変えないので**塗り**。
@@ -89,19 +108,26 @@ import {
   titleWritingModeOf,
   type ColumnPage,
   type MatterType,
+  type Plate,
   type ProjectSettings,
 } from '../models/project';
-import { computeLayout } from '../typeset/grid';
+import { computeLayout, type PageLayout } from '../typeset/grid';
 import {
   bgBlendValue,
   bgImageValue,
   marginBoxName,
   outlineShadow,
+  plateGutterBoxOf,
+  plateImgBox,
   platePageRules,
   titleHorizontalDecls,
+  titlepageFontDecls,
   toGray,
   withAlpha,
 } from '../typeset/css';
+
+/** 組版の CSS(css.ts の mm)と同じ書き方の mm */
+const mmOf = (v: number) => `${+v.toFixed(3)}mm`;
 
 /** 段間の罫線が出ている本か。出ていれば textColor は罫の色にも使われる(=組みに倒す) */
 function columnRuleActive(s: ProjectSettings): boolean {
@@ -134,6 +160,35 @@ function neutralColumnPage(c: ColumnPage): ColumnPage {
   return next;
 }
 
+/**
+ * 挿絵ページの大きさのうち、**下見の重ねだけで切り替えられるもの**(冒頭の「挿絵の余白」)。
+ * 余白0の @page plate で組む大きさ(全面・余白すこし・余白おおめ)どうしなら、ページの余白も箱も同じで、
+ * 違うのは絵の寸法(img の宣言)だけ。無線綴じで印刷所の決まりがある本の余白すこし・おおめは、
+ * ノド側を空けた名前付きページ(platewide / platenarrow)で組むので外す(ページの余白は組版の時点で決まり、重ねでは動かせない)
+ */
+export function plateBare(s: ProjectSettings, size: Plate['size'], l?: PageLayout): boolean {
+  if (size === 'full') return true;
+  if (size !== 'wide' && size !== 'narrow') return false;
+  return !plateGutterBoxOf(l ?? computeLayout(s), size);
+}
+
+/**
+ * 挿絵の大きさを、組版では「全面」に固定する(2026-10-12 修正リスト 13)。重ねで切り替えられるものだけ。
+ * 何も変えなければ**同じ参照**を返す
+ */
+function neutralPlates(s: ProjectSettings): Plate[] {
+  const plates = s.plates ?? [];
+  if (!plates.some((p) => p.size === 'wide' || p.size === 'narrow')) return plates;
+  const l = computeLayout(s);
+  let changed = false;
+  const out = plates.map((p) => {
+    if (p.size === 'full' || !plateBare(s, p.size, l)) return p;
+    changed = true;
+    return { ...p, size: 'full' as const };
+  });
+  return changed ? out : plates;
+}
+
 /** 奥付・著者紹介の見た目から色だけ落とす。色が無ければ同じ参照を返す */
 function neutralMatter(m: MatterType | undefined): MatterType | undefined {
   if (!m || (m.color === undefined && m.headingColor === undefined)) return m;
@@ -158,6 +213,8 @@ export function paintNeutral(s: ProjectSettings): ProjectSettings {
     ink: 'color',
     bodyBg: undefined,
     bodyBgFromPreset: false,
+    // どの同梱のプリセットか(2026-10-12 改修の希望 2)。目印と同じく組版に出ない
+    bodyBgPresetId: undefined,
     // 背景を白黒で刷る印(1.1.0)。背景は塗りのパッチが写しで塗る(App が printColor の写しを渡す)ので、組みには関わらない
     bodyBgPrintMono: undefined,
     bgOpacity: 0.25,
@@ -185,6 +242,12 @@ export function paintNeutral(s: ProjectSettings): ProjectSettings {
     aiContentByUser: false,
     // 書名の向きは大扉の1ページだけの話なので、組版には縦のまま渡す(冒頭の「向きだけ」)
     titleWritingMode: undefined,
+    // 大扉の書名・著者名の書体も同じ(冒頭の「大扉の書体」。2026-10-12 希望 5)。組版は本文の書体で組み、パッチで重ねる
+    titlepageTitleFont: undefined,
+    titlepageAuthorFont: undefined,
+    // 挿絵の余白(全面・余白すこし・おおめ)も1ページの中だけの話なので、組版には「全面」で渡し、重ねで切り替える
+    // (冒頭の「挿絵の余白」。2026-10-12 修正リスト 13)。見開き・版面いっぱい・絵の差し替え・位置・足す/消すは今までどおり組む
+    plates: neutralPlates(s),
     epubTarget: 'kdp',
     ebookMono: false,
     spineInsetMm: 1.0,
@@ -221,7 +284,8 @@ export function sameNeutral(a: ProjectSettings, b: ProjectSettings): boolean {
   // 欄が同じ値を新しいオブジェクトで書き直すたびに全部組み直すと、長い本で十数秒かかる。
   // KDP の本は printRulesOf が null なので、printRules を持っていても持っていなくても
   // 同じ組版になり、組み直さない(組版HTMLは printRulesOf 越しにしか読まない)
-  const deeper = new Set(['columnPages', 'colophonType', 'profileType', 'printRules']);
+  // plates も1段深く見る(paintNeutral が大きさを固定した写しを作るので、参照では毎回ちがう。修正リスト 13)
+  const deeper = new Set(['columnPages', 'colophonType', 'profileType', 'printRules', 'plates']);
   const ka = Object.keys(a) as (keyof ProjectSettings)[];
   // キーの本数は printRules の有無で変わるので、printRules を除いて数える
   const countOf = (o: object) => Object.keys(o).filter((k) => k !== 'printRules').length;
@@ -238,6 +302,14 @@ export function sameNeutral(a: ProjectSettings, b: ProjectSettings): boolean {
   if (ca.length !== cb.length) return false;
   for (let i = 0; i < ca.length; i++) {
     if (!shallowEq(ca[i], cb[i])) return false;
+  }
+  const pa = a.plates ?? [];
+  const pb = b.plates ?? [];
+  if (pa !== pb) {
+    if (pa.length !== pb.length) return false;
+    for (let i = 0; i < pa.length; i++) {
+      if (!shallowEq(pa[i], pb[i])) return false;
+    }
   }
   return true;
 }
@@ -373,6 +445,17 @@ export function previewPaintCss(s: ProjectSettings): string {
   } else {
     rules.push(`${page} section.titlepage .tt-h { display: none !important; }`);
   }
+  // ---- 大扉の書体(書名・著者名。組み直さずに書体だけ変える。2026-10-12 希望 5) ----
+  // 組版は本文の書体で組んである(paintNeutral)。紙の組版と同じ宣言(titlepageFontDecls)を重ねる。
+  // 'cover'(表紙とつながる)は、App が表紙のいまの書体へ置き換えてから渡してくる(withTitlepageCover)。
+  // 指定の無い項目は何も重ねない(組版の本文の書体・太さ 700 がそのまま見える)。
+  // 書体そのものはアプリのページに積んである @font-face(src/fontsAll.ts)で出る
+  const tpFont = titlepageFontDecls(s);
+  const tpImp = (decls: string) => decls.replace(/;/g, ' !important;');
+  if (tpFont.h1) rules.push(`${page} section.titlepage h1 { ${tpImp(tpFont.h1)} }`);
+  if (tpFont.author) rules.push(`${page} section.titlepage .author { ${tpImp(tpFont.author)} }`);
+  if (tpFont.h1Tcy) rules.push(`${page} section.titlepage h1 .tcy { ${tpImp(tpFont.h1Tcy)} }`);
+  if (tpFont.authorTcy) rules.push(`${page} section.titlepage .author .tcy { ${tpImp(tpFont.authorTcy)} }`);
   rules.push(`${page} section.toc { text-shadow: ${shadowOf(s.tocBg)} !important; }`);
   rules.push(`${page} section.colophon { text-shadow: ${shadowOf(s.colophonBg)} !important; }`);
   for (const [k, spec] of Object.entries(s.chapterBg ?? {})) {
@@ -439,6 +522,29 @@ export function previewPaintCss(s: ProjectSettings): string {
   // 版面いっぱいの絵は余白が本文と同じ(@page printplate)で、帯は本文のページと同じに出る。
   // 敷き直すと版面の四角にもう1枚重なるので、こちらは常に消す(css.ts の div.plate.print と同じ)
   rules.push(`${page} div.plate.print { background-image: none !important; }`);
+
+  // ---- 挿絵の余白(全面・余白すこし・おおめ。組み直さずに絵の寸法だけ変える。2026-10-12 修正リスト 13) ----
+  // 組版は「全面」で組んである(paintNeutral の neutralPlates)。いまの大きさの絵の寸法を、紙の組版と同じ値で重ねる。
+  // ページの箱(div.plate = 用紙の実寸・中央寄せ)と @page plate(余白0)は3つとも同じなので、絵の寸法だけで紙と同じ姿になる。
+  // 重ねで切り替えられない大きさ(見開き・版面いっぱい・ノド側を空ける本の余白すこし/おおめ)は組版がその大きさで組んでいるので、ここでは触らない
+  const plates = (s.plates ?? []).filter((p) => p.src && !p.blank && (p.size === 'full' || p.size === 'wide' || p.size === 'narrow'));
+  if (plates.length) {
+    const l = computeLayout(s);
+    for (const p of plates) {
+      if (!plateBare(s, p.size, l)) continue;
+      const sel = `${page} div.plate[data-plate="${cssId(p.id)}"] img`;
+      if (p.size === 'full') {
+        rules.push(
+          `${sel} { width: ${mmOf(l.paperW)} !important; height: ${mmOf(l.paperH)} !important; max-width: none !important; max-height: none !important; object-fit: cover !important; }`,
+        );
+      } else {
+        const box = plateImgBox(l, p.size as 'wide' | 'narrow');
+        rules.push(
+          `${sel} { width: auto !important; height: auto !important; max-width: ${mmOf(box.maxW)} !important; max-height: ${mmOf(box.maxH)} !important; object-fit: fill !important; }`,
+        );
+      }
+    }
+  }
 
   // ---- 奥付・著者紹介の色 ----
   const matter = (sel: string, hsel: string, m: MatterType | undefined) => {

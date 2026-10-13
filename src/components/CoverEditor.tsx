@@ -11,11 +11,16 @@ import {
   SPINE_MIN_PT,
   type CoverAnchor,
   type CoverBackground,
+  type CoverImage,
   type CoverWrap,
   coverOutputScale,
   mmToPx,
 } from '../models/cover';
-import { coverPpi, fitWithin, judgePpi, resolutionNote, type CoverPart } from '../models/imageResolution';
+import { coverPpi, fitWithin, judgePpi, type CoverPart } from '../models/imageResolution';
+import { ResolutionNote } from './ResolutionNote';
+import { DraftNum } from './PrintRules';
+import { useClampNote } from './useClampNote';
+import { userErrorText } from './errorText';
 import {
   INK_COLORS,
   PRINT_TARGETS,
@@ -27,6 +32,7 @@ import {
   titleWritingModeOf,
 } from '../models/project';
 import { PRINT_MAX_SIDE, WRAP_MAX_SIDE, optimizeImageDataUri } from '../images/optimize';
+import { IMAGE_ACCEPT, readImageFileAsDataUri } from '../images/imageFile';
 import { isWrapPreset, loadCoverPresets } from '../covers/manifest';
 import { ColorInput, ColorPaletteProvider } from './ColorInput';
 import { useArtPalette } from '../images/usePalette';
@@ -50,6 +56,7 @@ import { useProject } from '../store/useProject';
 import { Fold } from './Fold';
 import { isLatinOnlyTitle } from '../typeset/text';
 import { selfCoverNotes } from '../typeset/saddle';
+import { useFontRetryEpoch } from '../preview/useFontFailures';
 
 interface Props {
   trim: TrimId;
@@ -266,6 +273,8 @@ export const CoverEditor = forwardRef<CoverEditorHandle, Props>(function CoverEd
    */
   const [spinePrint, setSpinePrint] = useState<SpinePrint | null>(null);
   const [error, setError] = useState('');
+  /** 数の欄(大きさ・微調整)を範囲に丸めたときの知らせ(2026-10-13 修正リスト 24) */
+  const clampNote = useClampNote();
   const paperRef = useRef<HTMLCanvasElement>(null);
   const ebookRef = useRef<HTMLCanvasElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -419,6 +428,8 @@ export const CoverEditor = forwardRef<CoverEditorHandle, Props>(function CoverEd
     };
   }, [settings.backCover, presets]);
 
+  // 読めなかった書体を［書体を読み直す］で読めたら描き直す(src/preview/fontFailures.ts。2026-10-13 修正リスト 29)
+  const fontEpoch = useFontRetryEpoch();
   useEffect(() => {
     // 表紙ステップを開いていないときは描かない(本文の編集中ずっと再描画が走るのを避ける)
     if (!visible) return;
@@ -449,18 +460,16 @@ export const CoverEditor = forwardRef<CoverEditorHandle, Props>(function CoverEd
     // ほかの操作で再描画が走るまで古い絵のままだった(2026-08-19 ユーザー報告
     // 「何回かあちこち押したら治った」)
     // onFrontInk は App の useState の setter(同一参照)なので、ここに入れても回らない
-  }, [visible, layout, settings, text, image, backImage, wrapImage, onFrontInk]);
+  }, [visible, layout, settings, text, image, backImage, wrapImage, onFrontInk, fontEpoch]);
 
-  async function readAsDataUrl(file: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const r = new FileReader();
-      r.onload = () => resolve(String(r.result));
-      r.onerror = () => reject(new Error('読み込みに失敗しました'));
-      r.readAsDataURL(file);
-    });
-  }
+  // 頭の数バイトで JPEG・PNG かを確かめてから data URI にする。違えば日本語で断る(images/imageFile.ts。2026-10-13 修正リスト 27)
+  const readAsDataUrl = readImageFileAsDataUri;
 
-  async function handleImage(file: File, target: 'front' | 'back' | 'wrap') {
+  /**
+   * @param presetId 画像のフォルダから入れた、同梱のプリセットの高解像度版のときだけ(2026-10-12 改修の希望 2)。
+   *   そのときは fromPreset(KDP の AI 申告に数える)と presetId を付ける。ふつうの自分の画像には付けない
+   */
+  async function handleImage(file: File, target: 'front' | 'back' | 'wrap', presetId?: string) {
     setError('');
     // 表紙は1枚で数MBになる。刷るのに要る大きさまで縮め、透過を使っていない絵は高画質の JPEG にする
     // (images/optimize.ts)。「まるごと1枚」は表1・背・表4 にまたがるので上限を大きく取る。
@@ -475,9 +484,10 @@ export const CoverEditor = forwardRef<CoverEditorHandle, Props>(function CoverEd
       setError(e instanceof Error ? e.message : String(e));
       return;
     }
-    if (target === 'front') patch({ background: { kind: 'image', src } });
-    else if (target === 'wrap') patch({ wrap: { kind: 'image', src } });
-    else patch({ backCover: { kind: 'image', src } });
+    const img: CoverImage = presetId ? { kind: 'image', src, fromPreset: true, presetId } : { kind: 'image', src };
+    if (target === 'front') patch({ background: img });
+    else if (target === 'wrap') patch({ wrap: img });
+    else patch({ backCover: img });
   }
 
   async function exportPaperPdf(opts: CoverPdfOptions = {}): Promise<CoverPdfOutcome> {
@@ -547,14 +557,14 @@ export const CoverEditor = forwardRef<CoverEditorHandle, Props>(function CoverEd
       } catch (e) {
         // 中止された(画面から外れた)ときは、失敗とも言わない。変換の失敗の文は、変換の側が日本語にしてある
         if (opts.signal?.aborted) return { kind: 'error' };
-        return { kind: 'press-failed', message: e instanceof Error ? e.message : String(e) };
+        return { kind: 'press-failed', message: userErrorText(e) };
       }
       if (opts.signal?.aborted) return { kind: 'error' };
       const name = `${stem}_表紙_CMYK.pdf`;
       downloadBlob(new Blob([result.pdf as BlobPart], { type: 'application/pdf' }), name);
       return { kind: 'saved-cmyk', name, bytes: result.pdf.byteLength, ink: result.ink, issues: result.issues };
     } catch (e) {
-      const msg = `表紙PDFの書き出しに失敗しました: ${e instanceof Error ? e.message : String(e)}`;
+      const msg = `表紙PDFの書き出しに失敗しました: ${userErrorText(e)}`;
       setError(msg);
       onExportError?.(msg);
       return { kind: 'error' };
@@ -581,7 +591,7 @@ export const CoverEditor = forwardRef<CoverEditorHandle, Props>(function CoverEd
       });
     } catch (e) {
       {
-        const msg = `電子書籍表紙の書き出しに失敗しました: ${e instanceof Error ? e.message : String(e)}`;
+        const msg = `電子書籍表紙の書き出しに失敗しました: ${userErrorText(e)}`;
         setError(msg);
         onExportError?.(msg);
       }
@@ -678,6 +688,11 @@ export const CoverEditor = forwardRef<CoverEditorHandle, Props>(function CoverEd
   }, [makes.paper, saddle, pane]);
   // プリセットの専用画面。開いているあいだサイドバーはこれ1枚になる(下の描画を参照)
   const [presetFor, setPresetFor] = useState<PresetTarget | null>(null);
+  // 一覧を開いたときは、前の操作で出た断り(「表1の画像を読み込めませんでした」など)を消す。
+  // 一覧の中に error を出すようにしたので、残っていると今の操作の断りに見える(2026-10-12 改修の希望 2)
+  useEffect(() => {
+    if (presetFor) setError('');
+  }, [presetFor]);
   /**
    * 「まるごと1枚」で作っているか。**settings から導出する。state に持たない。**
    * useState に持っていたころ、Ctrl+Z が cover だけを戻して見かけのモードが
@@ -800,17 +815,33 @@ export const CoverEditor = forwardRef<CoverEditorHandle, Props>(function CoverEd
    * 以前はここに表1/表4を選ぶトグルがあり、面の副タブと二重に「どっちの面か」を選ばせていた。
    * いまは面の副タブ自体が target を決めるので、ここは呼ばれた面の分だけ描く
    */
-  /** 表紙の絵の細かさの知らせ(1行)。足りているとき・紙を作らないときは出さない。**知らせるだけ** */
+  /**
+   * 表紙の絵の細かさの知らせ(1行)。足りているとき・紙を作らないときは出さない。**知らせるだけ**。
+   * **同梱のプリセットをそのまま使っている面にも出す**(2026-10-12 改修の希望 2。同梱の絵はわざと文庫までの大きさ)。
+   * 同梱の絵なら BOOTH の無料の高解像度版へ案内し、画像のフォルダにその高解像度版があれば［高解像度版に差し替える］を出す。
+   * 差し替えた面は自分の画像の形(kind: 'image')になり、fromPreset(AI 申告)と presetId を持つ
+   */
   function coverResNote(part: CoverPart, img: HTMLImageElement | null) {
     if (!img || !makes.paper) return null;
     const v = judgePpi(coverPpi({ w: img.naturalWidth, h: img.naturalHeight }, layout, part), imagePpi);
-    const text = resolutionNote(v, PRINT_TARGETS[printTarget].label);
-    return text ? (
-      <p className="warn" role="status">
-        {v.level === 'veryLow' && <b>細かさがかなり足りません。 </b>}
-        {text}
-      </p>
-    ) : null;
+    const field = part === 'front' ? 'background' : part === 'back' ? 'backCover' : 'wrap';
+    const g = settings[field];
+    const presetId = g?.kind === 'preset' ? g.id : g?.kind === 'image' ? g.presetId : undefined;
+    const preset = g?.kind === 'preset' || (g?.kind === 'image' && g.fromPreset === true);
+    const src = g?.kind === 'image' ? g.src : g?.kind === 'preset' ? `preset:${g.id}` : '';
+    return (
+      <ResolutionNote
+        verdict={v}
+        targetLabel={PRINT_TARGETS[printTarget].label}
+        preset={preset}
+        swap={{
+          presetId,
+          src,
+          maxSide: part === 'wrap' ? WRAP_MAX_SIDE : PRINT_MAX_SIDE,
+          apply: (next) => presetId && patch({ [field]: { kind: 'image', src: next, fromPreset: true, presetId } }),
+        }}
+      />
+    );
   }
 
   function GroundSection({ target }: { target: 'front' | 'back' }) {
@@ -824,7 +855,7 @@ export const CoverEditor = forwardRef<CoverEditorHandle, Props>(function CoverEd
         <input
           ref={inputRef}
           type="file"
-          accept="image/png,image/jpeg,image/webp"
+          accept={IMAGE_ACCEPT}
           hidden
           onChange={(e) => {
             const f = e.target.files?.[0];
@@ -869,7 +900,8 @@ export const CoverEditor = forwardRef<CoverEditorHandle, Props>(function CoverEd
           自前の画像は <b>{facePx.w.toLocaleString()} × {facePx.h.toLocaleString()} px</b>
           ({imagePpi}dpi)が目安。縦横比が違っても中央を切り出して収めます
         </p>
-        {bg.kind === 'image' && coverResNote(target, target === 'front' ? image : backImage)}
+        {/* 同梱のプリセットそのものにも出す(2026-10-12 改修の希望 2) */}
+        {bg.kind !== 'solid' && coverResNote(target, target === 'front' ? image : backImage)}
       </section>
     );
   }
@@ -925,13 +957,15 @@ export const CoverEditor = forwardRef<CoverEditorHandle, Props>(function CoverEd
         <label>
           大きさ
           <span className="num">
-            <input
-              type="number"
+            <DraftNum
+              value={settings.titleScale}
               min={0.3}
               max={2}
               step={0.05}
-              value={settings.titleScale}
-              onChange={(e) => patch({ titleScale: Number(e.target.value) })}
+              ariaLabel="書名の大きさ"
+              unit="倍"
+              onCommit={(v) => v !== null && patch({ titleScale: v })}
+              onClamped={clampNote.say}
             />
             倍
           </span>
@@ -941,23 +975,25 @@ export const CoverEditor = forwardRef<CoverEditorHandle, Props>(function CoverEd
         <label>
           微調整
           <span className="num">
-            <input
-              type="number"
-              aria-label="書名を左右にずらす(mm)"
+            <DraftNum
+              ariaLabel="書名を左右にずらす量"
+              unit="mm"
               min={-100}
               max={100}
               step={0.5}
               value={settings.titleDx ?? 0}
-              onChange={(e) => patch({ titleDx: Number(e.target.value) })}
+              onCommit={(v) => v !== null && patch({ titleDx: v })}
+              onClamped={clampNote.say}
             />
-            <input
-              type="number"
-              aria-label="書名を上下にずらす(mm)"
+            <DraftNum
+              ariaLabel="書名を上下にずらす量"
+              unit="mm"
               min={-100}
               max={100}
               step={0.5}
               value={settings.titleDy ?? 0}
-              onChange={(e) => patch({ titleDy: Number(e.target.value) })}
+              onCommit={(v) => v !== null && patch({ titleDy: v })}
+              onClamped={clampNote.say}
             />
             mm
           </span>
@@ -993,13 +1029,15 @@ export const CoverEditor = forwardRef<CoverEditorHandle, Props>(function CoverEd
         <label>
           大きさ
           <span className="num">
-            <input
-              type="number"
+            <DraftNum
+              value={settings.authorScale}
               min={0.5}
               max={2}
               step={0.05}
-              value={settings.authorScale}
-              onChange={(e) => patch({ authorScale: Number(e.target.value) })}
+              ariaLabel="著者名の大きさ"
+              unit="倍"
+              onCommit={(v) => v !== null && patch({ authorScale: v })}
+              onClamped={clampNote.say}
             />
             倍
           </span>
@@ -1007,23 +1045,25 @@ export const CoverEditor = forwardRef<CoverEditorHandle, Props>(function CoverEd
         <label>
           微調整
           <span className="num">
-            <input
-              type="number"
-              aria-label="著者名を左右にずらす(mm)"
+            <DraftNum
+              ariaLabel="著者名を左右にずらす量"
+              unit="mm"
               min={-100}
               max={100}
               step={0.5}
               value={settings.authorDx ?? 0}
-              onChange={(e) => patch({ authorDx: Number(e.target.value) })}
+              onCommit={(v) => v !== null && patch({ authorDx: v })}
+              onClamped={clampNote.say}
             />
-            <input
-              type="number"
-              aria-label="著者名を上下にずらす(mm)"
+            <DraftNum
+              ariaLabel="著者名を上下にずらす量"
+              unit="mm"
               min={-100}
               max={100}
               step={0.5}
               value={settings.authorDy ?? 0}
-              onChange={(e) => patch({ authorDy: Number(e.target.value) })}
+              onCommit={(v) => v !== null && patch({ authorDy: v })}
+              onClamped={clampNote.say}
             />
             mm
           </span>
@@ -1079,6 +1119,7 @@ export const CoverEditor = forwardRef<CoverEditorHandle, Props>(function CoverEd
     // 表紙は本文が白黒でもカラーで刷る(cover/render.ts はグレーに落とさない)ので、並びもカラーのまま(2026-10-03)
     <ColorPaletteProvider colors={artPalette} label="この表紙の画像の色" mono={false}>
     <div className="cover">
+      {clampNote.note}
       <aside className="sidebar">
         {/* **プリセットを選んでいるあいだは、サイドバーを一覧に明け渡す。**
             背景・挿絵(BackgroundPicker)とまったく同じ画面を使う。
@@ -1100,6 +1141,11 @@ export const CoverEditor = forwardRef<CoverEditorHandle, Props>(function CoverEd
             shopHint="買った画像は［自前の画像］からも読み込めます"
             onBack={() => setPresetFor(null)}
             onPick={(pr) => applyPreset(presetFor, pr.id)}
+            /* 画像のフォルダ(「アップロード」の段。2026-10-12 改修の希望 2)。［自前の画像］と同じ取り込み
+               (まるごと1枚は大きい上限)。同梱のプリセットの高解像度版なら fromPreset(AI 申告)と presetId を付ける */
+            onPickFile={(file, presetId) => handleImage(file, presetFor, presetId)}
+            // 読めない画像の断り(handleImage が出す)を、開いている一覧の中で見せる
+            error={error || undefined}
           />
         ) : (
           <>
@@ -1189,7 +1235,7 @@ export const CoverEditor = forwardRef<CoverEditorHandle, Props>(function CoverEd
               <input
                 ref={wrapFileRef}
                 type="file"
-                accept="image/png,image/jpeg,image/webp"
+                accept={IMAGE_ACCEPT}
                 hidden
                 onChange={(e) => {
                   const f = e.target.files?.[0];
@@ -1253,7 +1299,7 @@ export const CoverEditor = forwardRef<CoverEditorHandle, Props>(function CoverEd
                 必要な大きさは <b>{wrapPx.w.toLocaleString()} × {wrapPx.h.toLocaleString()} px</b>
                 （塗り足し込み・{imagePpi}dpi）
               </p>
-              {settings.wrap?.kind === 'image' && coverResNote('wrap', wrapImage)}
+              {settings.wrap && coverResNote('wrap', wrapImage)}
             </section>
             {/* **文字とあらすじの操作もこのタブに置く。** 飾りがモード別になったので、
                 面タブへ戻っても届かない(控えに入るだけ)。まるごと1枚は1つのタブで
@@ -1464,40 +1510,44 @@ export const CoverEditor = forwardRef<CoverEditorHandle, Props>(function CoverEd
                       <div className="spine-sizes-row">
                         <label>
                           書名
-                          <input
-                            type="number"
+                          <DraftNum
+                            value={settings.spineScale}
                             min={0.3}
                             max={1.4}
                             step={0.05}
-                            value={settings.spineScale}
-                            onChange={(e) => patch({ spineScale: Number(e.target.value) })}
+                            ariaLabel="背文字の書名の大きさ"
+                            unit="倍"
+                            onCommit={(v) => v !== null && patch({ spineScale: v })}
+                            onClamped={clampNote.say}
                           />
                         </label>
                         {settings.spineAuthorOn && (
                           <label>
                             著者
-                            <input
-                              type="number"
+                            <DraftNum
+                              value={settings.spineAuthorScale}
                               min={0.3}
                               max={1.4}
                               step={0.05}
-                              value={settings.spineAuthorScale}
-                              onChange={(e) => patch({ spineAuthorScale: Number(e.target.value) })}
+                              ariaLabel="背文字の著者名の大きさ"
+                              unit="倍"
+                              onCommit={(v) => v !== null && patch({ spineAuthorScale: v })}
+                              onClamped={clampNote.say}
                             />
                           </label>
                         )}
                         {settings.spinePublisherOn && (
                           <label>
                             版元
-                            <input
-                              type="number"
+                            <DraftNum
+                              value={settings.spinePublisherScale}
                               min={0.3}
                               max={1.4}
                               step={0.05}
-                              value={settings.spinePublisherScale}
-                              onChange={(e) =>
-                                patch({ spinePublisherScale: Number(e.target.value) })
-                              }
+                              ariaLabel="背文字の版元名の大きさ"
+                              unit="倍"
+                              onCommit={(v) => v !== null && patch({ spinePublisherScale: v })}
+                              onClamped={clampNote.say}
                             />
                           </label>
                         )}

@@ -27,7 +27,8 @@ function measureByImage(src: string): Promise<PxSize | null> {
 export function useImageSizes(srcs: readonly string[]): ReadonlyMap<string, PxSize | null> {
   const [tick, bump] = useState(0);
   const list = useMemo(
-    () => [...new Set(srcs.filter((s) => s.startsWith('data:image/') && !s.startsWith('data:image/svg')))],
+    // 文字列か先に確かめる。.json の src が数や {} だと、ここで画面ごと落ちていた(2026-10-13 修正リスト 25。読み込みでも外すが、別の道で入っても落とさない)
+    () => [...new Set(srcs.filter((s) => typeof s === 'string' && s.startsWith('data:image/') && !s.startsWith('data:image/svg')))],
     [srcs],
   );
   // 表は、絵の並び(list)か、測り終わり(tick)が変わったときだけ作り直す。毎回新しい Map を返すと、

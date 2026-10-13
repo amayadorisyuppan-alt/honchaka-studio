@@ -82,7 +82,8 @@ export const DEFAULT_SCENE_BREAK: SceneBreakId = 'blank';
 /** いま何で組むか。**紙・EPUB・Word・画面で同じ答えを使うための1か所** */
 export function sceneBreakOf(s: { sceneBreak?: SceneBreakId }): SceneBreakId {
   const v = s.sceneBreak;
-  return v && v in SCENE_BREAKS ? v : DEFAULT_SCENE_BREAK;
+  // `in` は toString などの Object の元の名前にも true になるので、表の自分のキーかで見る(2026-10-13 修正リスト 26)
+  return v && Object.prototype.hasOwnProperty.call(SCENE_BREAKS, v) ? v : DEFAULT_SCENE_BREAK;
 }
 
 /**
@@ -192,6 +193,71 @@ export const THEME_BODY_FONT: Record<ThemeId, BodyFontId> = {
   'novel-serif': 'serif',
   'practical-gothic': 'gothic',
 };
+
+/** BODY_FONTS にある書体の名前か(Object の元からある名前 "toString" などは数えない) */
+export function isBodyFontId(v: unknown): v is BodyFontId {
+  return typeof v === 'string' && Object.prototype.hasOwnProperty.call(BODY_FONTS, v);
+}
+
+/** いま本文に使っている書体。bodyFont が壊れていればテーマの既定、それも無ければ明朝(css.ts・App の書体の倒し方と同じ) */
+export function bodyFontIdOf(s: Pick<ProjectSettings, 'bodyFont' | 'theme'>): BodyFontId {
+  if (isBodyFontId(s.bodyFont)) return s.bodyFont;
+  const byTheme = THEME_BODY_FONT[s.theme];
+  return isBodyFontId(byTheme) ? byTheme : 'serif';
+}
+
+/**
+ * 大扉の書名・著者名の書体の指定。(2026-10-12 今後の改修の希望 5・1.2.0)
+ * - 省略      … 本文の書体(いままでどおり)
+ * - 'cover'   … 表紙の書名(著者名)の書体に**つながる**。表紙の書体を変えると大扉もついてくる
+ * - BodyFontId … その書体に固定(欄で選んだもの。選ぶとつながりは切れる)
+ * 表紙の書体(COVER_FONTS の 9 種)は全部 BODY_FONTS に同じ id で入っているので、新しく書体を積まずに組める
+ */
+export type TitlepageFont = BodyFontId | 'cover';
+
+/** 大扉の書名・著者名に、実際に使う書体 */
+export interface TitlepageFonts {
+  title: BodyFontId;
+  author: BodyFontId;
+}
+
+/**
+ * 大扉の書名・著者名の書体を決める。**組版(css.ts)・下見の塗り(paint.ts)・書体の読み込み(App)はみなここを通す。**
+ * cover を渡さないと 'cover'(つながり)は本文の書体に倒れる。表紙の書体が BODY_FONTS に無い id のときも本文の書体
+ * (2026-10-12 希望 5)
+ */
+export function titlepageFontsOf(
+  s: Pick<ProjectSettings, 'bodyFont' | 'theme' | 'titlepageTitleFont' | 'titlepageAuthorFont'>,
+  cover?: { titleFont?: string; authorFont?: string },
+): TitlepageFonts {
+  const body = bodyFontIdOf(s);
+  const pick = (v: unknown, coverFont: string | undefined): BodyFontId =>
+    v === 'cover' ? (isBodyFontId(coverFont) ? coverFont : body) : isBodyFontId(v) ? v : body;
+  return {
+    title: pick(s.titlepageTitleFont, cover?.titleFont),
+    author: pick(s.titlepageAuthorFont, cover?.authorFont),
+  };
+}
+
+/**
+ * 大扉の書体の 'cover'(表紙とつながる)を、表紙のいまの書体に置き換えた設定。(2026-10-12 希望 5)
+ * 組版は表紙の設定を受け取らない(manuscriptHtml → typesetCss は settings だけを見る)ので、
+ * **紙の書き出しと下見の塗りの手前で App がこれを通す。** 置き換えるものが無ければ同じ参照を返す
+ */
+export function withTitlepageCover<T extends Pick<ProjectSettings, 'bodyFont' | 'theme' | 'titlepageTitleFont' | 'titlepageAuthorFont'>>(
+  s: T,
+  cover: { titleFont?: string; authorFont?: string },
+): T {
+  const t = s.titlepageTitleFont === 'cover';
+  const a = s.titlepageAuthorFont === 'cover';
+  if (!t && !a) return s;
+  const r = titlepageFontsOf(s, cover);
+  return {
+    ...s,
+    ...(t ? { titlepageTitleFont: r.title } : {}),
+    ...(a ? { titlepageAuthorFont: r.author } : {}),
+  };
+}
 
 /**
  * EPUB に渡す書体の系統。
@@ -693,6 +759,8 @@ export interface Plate {
   size: PlateSize;
   /** 同梱のプリセットから選んだ絵か(BgSpec.fromPreset と同じ用途) */
   fromPreset?: boolean;
+  /** どの同梱のプリセットか(BgSpec.presetId と同じ用途。2026-10-12 改修の希望 2) */
+  presetId?: string;
   /**
    * **この絵の中の文字は、版面の外に出ていてよい**(利用者がそう言った。2026-10-02)。
    * 絵の中の文字が版面(余白の内側)の外に出ていると知らせる検査(src/textcheck)を、この絵では止める。
@@ -1021,6 +1089,13 @@ export interface BgSpec {
    * 申告を求めているので、「04 書き出し」に申告の行を出すための判定に使う
    */
   fromPreset?: boolean;
+  /**
+   * **どの同梱のプリセットか**(public/covers/manifest.json の id。2026-10-12 改修の希望 2)。
+   * 一覧から選んだときと、画像のフォルダにある高解像度版(ファイル名がプリセットの id)を入れたときに付ける。
+   * 本に入っている同梱の絵を、あとから高解像度版へ差し替えるための手がかり。
+   * 自分の画像に差し替えたら消す(fromPreset と同じ)。読み込みでは id の形(isPresetId)だけ通す
+   */
+  presetId?: string;
   /** カラーの本で、この面の絵を白黒で刷る(Plate.printMono と同じ。2026-10-12 1.1.0)。絵を継いでいる面は本文の地の印に従う */
   printMono?: boolean;
 }
@@ -1473,6 +1548,8 @@ export interface ProjectSettings {
    * 目印を隣に置くしかない(用途は BgSpec.fromPreset と同じ)
    */
   bodyBgFromPreset?: boolean;
+  /** bodyBg がどの同梱のプリセットか(BgSpec.presetId と同じ用途。目印を隣に置く理由は bodyBgFromPreset と同じ。2026-10-12 改修の希望 2) */
+  bodyBgPresetId?: string;
   /** カラーの本で、本文の地の絵を白黒で刷る(Plate.printMono と同じ。2026-10-12 1.1.0)。地を継いでいる大扉・目次・奥付・章・コラムにも効く */
   bodyBgPrintMono?: boolean;
   /**
@@ -1519,6 +1596,14 @@ export interface ProjectSettings {
   nombreFont?: BodyFontId;
   /** 柱の書体。既定はゴシック */
   runningHeadFont?: BodyFontId;
+  /**
+   * 大扉の書名の書体。**省略は本文の書体**(いままでどおり)。'cover' は表紙の書名の書体につながる
+   * (titlepageFontsOf を通して読む。2026-10-12 今後の改修の希望 5)。紙だけに効く(電子書籍の扉は書体を指定しない)。
+   * 大扉は独立した1ページなので、変えても組み直さない(preview/paint.ts の「大扉の書体」)
+   */
+  titlepageTitleFont?: TitlepageFont;
+  /** 大扉の著者名の書体。約束は titlepageTitleFont と同じ('cover' は表紙の著者名の書体につながる) */
+  titlepageAuthorFont?: TitlepageFont;
   /**
    * 本文の文字に付けるフチの太さ(em)。0 なら付けない。
    * 濃い背景画像の上でも本文が読めるようにするための逃げ道(ZINE向け)。
@@ -1760,6 +1845,8 @@ export interface ImageBlock {
   fromStudio?: boolean;
   /** 同梱のプリセットから選んだ絵か(BgSpec.fromPreset と同じ用途。KDP の AI 申告に使う) */
   fromPreset?: boolean;
+  /** どの同梱のプリセットか(BgSpec.presetId と同じ用途。2026-10-12 改修の希望 2) */
+  presetId?: string;
   /**
    * **この絵の中の文字は、版面の外に出ていてよい**(利用者がそう言った。2026-10-02)。
    * 絵の中の文字が版面(余白の内側)の外に出ていると知らせる検査(src/textcheck)を、この絵では止める。
@@ -1873,6 +1960,15 @@ export interface SourceFile {
 }
 
 /**
+ * 同梱のプリセットの id の形か(BgSpec.presetId などに入れてよい値。2026-10-12 改修の希望 2)。
+ * 同梱の id は `biz-business-01` のような英小文字・数字・ハイフン。保存の .json を読むとき(project/file.ts の sanitize)に、
+ * これに合わない presetId は黙って外す(AI が書き換えた値や、ファイル名から来た変な文字を通さない)
+ */
+export function isPresetId(v: unknown): v is string {
+  return typeof v === 'string' && /^[a-z0-9]+(?:[-_][a-z0-9]+)*$/.test(v) && v.length <= 64;
+}
+
+/**
  * ブラウザが表示できる画像形式か。
  *
  * mammoth は Word が持っている形式をそのまま data URI にする(images.dataUri が
@@ -1885,10 +1981,38 @@ export interface SourceFile {
  * ここで通すと、紙面に中身の無い <img> の枠が組まれてしまう
  */
 export function isRenderableImage(src: string): boolean {
-  if (!src) return false;
+  if (!src || typeof src !== 'string') return false;
   const m = /^data:([^;,]+)/.exec(src);
-  if (!m) return true; // data URI 以外は判定しない
+  // data URI 以外は、**外のサイトを指すもの(https:・//・javascript: など)だけ断る。**(2026-10-13 修正リスト 33)
+  // 前は判定せずに通していたので、手で直した .json の https の画像を、組版と画面が取りに行った。
+  // ブラウザは URL の中の改行・タブと頭の空白を読み飛ばすので、それを除いてから見る。同梱の絵の相対の場所(covers/…)は通す
+  if (!m) {
+    const t = src.replace(/[\u0000- ]/g, '');
+    // **blob: は通す。** 組版と印刷は、絵の data URI をアプリが作った blob: の一時の場所に替えてから組む(typeset/blobUrl.ts)。
+    // ここで断ると、紙の本文の PDF から挿絵のページが全部抜ける(2026-10-13 司令官がテストデータの PDF で見つけた。34 → 23 ページ)。
+    // blob: はこのページが作ったものしか開けないので、外へは出ない。同じサイトの絶対の場所(同梱の絵を URL に直したもの)も通す
+    if (/^blob:/i.test(t)) return true;
+    if (typeof location !== 'undefined' && location.origin && location.origin !== 'null' && t.startsWith(location.origin + '/')) return true;
+    return !/^[a-z][a-z0-9+.-]*:/i.test(t) && !/^[\\/]{2}/.test(t);
+  }
   return /^image\/(png|jpeg|jpg|gif|webp|avif|bmp|svg\+xml)$/i.test(m[1]);
+}
+
+/**
+ * 保存の .json・自動保存から読んでよい画像の src か。(2026-10-13 修正リスト 25・33)
+ * - **文字列であること。** 数や {} が入ると、src を文字列として扱う所(useImageSizes の startsWith など)で画面が落ち、
+ *   その値が自動保存に残って、開き直しても入口にすら戻れなかった(運用の見直し 12 の B2)
+ * - 中身は、空(絵をまだ選んでいない枠・白ページ)・`data:image/…`・同梱の絵の相対の場所(`covers/…`・`sample/…`)だけ。
+ *   `https://…` などは、読み込むと外のサイトへ絵を取りに行くので通さない(「外へ何も出ない」の例外になる)
+ * 画像の形式(PNG・JPEG か)はここでは見ない。アプリが持つ絵には WebP・AVIF・SVG(サンプルの代わりの絵)もあり、
+ * Word の EMF のような表示できない形式は、外さずに残して画面で断る(isRenderableImage)
+ */
+export function isLoadableImageSrc(v: unknown): v is string {
+  if (typeof v !== 'string') return false;
+  if (v === '') return true;
+  if (/^data:image\/[a-z0-9.+-]+[;,]/i.test(v)) return true;
+  // 相対の場所は、英数字・_・-・. の段だけ(. で始まる段は無し = .. で上へ出ない)
+  return /^(?:covers|sample)\/(?:[A-Za-z0-9_-][A-Za-z0-9_.-]*\/)*[A-Za-z0-9_-][A-Za-z0-9_.-]*$/.test(v);
 }
 
 /** 表示できない画像の形式名(利用者への説明用)。判定できなければ空文字 */

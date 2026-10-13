@@ -6,6 +6,7 @@ import type { SourceFile } from '../models/project';
 import { parseDocx, type ImportResult } from './docx';
 import { parseMd } from './md';
 import { parseTxt } from './txt';
+import { EMPTY_FILE_MESSAGE, friendlyDocxError, isBlankText, sourceBytesProblem } from './fileCheck';
 
 function kindOf(fileName: string): SourceFile['kind'] {
   if (/\.docx$/i.test(fileName)) return 'docx';
@@ -18,14 +19,15 @@ function kindOf(fileName: string): SourceFile['kind'] {
  *
  * 拡張子が分からないものは txt として読むので、Pages や PDF を選ぶと
  * 中身のバイナリがそのまま原稿として並んでしまう。何が起きたか分からないまま
- * 終わるより、.docx への直し方まで出す。どのワープロも .docx で書き出せる
+ * 終わるより、直し方まで出す。**Word 以外で書いた原稿は Markdown(.md)かテキスト(.txt)にしてもらう**
+ * (2026-10-13 ユーザー決定: ルビ・見出しの読み取りは Word だけの特別対応。ほかの道具の .docx には広げない)
  */
 const CANT_READ: Record<string, string> = {
-  pages: 'Pages の［ファイル → 書き出す → Word］で .docx にしてください',
-  gdoc: 'Google ドキュメントの［ファイル → ダウンロード → Microsoft Word (.docx)］で保存したものを選んでください',
-  odt: 'LibreOffice などで［Word 2007-365 (.docx)］として保存し直してください',
+  pages: 'Pages の書類はそのままでは読み込めません。テキスト（.txt）として書き出すか、Markdown（.md）にしてから取り込んでください（くわしくは［ヘルプ］の「困ったとき」をご覧ください）',
+  gdoc: 'Google ドキュメントの「ファイル」→「ダウンロード」で、Markdown（.md）かテキスト（.txt）として保存したファイルを選んでください',
+  odt: 'この形式はそのままでは読み込めません。テキスト（.txt）として保存するか、Markdown（.md）にしてから取り込んでください（くわしくは［ヘルプ］の「困ったとき」をご覧ください）',
   doc: '古い Word 形式です。Word で開いて［名前を付けて保存］から .docx にしてください',
-  rtf: 'Word や Pages で開いて .docx として保存し直してください',
+  rtf: 'Word で開いて .docx として保存し直すか、テキスト（.txt）か Markdown（.md）にしてから入れてください',
   pdf: 'PDF からは取り込めません。元の原稿を .docx か .txt で用意してください',
   epub: 'EPUB からは取り込めません。元の原稿を .docx か .txt で用意してください',
 };
@@ -104,14 +106,21 @@ export function decodeText(buf: ArrayBuffer): string {
 /** 選択されたファイルを SourceFile にする(パースはまだしない) */
 export async function readSource(file: File): Promise<SourceFile> {
   const ext = (/\.([^.]+)$/.exec(file.name)?.[1] ?? '').toLowerCase();
-  const help = CANT_READ[ext];
+  // 表の自分のキーだけ引く。`.constructor` のような拡張子で Object の元の関数が出ないように(2026-10-13 修正リスト 26)
+  const help = Object.prototype.hasOwnProperty.call(CANT_READ, ext) ? CANT_READ[ext] : undefined;
   if (help) throw new Error(`.${ext} は読めません。${help}`);
   const kind = kindOf(file.name);
-  return {
-    name: file.name.replace(/\.[^.]+$/, ''),
-    kind,
-    data: kind === 'docx' ? toBase64(await file.arrayBuffer()) : decodeText(await file.arrayBuffer()),
-  };
+  const name = file.name.replace(/\.[^.]+$/, '');
+  const buf = await file.arrayBuffer();
+  // 空・パスワード付きの Word・壊れた zip・Word でない zip は、jszip や mammoth の英語の文が出る前に日本語で断る。
+  // 空の .txt / .md も、前は何も言わずに空の本になったので断る(取り込まない)。1行だけ・見出しだけは今までどおり取り込む
+  // (2026-10-13 修正リスト 28。見分けは importers/fileCheck.ts)
+  const problem = await sourceBytesProblem(kind, buf);
+  if (problem) throw new Error(problem);
+  if (kind === 'docx') return { name, kind, data: toBase64(buf) };
+  const data = decodeText(buf);
+  if (isBlankText(data)) throw new Error(EMPTY_FILE_MESSAGE);
+  return { name, kind, data };
 }
 
 /**
@@ -121,7 +130,14 @@ export async function readSource(file: File): Promise<SourceFile> {
  * .txt / .md にはコラムの目印が無いので、そちらは常に空
  */
 export async function parseSource(src: SourceFile): Promise<ImportResult> {
-  if (src.kind === 'docx') return parseDocx(fromBase64(src.data), src.name);
+  if (src.kind === 'docx') {
+    // mammoth の英語の文(「Could not find main document part」など)を、そのまま画面に出さない(2026-10-13 修正リスト 28)
+    try {
+      return await parseDocx(fromBase64(src.data), src.name);
+    } catch (e) {
+      throw new Error(friendlyDocxError(e));
+    }
+  }
   if (src.kind === 'md') return { manuscript: parseMd(src.data, src.name), skippedColumnPages: [] };
   return { manuscript: parseTxt(src.data, src.name), skippedColumnPages: [] };
 }

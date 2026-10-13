@@ -41,6 +41,8 @@ const EBOOK_KEEP_BYTES = 400 * 1024;
 const UNREADABLE =
   '画像を読み込めませんでした（壊れているか、画像ではないファイルです）。別の画像を選んでください';
 
+const NOT_IMAGE = '画像として読み込めないファイルです。JPEG か PNG の画像を選んでください';
+
 /** data URI のおおよそのバイト数(base64 は元データの約 4/3) */
 function approxBytes(dataUri: string): number {
   const i = dataUri.indexOf(',');
@@ -99,7 +101,12 @@ function toJpeg(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, qualit
  * `maxSide` は長い辺の上限(既定は本文の全面ぶん。表紙の「まるごと1枚」は WRAP_MAX_SIDE)
  */
 export async function optimizeImageDataUri(src: string, maxSide = PRINT_MAX_SIDE): Promise<string> {
-  if (!src.startsWith('data:image/')) return src;
+  if (!src.startsWith('data:image/')) {
+    // data: なのに画像でない(application/octet-stream・text/html など)は、前は素通りして壊れた画像として入った。
+    // 断る(2026-10-13 修正リスト 27)。data: でない値(相対 URL など)は、ここでは判定しない
+    if (src.startsWith('data:')) throw new Error(NOT_IMAGE);
+    return src;
+  }
   const mime = mimeOf(src);
   if (mime === 'image/svg+xml') return src; // 線の絵。大きさを持たないので縮めない
   if (!isRenderableImage(src)) {

@@ -92,9 +92,16 @@ export type CoverAnchor =
   | 'bottom-center'
   | 'bottom-right';
 
+/**
+ * 表紙の自分の画像(data URI)。画像のフォルダから同梱のプリセットの高解像度版(BOOTH の無料の高解像度版)を入れたとき、
+ * またはプリセットをフォルダの高解像度版へ差し替えたときだけ、`fromPreset`(KDP の AI 申告に数える)と
+ * `presetId`(その同梱の絵の id)を持つ。ふつうの自分の画像には付かない(2026-10-12 改修の希望 2)
+ */
+export type CoverImage = { kind: 'image'; src: string; fromPreset?: boolean; presetId?: string };
+
 export type CoverBackground =
   | { kind: 'preset'; id: string }
-  | { kind: 'image'; src: string } // data URI
+  | CoverImage
   | { kind: 'solid'; color: string };
 
 /**
@@ -106,7 +113,7 @@ export type CoverBackground =
  *
  * 単色は選べない。全面を単色にしたいなら、面ごとの地を同じ色にすれば済む
  */
-export type CoverWrap = { kind: 'preset'; id: string } | { kind: 'image'; src: string };
+export type CoverWrap = { kind: 'preset'; id: string } | CoverImage;
 
 export interface CoverSettings {
   paper: PaperType;

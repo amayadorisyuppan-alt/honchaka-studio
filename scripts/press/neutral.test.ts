@@ -824,13 +824,13 @@ const py = (code: string, ...args: string[]) =>
   spawnSync('python', ['-', ...args], { input: code, encoding: 'utf8', env: { ...process.env, PYTHONIOENCODING: 'utf-8' }, maxBuffer: 1 << 26 });
 
 const neutralized = new Map<string, string>();
-if (!dirEnv) console.log('\n  skip PRESS_FIXTURES が無いので、実物の検査は飛ばした');
+if (!dirEnv) console.log('\n  [飛ばした] PRESS_FIXTURES が無いので、実物の検査は飛ばした');
 else {
   console.log('\n実物');
   for (const name of ['color-a5.pdf', 'mono-bunko.pdf', 'sakura-shinsho.pdf']) {
     const path = join(dirEnv, name);
     if (!existsSync(path)) {
-      console.log(`  skip ${name} が無い`);
+      console.log(`  [飛ばした] ${name} が無い`);
       continue;
     }
     await test(`${name}: neutralize が通り、保存し直して開けてページ数が同じ。2回目は何も変えない`, async () => {
@@ -898,7 +898,7 @@ if (dirEnv && neutralized.has('color-a5.pdf')) {
     const pages = '1,2,3,13,17,22,32';
     const r = py(PY_DIFF, join(dirEnv, 'color-a5.pdf'), neutralized.get('color-a5.pdf') as string, pages);
     if (r.status !== 0) {
-      console.log(`       skip python / PyMuPDF が使えない: ${String(r.stderr).split('\n').slice(-3).join(' ')}`);
+      console.log(`       [飛ばした] python / PyMuPDF が使えない: ${String(r.stderr).split('\n').slice(-3).join(' ')}`);
       return;
     }
     const res = JSON.parse(r.stdout) as Record<string, [number, number]>;
@@ -909,15 +909,15 @@ if (dirEnv && neutralized.has('color-a5.pdf')) {
     const p = neutralized.get('mono-bunko.pdf');
     if (!p) return;
     const r = py(PY_DIFF, join(dirEnv, 'mono-bunko.pdf'), p, '1,2,5,10,20,30,37');
-    if (r.status !== 0) return console.log('       skip python / PyMuPDF が使えない');
+    if (r.status !== 0) return console.log('       [飛ばした] python / PyMuPDF が使えない');
     const res = JSON.parse(r.stdout) as Record<string, [number, number]>;
     console.log(`       ページごとの [最大の差, 平均の差]: ${JSON.stringify(res)}`);
     for (const [pg, [max]] of Object.entries(res)) assert.ok(max <= 2, `ページ ${pg} の絵が変わった(最大 ${max})`);
   });
 }
 
-if (!process.env.PRESS_GS) console.log('\n  skip PRESS_GS=1 が無いので、Ghostscript まで通す検査は飛ばした');
-else if (!dirEnv || !neutralized.has('color-a5.pdf')) console.log('\n  skip Ghostscript の検査には PRESS_FIXTURES と color-a5.pdf が要る');
+if (!process.env.PRESS_GS) console.log('\n  [飛ばした] PRESS_GS=1 が無いので、Ghostscript まで通す検査は飛ばした');
+else if (!dirEnv || !neutralized.has('color-a5.pdf')) console.log('\n  [飛ばした] Ghostscript の検査には PRESS_FIXTURES と color-a5.pdf が要る');
 else {
   console.log('\nGhostscript(カラーの引数)まで通す');
   const icc = join(dirEnv, 'JapanColor2011Coated.icc');
@@ -947,7 +947,7 @@ else {
   const inkOf = (file: string): Record<string, number[]> | null => {
     const r = py(PY_INK, file);
     if (r.status !== 0) {
-      console.log(`       skip python / PyMuPDF が使えない: ${String(r.stderr).split('\n').slice(-3).join(' ')}`);
+      console.log(`       [飛ばした] python / PyMuPDF が使えない: ${String(r.stderr).split('\n').slice(-3).join(' ')}`);
       return null;
     }
     return JSON.parse(r.stdout);

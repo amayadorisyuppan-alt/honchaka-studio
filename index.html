@@ -58,7 +58,40 @@
     </script>
   </head>
   <body>
-    <div id="root"></div>
+    <!--
+      とても古いブラウザで真っ白にならないように(2026-10-13 運用の見直し 12 / 対応環境)。
+      #root の中の文は、React が描いた時点で消える(createRoot は中身を置き換える)。ふつうの人の画面には出ない。
+      出し始めは CSS のアニメーションの待ち(animation-delay)で遅らせる: 「読み込んでいます…」は 4 秒、古いブラウザの文は 20 秒。
+      遅いパソコン・遅い回線の初回の読み込み(数秒〜十数秒)でも、20 秒までは古いブラウザの文を出さない。
+      アニメーションを知らないほど古いブラウザでは、待たずにすぐ出る(fill-mode の backwards で隠しているだけなので)。
+      この index.html はどの版でも共通なので、版ごとに違う言葉は入れない。
+      対応環境の数字は src/help/content.ts の HELP_ENV と合わせる
+    -->
+    <style>
+      .boot-wait { margin: 18vh auto 0; max-width: 34em; padding: 0 16px; font-size: 14px; line-height: 1.9; text-align: center; color: #888; }
+      .boot-wait p { margin: 0 0 10px; }
+      .boot-wait-1 { -webkit-animation: boot-show 0.4s 4s both; animation: boot-show 0.4s 4s both; }
+      .boot-wait-2 { -webkit-animation: boot-show 0.4s 20s both; animation: boot-show 0.4s 20s both; }
+      @-webkit-keyframes boot-show { from { opacity: 0; } to { opacity: 1; } }
+      @keyframes boot-show { from { opacity: 0; } to { opacity: 1; } }
+    </style>
+    <div id="root">
+      <div class="boot-wait">
+        <p class="boot-wait-1">読み込んでいます…</p>
+        <p class="boot-wait-2">
+          画面が変わらないときは、ページを読み込み直してください。それでも動かない場合は、ブラウザが古い可能性があります。<br />
+          対応環境: Windows 10・11 / macOS 13 以降の Google Chrome・Microsoft Edge の最新版
+        </p>
+      </div>
+    </div>
+    <noscript>
+      <!-- JavaScript が切られているときは、上の待ちの文を出さずに、こちらだけ -->
+      <style>.boot-wait { display: none; }</style>
+      <p style="margin: 18vh auto 0; max-width: 34em; padding: 0 16px; font-size: 14px; line-height: 1.9; text-align: center">
+        本ちゃかを使うには、ブラウザの JavaScript を有効にしてください。<br />
+        対応環境: Windows 10・11 / macOS 13 以降の Google Chrome・Microsoft Edge の最新版
+      </p>
+    </noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

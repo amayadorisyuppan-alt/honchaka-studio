@@ -615,7 +615,7 @@ await test('B5: 自前の /Resources を持たない Form は、呼ぶ側の Col
 // ───────────────────────── 3. 実物 ─────────────────────────
 
 const dirEnv = process.env.PRESS_FIXTURES;
-if (!dirEnv) console.log('\n  skip PRESS_FIXTURES が無いので、実物の検査は飛ばした');
+if (!dirEnv) console.log('\n  [飛ばした] PRESS_FIXTURES が無いので、実物の検査は飛ばした');
 else {
   const fixtures = resolve(dirEnv);
   const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -653,7 +653,7 @@ else {
 
   const python = spawnSync('python', ['--version'], { encoding: 'utf-8' });
   const havePython = python.status === 0;
-  if (!havePython) console.log('  skip python が呼べないので、独立の検査(check-press.py)と絵の比べは飛ばす');
+  if (!havePython) console.log('  [飛ばした] python が呼べないので、独立の検査(check-press.py)と絵の比べは飛ばす');
   const pyEnv = { ...process.env, PYTHONIOENCODING: 'utf-8' };
   const checkPress = (kind: string, orig: string, out: string, extra: string[]) =>
     spawnSync(

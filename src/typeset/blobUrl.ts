@@ -32,7 +32,8 @@ function decode(dataUri: string): Blob | null {
  * Node で動かすとき(CLI検証)は URL.createObjectURL が無いので素通しする。
  */
 export function assetUrl(src: string): string {
-  if (!src.startsWith('data:')) return src;
+  // 文字列でない src(壊れた .json など)で組版ごと落とさない(2026-10-13 修正リスト 25)
+  if (typeof src !== 'string' || !src.startsWith('data:')) return src;
   // Node にも URL.createObjectURL はあるが、返るのは blob:nodedata:… で
   // ブラウザからは読めない。CLI で組んだ PDF の画像が黙って消えるので、
   // 「関数があるか」ではなく「ブラウザか」で判定する(実測で踏んだ)

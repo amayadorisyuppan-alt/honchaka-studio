@@ -148,7 +148,7 @@ const pyCan = (() => {
   return r.status === 0;
 })();
 
-if (!pyCan) console.log('  skip python(numpy・scipy・Pillow・PyMuPDF)が呼べないので、道具の出力との照合と実物の検査は飛ばした');
+if (!pyCan) console.log('  [飛ばした] python(numpy・scipy・Pillow・PyMuPDF)が呼べないので、道具の出力との照合と実物の検査は飛ばした');
 else {
   await test('make-gray-tone.py: 道具の出力が grayTone.ts の定数と同じ。直したあとの L* が目標と ±1.5 以内(道具が終了コード 0)', () => {
     const j = py(['scripts/press/make-gray-tone.py', '--json']);
@@ -679,8 +679,8 @@ await test('大きなグレーの画像(4000×4000 = 16MB)が数秒以内で直�
 // ───────────────────────── 7. 実物 ─────────────────────────
 
 const dirEnv = process.env.PRESS_FIXTURES;
-if (!dirEnv) console.log('\n  skip PRESS_FIXTURES が無いので、実物の検査は飛ばした');
-else if (!pyCan) console.log('\n  skip python が呼べないので、実物の検査は飛ばした');
+if (!dirEnv) console.log('\n  [飛ばした] PRESS_FIXTURES が無いので、実物の検査は飛ばした');
+else if (!pyCan) console.log('\n  [飛ばした] python が呼べないので、実物の検査は飛ばした');
 else {
   console.log('\n実物');
   const fixtures = resolve(dirEnv);
@@ -860,7 +860,7 @@ print(json.dumps(res))
 
   // ── mono-bunko(白黒の本。Ghostscript の Gray のあと) ──
   const monoSrc = join(fixtures, 'mono-bunko.pdf');
-  if (!existsSync(monoSrc)) console.log('  skip mono-bunko.pdf が無い');
+  if (!existsSync(monoSrc)) console.log('  [飛ばした] mono-bunko.pdf が無い');
   else {
     const gs = runGs('gray', monoSrc, 'mono-bunko');
     const before = await load(gs);
@@ -922,7 +922,7 @@ print(json.dumps(res))
 
   // ── color-a5(カラーの本。neutralize → Ghostscript の CMYK のあと) ──
   const colorSrc = join(fixtures, 'color-a5.pdf');
-  if (!existsSync(colorSrc)) console.log('  skip color-a5.pdf が無い');
+  if (!existsSync(colorSrc)) console.log('  [飛ばした] color-a5.pdf が無い');
   else {
     const neutDoc = await load(colorSrc);
     await neutralize(neutDoc);

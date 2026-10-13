@@ -18,7 +18,7 @@ import {
   type CoverLayout,
   type CoverSettings,
 } from '../models/cover';
-import { loadFontForText } from './fontLoad';
+import { loadCoverFonts } from './fontLoad';
 
 /**
  * Canvas は「読み込み済みのフォント」しか使えない。未読込のまま fillText すると
@@ -49,7 +49,8 @@ export async function ensureCoverFonts(settings: CoverSettings, text: CoverText)
     specs.add(`${f.bold} 100px ${f.stack}`);
     specs.add(`400 100px ${f.stack}`);
   }
-  await Promise.all([...specs].map((s) => loadFontForText(s, uniq)));
+  // 読めなかった書体は画面で知らせる(2026-10-13 修正リスト 29。./fontLoad.ts の loadCoverFonts)
+  await loadCoverFonts([...specs], uniq);
 }
 
 export interface CoverText {

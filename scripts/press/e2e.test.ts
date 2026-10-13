@@ -19,7 +19,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const repo = resolve(here, '../..');
 const fixturesEnv = process.env.PRESS_FIXTURES;
 if (!fixturesEnv) {
-  console.log('飛ばした: 環境変数 PRESS_FIXTURES(color-a5.pdf などのあるフォルダ)が無いので、実物の通しの検査は回していません');
+  console.log('[飛ばした] 環境変数 PRESS_FIXTURES(color-a5.pdf などのあるフォルダ)が無いので、実物の通しの検査は回していません');
   process.exit(0);
 }
 const fixtures = resolve(fixturesEnv);
@@ -99,7 +99,7 @@ const pyEnv = { ...process.env, PYTHONIOENCODING: 'utf-8', PYTHONUTF8: '1' };
 for (const c of cases) {
   const input = join(fixtures, c.file);
   if (!existsSync(input)) {
-    console.log(`\n${c.name}: 飛ばした(${c.file} が無い)`);
+    console.log(`\n[飛ばした] ${c.name}: ${c.file} が無い`);
     continue;
   }
   const out = join(outDir, `${c.name}.pdf`);

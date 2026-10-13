@@ -24,6 +24,7 @@ import { APP_VERSION } from '../version';
 import { FrogPeek } from './FrogMark';
 import { ReportCopy } from './ReportCopy';
 import { reportText, versionLabel } from './reportText';
+import { reportExtraNow } from './envProbe';
 
 /** この版のソースの入手先。版が自分の入手先を持てばそちら(AGPL: 使っている版そのもののソースを示す) */
 const sourceUrl = EDITION.sourceUrl ?? SOURCE_URL;
@@ -95,11 +96,13 @@ export function AboutPanel({ onClose, section }: Props) {
             <dd>
               {versionLabel(APP_VERSION, EDITION.versionMark)}
               <ReportCopy
-                getText={() =>
+                getText={async () =>
                   reportText({
                     version: APP_VERSION,
                     mark: EDITION.versionMark,
                     userAgent: navigator.userAgent,
+                    // OS の本当の版・画面・下見のページ数・対応環境の中か外か(2026-10-13 運用の見直し 12)
+                    extra: await reportExtraNow(),
                   })
                 }
               />
