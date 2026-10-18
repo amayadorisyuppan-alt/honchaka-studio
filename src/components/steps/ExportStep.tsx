@@ -213,8 +213,11 @@ type ExportGroup = {
  * 「自分に該当するものだけしか出てこない」)
  *
  * - 作らないほうの柱は出さない
- * - 電子の表紙(JPEG)は **KDP に出すときだけ**。楽天Kobo などは EPUB の中に表紙が入るので、
- *   この1枚は要らない(以前から「要らない」とコメントにありながら、いつも出していた)
+ * - 電子の表紙(JPEG)は**どちらの出し先でも出す**。(2026-10-18 使い方動画③の台本づくりで見つけた。修正リスト 51)
+ *   もとは KDP に出すときだけにしていた(EPUB の中に表紙が入るお店には要らない、と読んでいた)が、
+ *   EPUB の中の表紙とは別に、お店の入稿画面で表紙の画像を求めるお店がある(各お店の公式ヘルプで確認。
+ *   調べは スタジオ資料（非公開）/使い方動画/2026-10-14_電子書籍編とAI編/93_電子書籍のお店と表紙の調べ_1018.md)。
+ *   出し先を一度 KDP に戻さないと書き出せない回り道になっていた。添え書きで「求められたとき用」と言い分ける
  * - 柱の添え書きは、選んだ出し先の名前で言う(「KDP・印刷所むけ」のような両論併記をやめる)
  */
 export function exportGroups(o: Props['outputs']): ExportGroup[] {
@@ -255,7 +258,8 @@ export function exportGroups(o: Props['outputs']): ExportGroup[] {
         kdp ? 'EPUB。表紙のページは作らず、別の JPEG 画像で渡します' : 'EPUB。1ページ目に表紙まで入ります',
       ],
     ];
-    if (kdp) items.push(['ebookCover', 'cover', '表紙', 'JPEG。表1だけの1枚']);
+    // KDP の添え書きは prod-smoke.mjs がカードを探す目印でもある(変えるなら道具も)
+    items.push(['ebookCover', 'cover', '表紙', kdp ? 'JPEG。表1だけの1枚' : COPY_READER_COVER_CARD]);
     groups.push({
       id: 'ebook',
       mark: '電子',
@@ -289,8 +293,23 @@ const EXPORT_LABEL: Record<ExportTarget, string> = {
   paperBody: '紙の本文',
   paperCover: '紙の表紙',
   ebookBody: '電子書籍の本文',
-  ebookCover: '電子書籍の表紙（KDP用）',
+  // （KDP用）を外した(2026-10-18 修正リスト 51。その他のお店でも出すようになったので)
+  ebookCover: '電子書籍の表紙',
 };
+
+/*
+ * その他のお店で表紙の JPEG を出すようになったときの文(2026-10-18 修正リスト 51)。
+ * 文は Gemini(Flash)の案から選んだ。お店の名前は出さない(楽天Kobo などは試していない。EPUB_TARGETS の注)
+ */
+/** 書き出すものを選ぶ画面の［表紙］カードの添え書き(その他のお店のとき) */
+const COPY_READER_COVER_CARD = 'JPEG。お店で表紙画像を求められたときに';
+/**
+ * ［電子書籍の本文］の画面の箇条書き(その他のお店のとき。前は「この1ファイルだけで入稿できます」)。
+ * Gemini の★は「基本はこの1ファイルで入稿できます。…」だったが、表紙の画像も求めるお店があるので「基本は」と言い切らない案を採った
+ */
+const COPY_READER_COVER_POINT = 'お店で表紙の画像も別に求められたときは、［電子書籍の表紙］の JPEG を使ってください';
+/** ［電子書籍の表紙］の画面の説明(その他のお店のとき) */
+const COPY_READER_COVER_SHEET = '1600×2560px・RGB の JPEG です。お店の画面で表紙の画像を求められたら、これを使ってください';
 
 export function ExportStep({
   exporting,
@@ -636,7 +655,7 @@ export function ExportStep({
                         (書き出すものを選ぶ画面の側にある)ので、下を探しても見つからない
                         (2026-09-23 ユーザー指摘「下の、というのが意味不明」) */}
                     <li>
-                      表紙は<b>［電子書籍の表紙（KDP用）］の JPEG</b> を
+                      表紙は<b>［電子書籍の表紙］の JPEG</b> を
                       KDP の入稿画面でアップロードしてください
                     </li>
                   </>
@@ -644,13 +663,11 @@ export function ExportStep({
                   <>
                     <li>
                       この EPUB の<b>1ページ目に表紙まで入ります</b>
-                      （画像は［表紙をつくる］で確かめられます。KDP 以外の出し先では
-                      ［電子書籍の表紙］のカードは出ません）
+                      （画像は［表紙をつくる］で確かめられます）
                     </li>
-                    <li>
-                      <b>この1ファイルだけで入稿できます</b>。
-                      表紙のファイルを別に用意する必要はありません
-                    </li>
+                    {/* 前は「この1ファイルだけで入稿できます。表紙のファイルを別に用意する必要はありません」。
+                        お店の入稿画面で表紙の画像を別に求めるお店があるので直した(2026-10-18 修正リスト 51) */}
+                    <li>{COPY_READER_COVER_POINT}</li>
                   </>
                 )}
                 <li>
@@ -754,7 +771,9 @@ export function ExportStep({
               ? bindingOf(outputs) === 'saddle'
                 ? '表4と表1を背なしでつないだ、入稿されるとおりの姿です（折り目は真ん中）'
                 : 'バーコードの仮はめを外した、入稿されるとおりの姿です'
-              : 'KDP 推奨の 1600×2560px・RGB の JPEG です'}
+              : epubTarget === 'kdp'
+                ? 'KDP 推奨の 1600×2560px・RGB の JPEG です'
+                : COPY_READER_COVER_SHEET}
           </p>
           <button className="go-step" onClick={onGoToCover}>
             {target === 'paperCover' ? '紙の表紙' : '電子書籍の表紙'}を確かめる・直す →

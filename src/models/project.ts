@@ -279,7 +279,8 @@ export const EPUB_TARGETS: Record<EpubTarget, { label: string; hint: string }> =
   reader: {
     // 楽天Kobo はまだ一度も試していないので、名前を出さない(2026-10-08 ユーザー)
     label: 'その他のお店',
-    hint: 'EPUB の中に表紙のページを入れます。Google Play Books やファイルを直接配るときもこちらで大丈夫です',
+    // 表紙の JPEG もこの出し先で書き出せるようにした(2026-10-18 修正リスト 51)。文は Gemini(Flash)の案
+    hint: 'EPUB の中に表紙を入れます。Google Play Books や、ファイルを直接配るときはこちら。表紙の JPEG も書き出せます',
   },
 };
 
