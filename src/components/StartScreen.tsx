@@ -570,10 +570,13 @@ export function StartScreen({
         {/* 版元の署名つきヘッダー。×ボタンの役は［スタジオで本をつくる］が兼ねる。
             ロゴは40pxでは蓮の葉が読めなかった(2026-09-02「小さすぎる」)ので大きめに */}
         <header className="hero-top">
-          {/* 見出しはロゴ「本ちゃか」(2026-10-07)。前は版元のロゴ(あまやどり出版)+明朝の題字 */}
-          <div className="hero-name">
+          {/* 見出しはロゴ「本ちゃか」(2026-10-07)。前は版元のロゴ(あまやどり出版)+明朝の題字。
+              **この画面のいちばん上の見出し(h1)は、ここのロゴ「本ちゃか ひっちゃか本づくりスタジオ」。**(2026-10-19 修正リスト 40)
+              前は下の「原稿を、手触りのある一冊に。」が h1 で、画面の主な見出しのどこにも「本ちゃか」の字が無く、
+              Google で「本ちゃか」と探したときの題に名前が出なかった。見た目は変えない(.hero-name で h1 の既定の大きさ・余白を戻す) */}
+          <h1 className="hero-name">
             <StudioLogo height={56} by />
-          </div>
+          </h1>
           <div className="hero-top-actions">
             {/* **入口にも画面の色を置く。** トップバーはこの画面では畳まれているので、
                 ここに無いと「まぶしい」と思ったいちばん最初の瞬間に手が届かない */}
@@ -596,7 +599,8 @@ export function StartScreen({
             <i aria-hidden="true" />
             本をめくって仕上がりを体験
           </span>
-          <h1 className="hero-h1">原稿を、手触りのある一冊に。</h1>
+          {/* h1 はロゴのほうへ移した(上の注)ので、キャッチは h2。見た目は .hero-h1 のまま(余白・大きさ・太さを .hero-h1 が決めている) */}
+          <h2 className="hero-h1">原稿を、手触りのある一冊に。</h2>
           <p className="hero-en" aria-hidden="true">
             Turn your words into a real book.
           </p>

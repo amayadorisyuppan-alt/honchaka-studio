@@ -1972,6 +1972,13 @@ export interface Manuscript {
   isbn?: string;
   /** 奥付に足す行(1行1項目)。版数など、決まった欄に収まらないもの */
   colophonExtra?: string;
+  /**
+   * 奥付に「組版　本ちゃか（ひっちゃか本づくりスタジオ）」の行を入れるか(2026-11-07)。
+   * **欄が無い(undefined)= 入れない。** 前に作った本の奥付を変えないため。
+   * 本ちゃかで新しく作る本(まっさら・サンプル・サンプルから始めて原稿を取り込む本)だけ true で始まり、
+   * 利用者が［任意の欄］のチェックで外すと false になる
+   */
+  typesetCredit?: boolean;
 }
 
 /**
@@ -2049,6 +2056,29 @@ export function imageFormatLabel(src: string): string {
   return m ? m[1].replace(/^x-/, '').toUpperCase() : '';
 }
 
+/**
+ * まっさらな原稿。サンプルとは違い、章も文字も持たない。
+ * 奥付の組版の行(typesetCredit)は、本ちゃかで新しく作る本なのでオンで始める(2026-11-07)
+ */
 export function emptyManuscript(): Manuscript {
-  return { title: '', author: '', publisher: '', chapters: [] };
+  return { title: '', author: '', publisher: '', chapters: [], typesetCredit: true };
+}
+
+/**
+ * 奥付と著者紹介の欄。**原稿を取り込み直しても残す。** どれもスタジオ(［奥付と著者紹介を入れる］や
+ * AI の往復)で書く欄で、原稿ファイルには入っていない。取り込むたびに消えていたのに、画面は
+ * 「本文だけが入れ替わる」と言っていた(2026-09-23 レビューで発見)。空の欄は持ち越さない。
+ *
+ * **組版の行(typesetCredit)だけは真偽の欄なので、false も持ち越す**(2026-11-07)。
+ * 空の文字と同じ「真の値だけ」の扱いにすると、利用者が外したのに取り込み直しでオンへ戻る。
+ * undefined(欄が無い前の本)は持ち越さない = 取り込み側の値のまま。
+ * (サンプルからの取り込みでは、呼び出し側がこれを使わず、新しい本の既定のオンにする)
+ */
+export function colophonOf(m: Manuscript): Partial<Manuscript> {
+  const out: Partial<Manuscript> = {};
+  (['authorProfile', 'published', 'printer', 'isbn', 'colophonExtra'] as const).forEach((k) => {
+    if (m[k]) out[k] = m[k];
+  });
+  if (m.typesetCredit !== undefined) out.typesetCredit = m.typesetCredit;
+  return out;
 }

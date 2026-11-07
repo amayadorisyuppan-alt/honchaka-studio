@@ -4536,7 +4536,8 @@ button.pulse { animation: pulse-ring 1.8s ease-out infinite; }
 /* 本物ロゴ(public/brand/amayadori-logo.png)。**ミント地の角丸タイル+アーチ**の絵柄なので、
    丸く切り抜くとアーチの角が欠ける。角丸だけにして絵はそのまま見せる(2026-09-02 実物確認) */
 .brand-logo { display: block; width: auto; border-radius: 10px; flex: none; }
-.hero-name { display: flex; flex-direction: column; line-height: 1.3; }
+/* h1 にしたので(StartScreen。修正リスト 40)、h1 の既定の大きさ・太さ・余白は戻す。見た目は div だったときのまま */
+.hero-name { display: flex; flex-direction: column; line-height: 1.3; margin: 0; font-size: inherit; font-weight: inherit; }
 .hero-name-main { font-family: 'Zen Old Mincho', serif; font-weight: 700; font-size: 17px; letter-spacing: 0.12em; color: var(--hero-strong); }
 .hero-name-by { font-size: 10px; letter-spacing: 0.2em; color: var(--hero-faint); }
 .hero-top-actions { margin-left: auto; display: flex; align-items: center; gap: 10px; }

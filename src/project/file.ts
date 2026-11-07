@@ -975,6 +975,22 @@ export function sanitize(
     };
     if (blockFixes) fixed.push('本文の段落の形');
     if (imageFixes) fixed.push('本文中の画像');
+    // 奥付に組版の行を入れるか(2026-11-07)。true / false 以外(AI が "false" と文字で書くなど)は、いま開いている本の値に戻して知らせる。
+    // **AI 用の JSON で欄が丸ごと無いときも、いま開いている本の値を残す** — 欄が無い = 入れない なので、
+    // 落とされると新しい本の組版の行が黙って消える(表紙の frontTextOn と同じ理由)。
+    // 自分の保存(keepMissing でない)や別の本では補わない: 欄の無い前の本は、無いまま開く
+    const tc = (manuscript as { typesetCredit?: unknown }).typesetCredit;
+    const nowTc = current.manuscript.typesetCredit;
+    if (tc !== undefined && typeof tc !== 'boolean') {
+      const next = { ...manuscript };
+      if (typeof nowTc === 'boolean') next.typesetCredit = nowTc;
+      else delete next.typesetCredit;
+      manuscript = next;
+      fixed.push('奥付に組版の行を入れるか');
+    } else if (keepMissing && tc === undefined && typeof nowTc === 'boolean') {
+      manuscript = { ...manuscript, typesetCredit: nowTc };
+      fixed.push('奥付に組版の行を入れるか');
+    }
   }
   // 本文とコラムページから取り除いた、字に置き換えた画像などのデータ(上の dataBlobs)。
   // 取り込んだ .md が本に残っていれば、［原稿を組み直す］で絵が絵として入ることも言う(2026-10-13 見直し。

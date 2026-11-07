@@ -6,10 +6,18 @@
     <!-- タブのアイコン。ロゴ「本ちゃか」の、金茶の本からのぞくカエルを正方形に切り出したもの(2026-10-07)。
          元は public/brand/honchaka-mark.svg(作り方は src/components/FrogMark.tsx の StudioLogo) -->
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
-    <title>本ちゃか — ひっちゃか本づくりスタジオ</title>
+    <!--
+      検索の題(2026-10-19 修正リスト 40)。Google で「本ちゃか」と探したとき、題に「本ちゃか」が出るように、
+      題・og:title・og:site_name・説明の頭・画面の h1(StartScreen の .hero-name)・下の構造化データで、名前を「本ちゃか」にそろえた。
+      前は「本ちゃか — ひっちゃか本づくりスタジオ」で、Google が「—」の後ろだけを題に出していた。
+      **以下の題と説明の文は Gemini Flash の見直しずみ(2026-10-19)。** 直すときは、題・og:title・構造化データの name/alternateName を食い違わせない。
+      題のタグはこの1つだけにする(試しの版の組み立てが、頭に試しの印を付けるため。vite.config.ts の channelHtml)。
+      この注を含め、index.html には試しの印の文字を書かないこと(scripts/channel.test.ts が最初の1つだけを外して比べる)
+    -->
+    <title>本ちゃか（ひっちゃか本づくりスタジオ）｜無料の本づくりツール</title>
     <meta
       name="description"
-      content="Wordやテキストの原稿を渡すだけで、縦書きでも横書きでも、EPUBとKDP入稿用PDFをブラウザだけで作れる無料ツール。原稿データは外部に送信されません。"
+      content="本ちゃかは、Word やテキストの原稿を入れるだけで、縦書きでも横書きでも、EPUB と KDP 入稿用 PDF をブラウザだけで作れる無料の本づくりツールです。原稿は外に送られません。"
     />
     <!--
       SNS に貼られたときの見え方(OGP)。
@@ -20,11 +28,11 @@
       画像は public/banners/ogp-1200x630.png(scripts/build-banners.py で作る)。
     -->
     <meta property="og:type" content="website" />
-    <meta property="og:site_name" content="本ちゃか — ひっちゃか本づくりスタジオ" />
-    <meta property="og:title" content="本ちゃか — ひっちゃか本づくりスタジオ" />
+    <meta property="og:site_name" content="本ちゃか" />
+    <meta property="og:title" content="本ちゃか（ひっちゃか本づくりスタジオ）｜無料の本づくりツール" />
     <meta
       property="og:description"
-      content="だれでも気軽に本をつくれるように、と作った無料のサービス。書き上げた原稿を、そのまま紙の本と電子書籍の形にします。原稿は外に送られません。"
+      content="本ちゃかは、だれでも気軽に本をつくれる無料サービスです。書き上げた原稿を、そのまま紙の本と電子書籍の形にします。原稿は外に送られません。"
     />
     <meta property="og:url" content="https://www.hittyaka-maker.com/bookstudio/" />
     <meta property="og:image" content="https://www.hittyaka-maker.com/bookstudio/banners/ogp-1200x630.png" />
@@ -32,6 +40,34 @@
     <meta property="og:image:height" content="630" />
     <meta property="og:locale" content="ja_JP" />
     <meta name="twitter:card" content="summary_large_image" />
+
+    <!--
+      構造化データ(JSON-LD。2026-10-19 修正リスト 40)。検索エンジンに「本ちゃか」という名前の無料の Web アプリで、
+      別名が「ひっちゃか本づくりスタジオ」、出している所があまやどり出版だと、画面の見た目とは別に伝える。
+      Google が題をどう決めるかは Google しだいなので、これで必ず「本ちゃか」が出るとは言えない。
+      url は og:url・src/shop.ts の APP_URL と同じ値(3つが食い違わないように)。
+      この index.html はどの版でも共通なので、版ごとに違う言葉は入れない
+    -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "本ちゃか",
+        "alternateName": "ひっちゃか本づくりスタジオ",
+        "url": "https://www.hittyaka-maker.com/bookstudio/",
+        "description": "本ちゃかは、Wordやテキストの原稿を、縦書きでも横書きでも、紙の本（KDP入稿用PDF）と電子書籍（EPUB）の形にできる、ブラウザで使う無料の本づくりツールです。",
+        "inLanguage": "ja",
+        "applicationCategory": "DesignApplication",
+        "operatingSystem": "Windows, macOS",
+        "isAccessibleForFree": true,
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "JPY" },
+        "publisher": {
+          "@type": "Organization",
+          "name": "あまやどり出版",
+          "url": "https://www.hittyaka-maker.com/"
+        }
+      }
+    </script>
 
     <!--
       画面の色を**最初の1枚を描く前に**決める。

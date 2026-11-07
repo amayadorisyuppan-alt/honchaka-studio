@@ -8,6 +8,8 @@ import { parseSource } from '../importers/load';
 import { sanitize } from '../project/file';
 import {
   DEFAULT_PRINT_RULES,
+  colophonOf,
+  emptyManuscript,
   usesOwnPrintRules,
   THEME_BODY_FONT,
   defaultSettings,
@@ -252,24 +254,6 @@ interface ProjectState {
 const newBookId = () => crypto.randomUUID();
 
 /**
- * 奥付と著者紹介の欄。**原稿を取り込み直しても残す。** どれもスタジオ(［奥付と著者紹介を入れる］や
- * AI の往復)で書く欄で、原稿ファイルには入っていない。取り込むたびに消えていたのに、画面は
- * 「本文だけが入れ替わる」と言っていた(2026-09-23 レビューで発見)。空の欄は持ち越さない
- */
-function colophonOf(m: Manuscript): Partial<Manuscript> {
-  const out: Partial<Manuscript> = {};
-  (['authorProfile', 'published', 'printer', 'isbn', 'colophonExtra'] as const).forEach((k) => {
-    if (m[k]) out[k] = m[k];
-  });
-  return out;
-}
-
-/** まっさらな原稿。サンプルとは違い、章も文字も持たない */
-function emptyManuscript(): Manuscript {
-  return { title: '', author: '', publisher: '', chapters: [] };
-}
-
-/**
  * **保存されたサンプルを、いまのサンプルで組み直す。**
  *
  * 保存にあるのは「そのとき組み上がったサンプルの写し」なので、
@@ -302,7 +286,9 @@ function emptyManuscript(): Manuscript {
  */
 function freshenSample(ms: Manuscript, isSample: boolean, edited: boolean): Manuscript {
   if (!isSample || edited) return ms;
-  return { ...ms, chapters: sampleManuscript().chapters };
+  const fresh = sampleManuscript();
+  // 奥付の組版の行(2026-11-07)は、欄の無いころに保存されたサンプルにも入れる(手を入れていないサンプルなので、利用者の本ではない)
+  return { ...ms, chapters: fresh.chapters, typesetCredit: ms.typesetCredit ?? fresh.typesetCredit };
 }
 
 async function askPersist() {
@@ -1072,7 +1058,10 @@ export const useProject = create<ProjectState>((set, get) => ({
       : carryStudioImages(get().manuscript.chapters, ms.chapters);
     // 奥付と著者紹介は残す(colophonOf)。サンプルからは持ち越さない — サンプルの ISBN や
     // 著者紹介が自分の本に混ざる(絵を付け直さないのと同じ理由)
-    const colophon = get().isSample ? {} : colophonOf(get().manuscript);
+    // (組版の行だけは、サンプルからなら新しい本の既定のオンにする。自分の本に持ち越すものが無いので)
+    const colophon: Partial<Manuscript> = get().isSample
+      ? { typesetCredit: true }
+      : colophonOf(get().manuscript);
     ms = { ...ms, ...colophon, chapters: carried.chapters };
     // 差し込みページと章ごとの指定は、同じ章についていく(並べ替え・追加・削除があっても)。
     // サンプルからは章の対応を取らない(サンプルの章に付けた指定を自分の本の章へ移さない)

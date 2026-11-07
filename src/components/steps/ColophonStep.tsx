@@ -20,8 +20,14 @@ interface Props {
 }
 
 export function ColophonStep({ manuscript, patchManuscript, settings, setSettings }: Props) {
+  // 組版の行は、新しい本ではオン(true)で始まる。**自分で外した(false)ときだけ「変えた」に数える**
+  // (true は初期値、undefined は前に作った本で、どちらも手を入れていない)
   const foldChanged = Boolean(
-    manuscript.publisher || manuscript.printer || manuscript.isbn || manuscript.colophonExtra,
+    manuscript.publisher ||
+      manuscript.printer ||
+      manuscript.isbn ||
+      manuscript.colophonExtra ||
+      manuscript.typesetCredit === false,
   );
   /** 背景の一覧を開いているか。開いているあいだは一覧だけを描く(サイドバーを明け渡す) */
   const [bgOpen, setBgOpen] = useState(false);
@@ -113,13 +119,13 @@ export function ColophonStep({ manuscript, patchManuscript, settings, setSetting
         発行日を空にすると、奥付には<b>書き出した日</b>が入ります。©の行は著者名から自動で作ります
       </p>
 
-      <Fold label="任意の欄（発行所・印刷・ISBN）" changed={foldChanged} open={foldOpen} onOpenChange={setFoldOpen}>
+      <Fold label="任意の欄（発行所・印刷・ISBN・組版）" changed={foldChanged} open={foldOpen} onOpenChange={setFoldOpen}>
         <label className="stack">
           発行所
           <input
           data-defer-typeset=""
             value={manuscript.publisher}
-            placeholder="あまやどり出版"
+            placeholder="サークル名・屋号など"
             onChange={(e) => patchManuscript({ publisher: e.target.value })}
           />
         </label>
@@ -150,6 +156,17 @@ export function ColophonStep({ manuscript, patchManuscript, settings, setSetting
             placeholder="1行1項目(版数など)"
             onChange={(e) => patchManuscript({ colophonExtra: e.target.value })}
           />
+        </label>
+        {/* 組版の行。**data-defer-typeset は付けない。** 欄にカーソルがあるあいだ組版を待たせる仕掛けは
+            文字を打つ欄のためのもので、チェックは1回押せば済む。付けると、押しても離れるまで下見に出ない */}
+        <label className="check">
+          <input
+            type="checkbox"
+            // 欄が無い(undefined)前の本はオフ。チェックが付くのは真のときだけ
+            checked={manuscript.typesetCredit === true}
+            onChange={(e) => patchManuscript({ typesetCredit: e.target.checked })}
+          />
+          奥付に組版（本ちゃか）の表記を入れる
         </label>
       </Fold>
 

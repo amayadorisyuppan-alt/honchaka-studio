@@ -89,6 +89,13 @@ export function copyrightYear(published: string): string | undefined {
   return /\d{4}/.exec(t)?.[0];
 }
 
+/**
+ * 奥付に入れる組版の行(2026-11-07)。「本ちゃか」で組んだ本に、どの道具で組んだかを1行残す。
+ * `Manuscript.typesetCredit` が真のときだけ colophonRows が足す。
+ * 画面(ColophonStep のチェック)・ヘルプ・検査が同じ文言を指せるように、ここ1か所に持つ
+ */
+export const TYPESET_CREDIT_ROW = '組版　本ちゃか（ひっちゃか本づくりスタジオ）';
+
 export function colophonRows(ms: Manuscript, now: Date = new Date()): string[] {
   const published = (ms.published ?? '').trim();
   const dateStr = published || `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日`;
@@ -97,6 +104,8 @@ export function colophonRows(ms: Manuscript, now: Date = new Date()): string[] {
   const rows = [`発行日　${dateStr}`];
   if (ms.author) rows.push(`著者　${ms.author}`);
   if (ms.publisher?.trim()) rows.push(`発行所　${ms.publisher.trim()}`);
+  // 組版の行は発行所の次・印刷の前(どちらも無ければ著者の次)。欄が真のときだけ。無い・偽なら今までどおり
+  if (ms.typesetCredit) rows.push(TYPESET_CREDIT_ROW);
   if (ms.printer?.trim()) rows.push(`印刷　${ms.printer.trim()}`);
   if (ms.isbn?.trim()) rows.push(`ISBN　${ms.isbn.trim()}`);
   for (const line of (ms.colophonExtra ?? '').split(/\r?\n/)) {

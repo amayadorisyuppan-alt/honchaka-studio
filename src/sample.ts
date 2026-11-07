@@ -305,6 +305,8 @@ export function sampleManuscript(): Manuscript {
   ms.title = '青い背表紙';
   ms.author = '雨宿 文';
   ms.publisher = 'あまやどり出版';
+  // 奥付の組版の行。本ちゃかで新しく作る本なのでオンで始める(2026-11-07。前に作った本は欄が無く、入れない)
+  ms.typesetCredit = true;
   // 奥付の上に入る欄。空だと存在に気づかれないので、見本にも入れておく
   ms.authorProfile =
     '雨宿 文（あまやどり あや）\n' +
