@@ -1973,6 +1973,11 @@ export interface Manuscript {
   /** 奥付に足す行(1行1項目)。版数など、決まった欄に収まらないもの */
   colophonExtra?: string;
   /**
+   * 奥付の最後に QR コードで載せる URL(2026-11-15)。電子版の案内ページや Web サイトなど。
+   * 空・欄がない = 載せない。QR コードの画像は保存せず、組むたびに typeset/matter.ts の colophonQr が作る
+   */
+  colophonUrl?: string;
+  /**
    * 奥付に「組版　本ちゃか（ひっちゃか本づくりスタジオ）」の行を入れるか(2026-11-07)。
    * **欄が無い(undefined)= 入れない。** 前に作った本の奥付を変えないため。
    * 本ちゃかで新しく作る本(まっさら・サンプル・サンプルから始めて原稿を取り込む本)だけ true で始まり、
@@ -2076,7 +2081,7 @@ export function emptyManuscript(): Manuscript {
  */
 export function colophonOf(m: Manuscript): Partial<Manuscript> {
   const out: Partial<Manuscript> = {};
-  (['authorProfile', 'published', 'printer', 'isbn', 'colophonExtra'] as const).forEach((k) => {
+  (['authorProfile', 'published', 'printer', 'isbn', 'colophonExtra', 'colophonUrl'] as const).forEach((k) => {
     if (m[k]) out[k] = m[k];
   });
   if (m.typesetCredit !== undefined) out.typesetCredit = m.typesetCredit;

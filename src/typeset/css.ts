@@ -42,6 +42,7 @@ import {
   type PageLayout,
 } from './grid';
 import { assetUrl } from './blobUrl';
+import { QR_GAP_FEED, QR_SIZE_MM } from './matter';
 import { spreadGeometry } from './spread';
 import { plainText } from '../models/inlineImages';
 
@@ -2189,6 +2190,14 @@ section.colophon {
   line-height: ${pt(feed * 1.2)};
 }
 .colophon-box p { text-indent: 0; margin: 0; }
+/* 奥付の QR コード(matter.ts の colophonQr)。行の下に、左に寄せて置く。
+   高さは著者紹介のあふれの見積もり(authorProfileOverflowLines)と同じ数で持つ */
+.colophon-box img.qr {
+  display: block;
+  margin-top: ${pt(feed * QR_GAP_FEED)};
+  width: ${mm(QR_SIZE_MM)};
+  height: ${mm(QR_SIZE_MM)};
+}
 
 /* ---- 著者紹介(版面の天から) ----
    あとがきと違って本文ではないので、章立てにはしない。

@@ -8,6 +8,7 @@
 
 import { useState } from 'react';
 import { outputsOf, type Manuscript, type ProjectSettings } from '../../models/project';
+import { QR_MIN_MODULE_MM, colophonQr } from '../../typeset/matter';
 import { BackgroundPicker, bgSurfaceProps } from '../BackgroundPicker';
 import { Fold } from '../Fold';
 import { FrogPeek } from '../FrogMark';
@@ -27,6 +28,7 @@ export function ColophonStep({ manuscript, patchManuscript, settings, setSetting
       manuscript.printer ||
       manuscript.isbn ||
       manuscript.colophonExtra ||
+      manuscript.colophonUrl ||
       manuscript.typesetCredit === false,
   );
   /** 背景の一覧を開いているか。開いているあいだは一覧だけを描く(サイドバーを明け渡す) */
@@ -36,6 +38,10 @@ export function ColophonStep({ manuscript, patchManuscript, settings, setSetting
    * 持たせたままだと戻ったときに閉じてしまう(ArtStep の perPageOpen と同じ。2026-09-23 レビューで発見)
    */
   const [foldOpen, setFoldOpen] = useState(false);
+  /** QR コードの URL。前後の空白を落として見る(組版の colophonQr と同じ) */
+  const qrUrl = (manuscript.colophonUrl ?? '').trim();
+  /** 作れなかった(長すぎる)ときは null。空のときは調べない */
+  const qr = qrUrl ? colophonQr(manuscript) : null;
   /**
    * **奥付の背景もここで変えられる。**(2026-09-23 ユーザー要望「奥付の背景は奥付タブで
    * 変えられる方が親切。両方に入れておいてもいい」)。［本文に画像とコラムを入れる］の［背景］の
@@ -119,7 +125,7 @@ export function ColophonStep({ manuscript, patchManuscript, settings, setSetting
         発行日を空にすると、奥付には<b>書き出した日</b>が入ります。©の行は著者名から自動で作ります
       </p>
 
-      <Fold label="任意の欄（発行所・印刷・ISBN・組版）" changed={foldChanged} open={foldOpen} onOpenChange={setFoldOpen}>
+      <Fold label="任意の欄（発行所・印刷・ISBN・QRコード・組版）" changed={foldChanged} open={foldOpen} onOpenChange={setFoldOpen}>
         <label className="stack">
           発行所
           <input
@@ -157,6 +163,25 @@ export function ColophonStep({ manuscript, patchManuscript, settings, setSetting
             onChange={(e) => patchManuscript({ colophonExtra: e.target.value })}
           />
         </label>
+        <label className="stack">
+          QRコードのURL
+          <input
+            data-defer-typeset=""
+            type="url"
+            inputMode="url"
+            value={manuscript.colophonUrl ?? ''}
+            placeholder="https://example.com"
+            onChange={(e) => patchManuscript({ colophonUrl: e.target.value })}
+          />
+        </label>
+        <p className="hint">電子版の案内やWebサイトなどのURLを、奥付の最後にQRコードで載せます。</p>
+        {qrUrl && !qr && <p className="warn">URLが長すぎてQRコードにできません。短いURLにしてください</p>}
+        {qr && qr.moduleMm < QR_MIN_MODULE_MM && (
+          <p className="warn">URLが長いため、QRコードの目が細かくなっています。印刷すると読み取れないことがあるので、短いURLをおすすめします</p>
+        )}
+        {qrUrl && !/^https?:\/\//i.test(qrUrl) && (
+          <p className="warn">https:// で始まらないため、読み取ってもページとして開けないことがあります</p>
+        )}
         {/* 組版の行。**data-defer-typeset は付けない。** 欄にカーソルがあるあいだ組版を待たせる仕掛けは
             文字を打つ欄のためのもので、チェックは1回押せば済む。付けると、押しても離れるまで下見に出ない */}
         <label className="check">

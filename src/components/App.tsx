@@ -54,6 +54,7 @@ import {
   PROFILE_TITLE,
   authorProfileOverflowLines,
   authorProfileParagraphs,
+  colophonQr,
   colophonRows,
 } from '../typeset/matter';
 import { parseSource, readSource } from '../importers/load';
@@ -2209,6 +2210,7 @@ export function App() {
         authorProfileParagraphs(manuscript),
         manuscript.title ? colophonRows(manuscript).length : 0,
         layout,
+        Boolean(colophonQr(manuscript)),
       ),
     [manuscript, layout],
   );
