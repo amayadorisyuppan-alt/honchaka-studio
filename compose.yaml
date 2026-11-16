@@ -1,0 +1,28 @@
+# 開発サーバー(Vite)をコンテナで立てる。`docker compose up` のあと http://localhost:5173 で開ける。
+# 手元の 5173 がふさがっているときは、WEB_PORT で手元側のポートを替える(例: `env WEB_PORT=5174 docker compose up`)。
+#
+# node_modules はコンテナ専用の名前付きボリュームに置く。手元の node_modules は macOS 用の
+# バイナリ(esbuild・rollup など)が入っていて、Linux のコンテナでは動かないため
+services:
+  web:
+    image: node:24-bookworm-slim
+    working_dir: /app
+    # 依存は npm ci で入れる(npm install だと、コンテナの npm の版で手元の package-lock.json が書き換わる)。
+    # 毎回入れ直すと遅いので、package-lock.json が変わったときだけ入れ直す
+    command:
+      - sh
+      - -c
+      - |
+        sum=$$(sha1sum package-lock.json)
+        if [ "$$sum" != "$$(cat node_modules/.lock-sum 2>/dev/null)" ]; then
+          npm ci --no-audit --no-fund && echo "$$sum" > node_modules/.lock-sum
+        fi
+        exec npm run dev -- --host 0.0.0.0
+    ports:
+      - "${WEB_PORT:-5173}:5173"
+    volumes:
+      - .:/app
+      - node_modules:/app/node_modules
+
+volumes:
+  node_modules:
