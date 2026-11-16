@@ -31,7 +31,7 @@ import { sceneBreakHtml } from '../typeset/html';
 // 挿絵の大きさは紙と同じ物差しから作る。**別に持つと画面の見本と食い違う**
 // (typeset/grid.ts の PLATE_INSET のコメントと同じ理由)
 import { PLATE_INSET } from '../typeset/grid';
-import { PROFILE_TITLE, authorProfileParagraphs, colophonRows } from '../typeset/matter';
+import { PROFILE_TITLE, authorProfileParagraphs, colophonQr, colophonRows } from '../typeset/matter';
 import { escapeHtml, isDialogueStart, paragraphHtml } from '../typeset/text';
 // 読む機械の目次・書名のメタデータ・各ページの title には、記法を外した字を渡す
 // (2026-09-25 見直し S3-9: ｜親《よみ》 や ** がそのまま出ていた)
@@ -423,10 +423,15 @@ function colPagesBefore(s: ProjectSettings, before: number) {
 // ファイルごと変えるのが筋だが、そこまでして横にする理由も無いので、本文の向きで流す。
 // 縦組みでは数字を縦中横にするため、vertical を本文と同じにして通す
 
-function colophonXhtml(ms: Manuscript, vertical: boolean): string {
+function colophonXhtml(ms: Manuscript, vertical: boolean, images: ImageResolver): string {
   const rows = colophonRows(ms)
     .map((t) => `<p class="row">${paragraphHtml(t, vertical)}</p>`)
     .join('\n');
+  // QR コードは ZIP 内の SVG ファイルにする(data URI のままだと Kindle の変換が止まる。上の「画像を ZIP 内の
+  // ファイルにする」)。**章の絵より後に解決する**ので、前からある絵の番号(img-001 …)はずれない
+  const qr = colophonQr(ms);
+  const qrHref = qr ? images.resolve(qr.dataUri) : null;
+  const qrImg = qrHref ? `\n<p class="qr"><img src="${esc(qrHref)}" alt="${esc(`QRコード ${qr!.text}`)}"/></p>` : '';
   const profile = authorProfileParagraphs(ms);
   const profileBox = profile.length
     ? `<section class="profile">
@@ -437,7 +442,7 @@ ${profile.map((t) => `<p>${paragraphHtml(t, vertical)}</p>`).join('\n')}
     : '';
   const inner = `${profileBox}<section epub:type="colophon" class="colophon">
 <h1>${paragraphHtml(ms.title, vertical)}</h1>
-${rows}
+${rows}${qrImg}
 </section>`;
   return xhtmlShell('奥付', inner);
 }
@@ -847,6 +852,9 @@ html.tp-h .titlepage .author { margin-right: 0; margin-top: 2.5em; }
 }
 .colophon h1 { font-size: 1.2em; font-weight: 700; margin: 0; ${blockAfter}: 0.8em; text-indent: 0; }
 .colophon p.row { text-indent: 0; margin: 0; ${blockBefore}: 0.3em; ${blockAfter}: 0.3em; }
+/* 奥付の QR コード。リフローでも読み取れる大きさに固定する(画面の幅に合わせて伸び縮みさせない) */
+.colophon p.qr { text-indent: 0; margin: 0; ${blockBefore}: 0.8em; }
+.colophon p.qr img { width: 6em; height: 6em; }
 /* 著者紹介。奥付の手前に、同じ向きで小さく置く */
 .profile { font-size: 0.85em; margin: 0; ${blockAfter}: 1.4em; }
 .profile h2 { font-size: 1em; font-weight: 700; margin: 0; ${blockAfter}: 0.5em; text-indent: 0; }
@@ -1135,7 +1143,7 @@ export function buildEpubBook(
   ms.chapters.forEach((ch, i) => {
     files.set(chapterFiles[i], chapterXhtml(ch, vertical, images, sceneBreakOf(s)));
   });
-  files.set('colophon.xhtml', colophonXhtml(ms, vertical));
+  files.set('colophon.xhtml', colophonXhtml(ms, vertical, images));
 
   // 本文中の目次ページ。**紙と共通のスイッチ(settings.toc)で出す。**
   // 載せる章が1つも無ければ、見出しだけの空ページになるので作らない(紙の tocHtml と同じ)

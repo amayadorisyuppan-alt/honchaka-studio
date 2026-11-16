@@ -23,7 +23,7 @@ import type {
 } from '../models/project';
 import { computeLayout } from './grid';
 import { clipRunningHead, runningHeadMaxChars, typesetCss } from './css';
-import { PROFILE_TITLE, authorProfileParagraphs, colophonRows } from './matter';
+import { PROFILE_TITLE, authorProfileParagraphs, colophonQr, colophonRows } from './matter';
 import { escapeHtml, isDialogueStart, paragraphHtml, stripInlineMarks, wrapDropCap } from './text';
 
 /**
@@ -199,6 +199,8 @@ export function manuscriptHtml(
   const scene = sceneBreakOf(s);
   const profile = authorProfileParagraphs(ms);
   const rows = ms.title ? colophonRows(ms) : [];
+  /** 奥付の最後の QR コード。奥付を組まない本(題名なし)には出さない */
+  const qr = rows.length ? colophonQr(ms) : null;
   const css = typesetCss(s, layout, ms.title);
   const parts: string[] = [];
 
@@ -446,7 +448,7 @@ ${
           // 生テキストのまま埋めると発行年月日の半角数字が寝てしまう
           .map((t) => `<p class="row">${paragraphHtml(t, false)}</p>`)
           .join('\n')
-      }
+      }${qr ? `\n<img class="qr" src="${escapeHtml(qr.dataUri)}" alt="${escapeHtml(`QRコード ${qr.text}`)}">` : ''}
 </div>`
     : '';
 

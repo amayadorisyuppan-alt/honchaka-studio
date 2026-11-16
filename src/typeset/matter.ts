@@ -7,6 +7,7 @@
 // 章の見出しとして書けばそのまま巻末の章として組まれるようにした
 // (importers/txt.ts が「あとがき」「エピローグ」等を章見出しとして拾う)。
 
+import QRCode from 'qrcode';
 import type { Manuscript } from '../models/project';
 import { PT_TO_MM, type PageLayout } from './grid';
 
@@ -32,11 +33,15 @@ export function authorProfileOverflowLines(
   paragraphs: string[],
   rowCount: number,
   l: PageLayout,
+  /** 奥付に QR コードを載せるか。載せると奥付が QR_SIZE_MM と上のアキのぶん高くなる */
+  qr = false,
 ): number {
   if (!paragraphs.length) return 0;
   const feed = l.lineFeedPt;
   // css.ts の .colophon-box: padding-top 0.8 + 見出し 1.2 + 見出し下 0.6 + 項目 rowCount 行 + 罫線
-  const colophonPt = rowCount ? feed * (0.8 + 1.2 + 0.6 + rowCount) + 0.4 : 0;
+  // (+ QR コードの上のアキ QR_GAP_FEED 行 + QR コードの高さ)
+  const qrPt = rowCount && qr ? feed * QR_GAP_FEED + QR_SIZE_MM / PT_TO_MM : 0;
+  const colophonPt = rowCount ? feed * (0.8 + 1.2 + 0.6 + rowCount) + 0.4 + qrPt : 0;
   // .profile-box: 見出し1行 + 見出し下 0.3行、下に奥付との間を1行あける
   const overheadPt = feed * (1 + 0.3) + (rowCount ? feed : 0);
 
@@ -115,4 +120,70 @@ export function colophonRows(ms: Manuscript, now: Date = new Date()): string[] {
   const year = copyrightYear(published) ?? String(now.getFullYear());
   rows.push(`©${year} ${ms.author || ''}`.trimEnd());
   return rows;
+}
+
+// ---- 奥付の QR コード(2026-11-15) ----
+//
+// 電子版の案内ページや Web サイトへの URL を、奥付の最後に QR コードで載せる。
+// **画像は原稿に保存しない。** 組むたびに colophonUrl から作る(作るのは同期で一瞬)。
+// 保存すると URL と画像が食い違う道(取り消し・取り込み直し・別の画面での変更)ができるうえ、
+// 作り直すたびに取り消しの履歴へ余計な手が積まれる。
+// 紙(html.ts)は data URI のまま <img> に、EPUB(epub.ts)は ImageResolver で ZIP 内の
+// SVG ファイルにして manifest に載せる(data URI のままだと Kindle の変換が止まる)。
+
+/** 奥付に刷る QR コードの一辺(mm)。周りの白いアキ(QR_QUIET モジュール)も含む */
+export const QR_SIZE_MM = 18;
+/** QR コードの上のアキ(行送りに対する割合)。css.ts と著者紹介のあふれの見積もりで共有する */
+export const QR_GAP_FEED = 0.6;
+/** 周りの白いアキ(モジュール数)。規格の下限は 4。背景の絵に接しても読めるように入れる */
+const QR_QUIET = 4;
+/**
+ * 1モジュールがこれより細いと、家庭用・オンデマンド印刷のにじみで読めないことがある(mm)。
+ * 18mm に収めるので、URL が長いほど細くなる。下回ったら画面で短い URL を勧める
+ */
+export const QR_MIN_MODULE_MM = 0.33;
+
+export interface ColophonQr {
+  /** QR コードにした文字(前後の空白を落とした URL)。代替テキストに使う */
+  text: string;
+  /** 奥付に埋める SVG の data URI */
+  dataUri: string;
+  /** 1モジュールの大きさ(mm) */
+  moduleMm: number;
+}
+
+/** 前回の結果。組版は打つたびに何度も呼ぶので、同じ URL なら作り直さない */
+let qrCache: { text: string; qr: ColophonQr | null } | null = null;
+
+/**
+ * 奥付の QR コード。URL が空、または長すぎて QR コードにできなければ null。
+ * 誤り訂正は M(15%)。汚れ・かすれにはある程度耐え、L より密度が上がりすぎない
+ */
+export function colophonQr(ms: Manuscript): ColophonQr | null {
+  const text = (ms.colophonUrl ?? '').trim();
+  if (!text) return null;
+  if (qrCache?.text === text) return qrCache.qr;
+  let qr: ColophonQr | null = null;
+  try {
+    const { modules } = QRCode.create(text, { errorCorrectionLevel: 'M' });
+    const n = modules.size;
+    const side = n + QR_QUIET * 2;
+    // 黒いモジュールを1本の path にまとめる(1マス1要素だと数百〜千を超える)
+    let d = '';
+    for (let r = 0; r < n; r++) {
+      for (let c = 0; c < n; c++) {
+        if (modules.get(r, c)) d += `M${c + QR_QUIET} ${r + QR_QUIET}h1v1h-1z`;
+      }
+    }
+    const svg =
+      `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${side} ${side}" ` +
+      `width="${QR_SIZE_MM}mm" height="${QR_SIZE_MM}mm" shape-rendering="crispEdges">` +
+      `<rect width="${side}" height="${side}" fill="#fff"/><path d="${d}" fill="#000"/></svg>`;
+    qr = { text, dataUri: `data:image/svg+xml,${encodeURIComponent(svg)}`, moduleMm: QR_SIZE_MM / side };
+  } catch {
+    // 入る量を超えた(qrcode が投げる)。奥付には出さず、画面で知らせる
+    qr = null;
+  }
+  qrCache = { text, qr };
+  return qr;
 }
