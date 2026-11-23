@@ -42,8 +42,9 @@ function paragraphText(line: string): string {
  */
 export function parseMd(source: string, fallbackTitle = '', notes: string[] = []): Manuscript {
   // 先頭の YAML front matter(--- で囲まれたメタデータ。Obsidian などが付ける)は、下ごしらえで外してある
-  // (中身が YAML らしいときだけ。Google の書き出しでは外さない)
-  const { entries, google } = prepareMarkdown(source, notes);
+  // (中身が YAML らしいときだけ。Google の書き出しでは外さない)。
+  // 前付けの書名・著者名・奥付の欄は meta に読んである。画面の欄が空のときの初期値になる(取り込みの側で合わせる)
+  const { entries, google, meta } = prepareMarkdown(source, notes);
   const chapters: Chapter[] = [];
   let current: Chapter | null = null;
   let pendingSpace = false;
@@ -214,9 +215,10 @@ export function parseMd(source: string, fallbackTitle = '', notes: string[] = []
   // Google の書き出しでない .md の `\#` などは、構造を見るあいだ預けておいた。ここで字に戻す(`\` は刷らない)
   if (!google) restoreEscapesIn(result);
   return {
-    title: fallbackTitle,
-    author: '',
-    publisher: '',
+    ...meta,
+    title: meta.title || fallbackTitle,
+    author: meta.author ?? '',
+    publisher: meta.publisher ?? '',
     chapters: result,
   };
 }

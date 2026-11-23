@@ -24,6 +24,7 @@
 //    (`\#` は見出しにしない。`\` は刷らない)。ほかの記号の前の `\`(顔文字の `\(^o^)/` など)は打ったまま刷る
 // 4. Google の段落の空き: 段落のあいだを詰めた文書(段落の後ろに「  」)では、空行1つが書き手の空の段落 = 1行アキ
 // 5. 小さなもの: 空の箇条書き・チェックボックス・`- ## x`・`> > ` の入れ子・コードブロックの印・目次の行・U+000B・YAML の見分け
+// 6. YAML の前付けから、書名・著者名・奥付の欄を読む(readFrontMatter。2026-11-23。refeel などが日記を原稿にして渡すため)
 //
 // 調べた中身(Google の書き出し 18 本と、ほかの道具の .md 217 本で見分けを確かめた)は、
 // 2026-10-13 の調べの記録(Google ドキュメントの Markdown の癖)にある。
@@ -31,7 +32,7 @@
 // 画面にも mammoth にも触らない(md.ts と同じく同期。単体の検査 scripts/mdGdocs.test.ts で回す)。
 // 利用者に出す文は、あとで言い回しを直せるように名前を付けて下にまとめてある。
 
-import type { Chapter } from '../models/project';
+import type { Chapter, Manuscript } from '../models/project';
 import { sniffImage } from '../images/imageFile';
 import { detectEndAlignLine, detectListLine, detectQuoteLine } from './txt';
 
@@ -314,6 +315,82 @@ export function frontMatterEnd(lines: readonly (string | null)[]): number {
   return first !== undefined && YAML_KEY_LINE.test(first) ? end : -1;
 }
 
+/** 前付けから読んで、原稿の書名・著者名・奥付の欄の初期値にするもの(2026-11-23) */
+export type FrontMatter = Partial<
+  Pick<Manuscript, 'title' | 'author' | 'publisher' | 'published' | 'printer' | 'isbn' | 'authorProfile' | 'colophonExtra'>
+>;
+
+/**
+ * 前付けのキーと、原稿の欄の対応。**キーは snake_case**(YAML の前付けでよく見る形。refeel の書き出しもこの形)。
+ * 改行を残すのは著者紹介と奥付に足す行だけ(どちらも1行1項目・空行で段落を分ける欄)。ほかは1行にまとめる。
+ *
+ * ここにないキーは黙って読み捨てる。`url`(原稿の出どころ。refeel が書く)のように、**書いてよいが本ちゃかは使わない**
+ * キーもそのまま通る。組版の行(`typesetCredit`)は画面で選ぶものなので、前付けからは読まない
+ */
+export const FRONT_MATTER_KEYS: Record<string, { field: keyof FrontMatter; multiline: boolean }> = {
+  title: { field: 'title', multiline: false },
+  author: { field: 'author', multiline: false },
+  publisher: { field: 'publisher', multiline: false },
+  publish_date: { field: 'published', multiline: false },
+  printer: { field: 'printer', multiline: false },
+  isbn: { field: 'isbn', multiline: false },
+  author_profile: { field: 'authorProfile', multiline: true },
+  colophon_extra: { field: 'colophonExtra', multiline: true },
+};
+
+/** YAML の1行の値(`key:` の後ろ)を字にする。引用符を外し、`"…"` の中の `\n` などは JSON と同じに読む */
+function frontMatterScalar(raw: string): string {
+  const v = raw.trim();
+  if (v.startsWith('"')) {
+    try {
+      const s: unknown = JSON.parse(v);
+      if (typeof s === 'string') return s;
+    } catch {
+      // 閉じていない・JSON にない逃がしは、引用符だけ外して字のまま
+    }
+    return v.replace(/^"|"$/g, '');
+  }
+  if (v.startsWith("'")) return v.replace(/^'|'$/g, '').replace(/''/g, "'");
+  // 引用符のない値は、` #` から後ろが YAML の注釈。`~` と `null` は空
+  const plain = v.replace(/\s+#.*$/, '');
+  return plain === '~' || plain === 'null' ? '' : plain;
+}
+
+/**
+ * 前付けの中身(`---` の行を除いた行)から、FRONT_MATTER_KEYS のキーを読む。
+ *
+ * 読む形は `key: 値`(引用符あり・なし)と、行をまたぐ `key: |`(下の字下げした行。著者紹介など)だけ。
+ * 箇条書き(`- 値`)や `[a, b]` は読まない(本ちゃかの欄はどれも字1つ)。同じキーが2つあれば後ろのもの(YAML と同じ)。
+ * 空の値は入れない(画面の欄が空のときに入れる初期値なので、空を入れても意味がない)
+ */
+export function readFrontMatter(lines: readonly (string | null)[]): FrontMatter {
+  const out: FrontMatter = {};
+  for (let i = 0; i < lines.length; i++) {
+    const m = /^([A-Za-z_][A-Za-z0-9_]*)[ \t]*:(?:[ \t]+(.*))?$/.exec(lines[i] ?? '');
+    if (!m) continue;
+    const key = FRONT_MATTER_KEYS[m[1]];
+    const rest = (m[2] ?? '').trim();
+    let value: string;
+    if (/^[|>][+-]?$/.test(rest)) {
+      // 行をまたぐ値: 字下げした行(と、あいだの空行)が続くかぎり。字下げは最も浅い行にそろえて外す
+      const block: string[] = [];
+      while (i + 1 < lines.length && (/^[ \t]/.test(lines[i + 1] ?? '') || !(lines[i + 1] ?? '').trim())) {
+        block.push(lines[++i] ?? '');
+      }
+      const indent = Math.min(...block.filter((l) => l.trim()).map((l) => /^[ \t]*/.exec(l)![0].length));
+      value = block.map((l) => l.slice(Number.isFinite(indent) ? indent : 0).trimEnd()).join('\n');
+    } else {
+      value = frontMatterScalar(rest);
+    }
+    if (!key) continue;
+    value = value.replace(/\r\n?/g, '\n');
+    value = key.multiline ? value.replace(/^\n+|\n+$/g, '') : value.replace(/\s*\n\s*/g, ' ').trim();
+    if (value.trim()) out[key.field] = value;
+    else delete out[key.field];
+  }
+  return out;
+}
+
 // ---- 絵 ----
 
 /**
@@ -424,6 +501,8 @@ export interface PreparedMarkdown {
   /** 段落のあいだを詰めた Google の文書(空行1つ = 1行アキ) */
   tight: boolean;
   signals?: GoogleSignals;
+  /** 前付けから読んだ書名・著者名・奥付の欄(readFrontMatter)。前付けがなければ空 */
+  meta: FrontMatter;
 }
 
 /** 中身の無い項目の行(`* `・`1. `) */
@@ -742,5 +821,6 @@ export function prepareMarkdown(source: string, notes: string[] = []): PreparedM
   if (linked) notes.push(mdImageLinkedNote(linked));
   // Google の書き出しと見分けたら、絵が無くても Word(.docx)をすすめる(絵を取り込んだときは、きめの話も同じ1つの文で)
   if (google) notes.push(gdocsMdNote(accepted));
-  return { entries, google, tight, signals };
+  const meta = fmEnd > 0 ? readFrontMatter(lines.slice(1, fmEnd)) : {};
+  return { entries, google, tight, signals, meta };
 }

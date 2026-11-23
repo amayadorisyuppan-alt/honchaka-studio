@@ -1137,17 +1137,17 @@ export const useProject = create<ProjectState>((set, get) => ({
       matchChapters(cur.chapters, parsed.chapters),
       parsed.chapters.length,
     );
-    // 書名・著者・版元は画面で編集された値を優先する
+    // 書名・著者・版元は画面で編集された値を優先する。空なら原稿のもの(.md の前付け。2026-11-23)
     set({
       settings,
       manuscript: {
         ...parsed,
-        // 奥付と著者紹介も画面のもの(原稿ファイルには無い欄。colophonOf)
+        // 奥付と著者紹介も画面のもの(colophonOf)。画面で空の欄だけ、.md の前付けの値が残る
         ...colophonOf(cur),
         chapters: carried.chapters,
         title: cur.title || parsed.title,
-        author: cur.author,
-        publisher: cur.publisher,
+        author: cur.author || parsed.author,
+        publisher: cur.publisher || parsed.publisher,
       },
     });
     scheduleSave(get());
