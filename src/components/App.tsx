@@ -1302,12 +1302,14 @@ export function App() {
       // 古い true のまま見ると、①で入れた書名をもう一度まっさらにしてしまう)
       if (useProject.getState().isSample) useProject.getState().startNewBook();
       const cur = useProject.getState().manuscript;
+      // 書名・著者名・版元は画面の値を優先し、空のときだけ原稿のもの(.md の前付け。なければ書名はファイル名)を入れる。
+      // 奥付の欄も同じ(setManuscript が colophonOf で画面の値を上に重ねる。2026-11-23)
       const fit = setManuscript(
         {
           ...ms,
-          title: cur.title || src.name,
-          author: cur.author,
-          publisher: cur.publisher,
+          title: cur.title || ms.title || src.name,
+          author: cur.author || ms.author,
+          publisher: cur.publisher || ms.publisher,
         },
         src,
       );
