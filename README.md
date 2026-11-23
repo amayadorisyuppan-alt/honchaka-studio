@@ -138,6 +138,15 @@ npm run dev     # http://localhost:5173
 npm run build   # tsc --noEmit してから dist/ に本番ビルド
 ```
 
+Node.js を手元に入れずに、Docker で開発サーバーを立てることもできる。
+
+```bash
+docker compose up -d    # http://localhost:5173
+docker compose down     # 止める
+```
+
+手元の 5173 がふさがっているときは、`env WEB_PORT=5174 docker compose up -d` のように手元側のポートを替える。
+
 ## 構成
 
 ```
